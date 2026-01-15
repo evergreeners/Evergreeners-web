@@ -76,9 +76,9 @@ export default function Goals() {
     <div className="min-h-screen bg-background custom-scrollbar">
       <Header />
 
-      <main className="container pt-24 pb-32 md:pb-12 space-y-8">
+      <main className="w-full max-w-[1600px] mx-auto px-4 pt-24 pb-32 md:px-8 md:pb-12 space-y-8">
         {/* Page Header */}
-        <section className="animate-fade-in flex items-center justify-between">
+        <section className="animate-fade-in flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gradient">Goals</h1>
             <p className="text-muted-foreground mt-1">Set targets, track progress</p>
@@ -164,7 +164,7 @@ export default function Goals() {
 
         {/* Summary Stats */}
         <Section className="animate-fade-up" style={{ animationDelay: "0.1s" }}>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-3 gap-4 md:gap-8">
             <div className="text-center p-4 rounded-xl border border-border bg-secondary/30">
               <p className="text-2xl font-bold text-gradient">{activeGoals.length}</p>
               <p className="text-xs text-muted-foreground mt-1">Active</p>
@@ -184,19 +184,19 @@ export default function Goals() {
 
         {/* Active Goals */}
         <Section title="Active Goals" className="animate-fade-up" style={{ animationDelay: "0.15s" }}>
-          <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {activeGoals.map((goal) => (
               <div
                 key={goal.id}
-                className="p-4 rounded-xl border border-border bg-secondary/30 hover:bg-secondary/50 transition-all duration-300 group"
+                className="p-4 rounded-xl border border-border bg-secondary/30 hover:bg-secondary/50 transition-all duration-300 group flex flex-col justify-between"
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center shrink-0">
                       <goal.icon className="w-5 h-5 text-primary" />
                     </div>
-                    <div>
-                      <p className="font-medium">{goal.title}</p>
+                    <div className="min-w-0">
+                      <p className="font-medium truncate">{goal.title}</p>
                       {goal.dueDate && (
                         <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                           <Clock className="w-3 h-3" /> Due: {goal.dueDate}
@@ -264,7 +264,7 @@ export default function Goals() {
               </div>
             ))}
             {activeGoals.length === 0 && (
-              <div className="text-center py-8 text-muted-foreground">
+              <div className="col-span-1 md:col-span-2 lg:col-span-3 text-center py-8 text-muted-foreground">
                 <Target className="w-12 h-12 mx-auto mb-3 opacity-50" />
                 <p>No active goals. Create one to get started!</p>
               </div>
@@ -275,7 +275,7 @@ export default function Goals() {
         {/* Completed Goals */}
         {completedGoals.length > 0 && (
           <Section title="Completed" className="animate-fade-up" style={{ animationDelay: "0.2s" }}>
-            <div className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {completedGoals.map((goal) => (
                 <div
                   key={goal.id}
@@ -283,15 +283,15 @@ export default function Goals() {
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
+                      <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0">
                         <Check className="w-4 h-4 text-primary-foreground" />
                       </div>
-                      <div>
-                        <p className="font-medium line-through">{goal.title}</p>
+                      <div className="min-w-0">
+                        <p className="font-medium line-through truncate">{goal.title}</p>
                         <p className="text-xs text-primary">Completed!</p>
                       </div>
                     </div>
-                    <Trophy className="w-5 h-5 text-primary" />
+                    <Trophy className="w-5 h-5 text-primary shrink-0" />
                   </div>
                 </div>
               ))}
@@ -301,7 +301,7 @@ export default function Goals() {
 
         {/* Goal Suggestions */}
         <Section title="Suggested Goals" className="animate-fade-up" style={{ animationDelay: "0.25s" }}>
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div className="p-4 rounded-xl border border-dashed border-border hover:border-primary/50 transition-colors cursor-pointer group"
               onClick={() => {
                 setIsAddingGoal(true);
