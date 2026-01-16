@@ -38,11 +38,11 @@
     --glass: 0 0% 100% / 0.03;
     --glass-border: 0 0% 100% / 0.08;
     --glass-blur: 20px;
-    
+
     --glow-primary: 142 71% 45% / 0.15;
     --streak-fire: 24 100% 50%;
     --streak-inactive: 0 0% 20%;
-    
+
     --text-primary: 0 0% 98%;
     --text-secondary: 0 0% 65%;
     --text-tertiary: 0 0% 45%;
@@ -91,6 +91,7 @@
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
+
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
@@ -135,6 +136,65 @@ html::-webkit-scrollbar-thumb {
   border-radius: 4px;
 }
 
-html::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--primary) / 0.5);
+
+/* Grid Backgrounds */
+.bg-grid-small {
+  background-size: 20px 20px;
+  background-image: linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+}
+
+.bg-grid {
+  background-size: 40px 40px;
+  background-image: linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+}
+
+.bg-grid-large {
+  background-size: 100px 100px;
+  background-image: linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+}
+
+/* Crosshair decorations for the grid */
+.crosshair-border {
+  position: relative;
+}
+
+.crosshair-border::before,
+.crosshair-border::after {
+  content: "";
+  position: absolute;
+  background-color: hsl(var(--foreground));
+  z-index: 10;
+}
+
+
+.bg-dot-pattern {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.bg-noise {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
+}
+
+.animate-cursor-blink {
+  animation: cursor-blink 1s step-end infinite;
+}
+
+@keyframes cursor-blink {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0;
+  }
+}
+
+.mask-gradient-b {
+  mask-image: linear-gradient(to bottom, black 50%, transparent 100%);
 }
