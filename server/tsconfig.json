@@ -8,10 +8,9 @@
         "skipLibCheck": true,
         "forceConsistentCasingInFileNames": true,
         "outDir": "./dist",
-        "rootDir": "."
+        "rootDir": "src"
     },
     "include": [
-        "src/**/*",
-        "drizzle.config.ts"
+        "src/**/*"
     ]
 }

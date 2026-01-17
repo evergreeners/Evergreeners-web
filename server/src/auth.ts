@@ -18,6 +18,10 @@ export const auth = betterAuth({
     emailAndPassword: {
         enabled: true,
     },
-    trustedOrigins: ["http://localhost:5173", "http://localhost:8080"],
+    trustedOrigins: [
+        "http://localhost:5173",
+        "http://localhost:8080",
+        ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(",") : [])
+    ],
     // Add other plugins or providers here (e.g., GitHub)
 });

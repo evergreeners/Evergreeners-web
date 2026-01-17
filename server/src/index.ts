@@ -8,8 +8,14 @@ dotenv.config();
 
 const server = fastify({ logger: true });
 
+const allowedOrigins = [
+    "http://localhost:5173",
+    "http://localhost:8080",
+    ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(",") : [])
+];
+
 server.register(cors, {
-    origin: ["http://localhost:5173", "http://localhost:8080"], // Frontend URLs
+    origin: allowedOrigins,
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "Cookie"],
@@ -25,8 +31,14 @@ server.register(async (instance) => {
 
     instance.all('/api/auth/*', async (req, reply) => {
         const origin = req.headers.origin;
+        const allowedOrigins = [
+            "http://localhost:5173",
+            "http://localhost:8080",
+            ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(",") : [])
+        ];
+
         console.log('Incoming Origin:', origin);
-        if (origin && ["http://localhost:5173", "http://localhost:8080"].includes(origin)) {
+        if (origin && allowedOrigins.includes(origin)) {
             reply.raw.setHeader("Access-Control-Allow-Origin", origin);
             reply.raw.setHeader("Access-Control-Allow-Credentials", "true");
         }
