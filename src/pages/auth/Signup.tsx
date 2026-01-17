@@ -7,13 +7,35 @@ import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Check } from "lucide-react";
 import logo from "@/assets/logo.png";
 
+import { useState } from "react";
+import { signUp } from "@/lib/auth-client";
+
 export default function Signup() {
     const navigate = useNavigate();
+    const [firstName, setFirstName] = useState("");
+    const [lastName, setLastName] = useState("");
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
 
-    const handleSignup = (e: React.FormEvent) => {
+    const handleSignup = async (e: React.FormEvent) => {
         e.preventDefault();
-        // TODO: Implement actual signup logic
-        navigate("/dashboard");
+        setLoading(true);
+        setError("");
+        await signUp.email({
+            email,
+            password,
+            name: `${firstName} ${lastName}`.trim(),
+        }, {
+            onSuccess: () => {
+                navigate("/dashboard");
+            },
+            onError: (ctx) => {
+                setError(ctx.error.message);
+                setLoading(false);
+            }
+        });
     };
 
     return (
@@ -53,6 +75,8 @@ export default function Signup() {
                                     placeholder="John"
                                     className="bg-white/5 border-white/10 focus:border-primary/50"
                                     required
+                                    value={firstName}
+                                    onChange={(e) => setFirstName(e.target.value)}
                                 />
                             </div>
                             <div className="space-y-2">
@@ -62,6 +86,8 @@ export default function Signup() {
                                     placeholder="Doe"
                                     className="bg-white/5 border-white/10 focus:border-primary/50"
                                     required
+                                    value={lastName}
+                                    onChange={(e) => setLastName(e.target.value)}
                                 />
                             </div>
                         </div>
@@ -73,6 +99,8 @@ export default function Signup() {
                                 placeholder="hello@example.com"
                                 className="bg-white/5 border-white/10 focus:border-primary/50"
                                 required
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
                             />
                         </div>
                         <div className="space-y-2">
@@ -82,14 +110,18 @@ export default function Signup() {
                                 type="password"
                                 className="bg-white/5 border-white/10 focus:border-primary/50"
                                 required
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
                             />
                             <div className="text-xs text-muted-foreground flex items-center gap-1">
                                 <Check className="w-3 h-3 text-primary" /> Must be at least 8 characters
                             </div>
                         </div>
 
-                        <Button type="submit" className="w-full bg-primary text-black font-medium hover:bg-primary/90 mt-2">
-                            Create Account
+                        {error && <p className="text-red-500 text-sm">{error}</p>}
+
+                        <Button type="submit" className="w-full bg-primary text-black font-medium hover:bg-primary/90 mt-2" disabled={loading}>
+                            {loading ? "Creating Account..." : "Create Account"}
                         </Button>
                     </form>
                 </CardContent>

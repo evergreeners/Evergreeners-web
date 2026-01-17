@@ -10,6 +10,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { signOut } from "@/lib/auth-client";
 
 interface SettingItem {
   icon: React.ElementType;
@@ -318,7 +319,11 @@ export default function Settings() {
         <Section title="Danger Zone" className="animate-fade-up" style={{ animationDelay: "0.3s" }}>
           <div className="space-y-3">
             <button
-              onClick={() => toast.success("Logged out successfully")}
+              onClick={async () => {
+                await signOut();
+                toast.success("Logged out successfully");
+                window.location.href = "/"; // Force a reload/redirect to clear state
+              }}
               className="w-full flex items-center gap-3 p-4 rounded-xl border border-border bg-secondary/30 hover:bg-secondary/50 transition-colors text-left"
             >
               <LogOut className="w-5 h-5 text-muted-foreground" />

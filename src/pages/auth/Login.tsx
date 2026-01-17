@@ -7,13 +7,34 @@ import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import logo from "@/assets/logo.png";
 
+import { useState } from "react";
+import { signIn } from "@/lib/auth-client";
+
 export default function Login() {
     const navigate = useNavigate();
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
 
-    const handleLogin = (e: React.FormEvent) => {
+    const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
-        // TODO: Implement actual login logic
-        navigate("/dashboard");
+        setLoading(true);
+        setError("");
+        await signIn.email({
+            email,
+            password
+        }, {
+            onSuccess: () => {
+                console.log("Login success");
+                navigate("/dashboard");
+            },
+            onError: (ctx) => {
+                console.error("Login error object:", ctx);
+                setError(ctx.error.message);
+                setLoading(false);
+            }
+        });
     };
 
     return (
@@ -53,6 +74,8 @@ export default function Login() {
                                 placeholder="hello@example.com"
                                 className="bg-white/5 border-white/10 focus:border-primary/50"
                                 required
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
                             />
                         </div>
                         <div className="space-y-2">
@@ -67,11 +90,15 @@ export default function Login() {
                                 type="password"
                                 className="bg-white/5 border-white/10 focus:border-primary/50"
                                 required
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
                             />
                         </div>
 
-                        <Button type="submit" className="w-full bg-primary text-black font-medium hover:bg-primary/90">
-                            Sign In
+                        {error && <p className="text-red-500 text-sm">{error}</p>}
+
+                        <Button type="submit" className="w-full bg-primary text-black font-medium hover:bg-primary/90" disabled={loading}>
+                            {loading ? "Signing in..." : "Sign In"}
                         </Button>
                     </form>
                 </CardContent>

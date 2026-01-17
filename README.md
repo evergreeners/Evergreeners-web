@@ -1,73 +1,190 @@
-# Welcome to your Lovable project
+<img width="200" height="200" alt="contribution_logo (1)" src="https://github.com/user-attachments/assets/263c80c4-998d-4be9-90f3-2aeac3ae19e8" /># 🌲 Evergreeners
 
-## Project info
+**Track your consistency. Grow your legacy.**
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+Evergreeners is a developer-focused habit and contribution tracking application — a **digital garden** where consistency compounds over time. It helps users visualize daily activity, maintain streaks, and build a lasting record of effort.
 
-## How can I edit this code?
 
-There are several ways of editing your application.
+---
 
-**Use Lovable**
+## ✨ Features
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+- **GitHub-style Contribution Graph**: Visualize daily activity using a familiar heatmap.
+- **Streak Tracking**: Track active streaks and maintain momentum over time.
+- **Dark Mode First**: Developer-friendly dark UI powered by Tailwind CSS and `lucide-react`.
+- **Authentication**: Secure email/password authentication using **Better Auth** (backend-only).
+- **Responsive Design**: Optimized for desktop and mobile devices.
+- **Backend API**: A Fastify server handling authentication, business logic, and data persistence with **Drizzle ORM** and **PostgreSQL**.
 
-Changes made via Lovable will be committed automatically to this repo.
+---
 
-**Use your preferred IDE**
+## 🧱 Architecture Overview
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+```text
+Browser (React)
+   ↓
+Fastify API (Backend)
+   ↓
+Better Auth (Sessions & Users)
+   ↓
+Drizzle ORM
+   ↓
+PostgreSQL (Supabase)
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
 ```
 
-**Edit a file directly in GitHub**
+> [!NOTE]
+> Supabase is used strictly as a managed PostgreSQL database. All authentication and application logic live in the Fastify backend.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+---
 
-**Use GitHub Codespaces**
+## 🛠️ Tech Stack
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+### Frontend
 
-## What technologies are used for this project?
+* **Framework**: React + Vite
+* **Styling**: Tailwind CSS
+* **UI Components**: shadcn/ui
+* **Icons**: Lucide React
+* **State Management**: React Hooks & Context
 
-This project is built with:
+### Backend (`/server`)
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+* **Server**: Fastify
+* **Database**: PostgreSQL (Supabase)
+* **ORM**: Drizzle ORM
+* **Authentication**: Better Auth
 
-## How can I deploy this project?
+---
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+## 🏁 Getting Started
 
-## Can I connect a custom domain to my Lovable project?
+### Prerequisites
 
-Yes, you can!
+* Node.js v18+
+* A Supabase project (PostgreSQL)
+* Git
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+### 📦 Installation
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+#### 1. Clone the Repository
+
+```bash
+git clone [https://github.com/evergreeners/Evergreeners-web.git](https://github.com/evergreeners/Evergreeners-web.git)
+cd evergreeners
+
+```
+
+#### 2. Frontend Setup
+
+```bash
+npm install
+npm run dev
+
+```
+
+The frontend will run on `http://localhost:5173`.
+
+#### 3. Backend Setup
+
+```bash
+cd server
+npm install
+
+```
+
+Create a `.env` file inside the `server` directory:
+
+```env
+PORT=3000
+
+# PostgreSQL connection (Supabase)
+DATABASE_URL="postgresql://app_user:YOUR_PASSWORD@YOUR_HOST:5432/postgres?sslmode=require"
+
+# Better Auth
+BETTER_AUTH_SECRET="your-secure-random-string"
+BETTER_AUTH_URL="http://localhost:3000"
+
+```
+
+> [!IMPORTANT]
+> **Security Notes:**
+> * Do NOT use the Supabase postgres admin user in production.
+> * Create a dedicated database role (e.g. `app_user`) with limited privileges.
+> * Never commit `.env` files to version control.
+> 
+> 
+
+#### 4. Database Migration
+
+```bash
+npm run db:generate
+npm run db:migrate
+
+```
+
+#### 5. Run the Backend
+
+```bash
+npm run dev
+
+```
+
+The backend will run on `http://localhost:3000`.
+
+---
+
+## 📂 Project Structure
+
+```text
+evergreeners/
+├── src/                 # Frontend React code
+│   ├── components/      # Reusable UI components
+│   ├── pages/           # App pages (Landing, Auth, Dashboard)
+│   ├── lib/             # Utilities (auth client, helpers)
+│   └── App.tsx
+│
+├── server/              # Backend (Fastify)
+│   ├── src/
+│   │   ├── db/          # Drizzle schema & DB connection
+│   │   ├── auth.ts      # Better Auth configuration
+│   │   └── index.ts     # Server entry point
+│   └── drizzle/         # Migration files
+│
+└── README.md
+
+```
+
+---
+
+## 🚀 Deployment
+
+* **Frontend**: Vercel
+* **Backend**: Railway, Fly.io, or Render
+* **Database**: Supabase (PostgreSQL)
+
+*Ensure production environment variables match your local `.env` configuration.*
+
+---
+
+## 🤝 Contributing
+
+1. Fork the repository.
+2. Create a feature branch: `git checkout -b feature/your-feature-name`.
+3. Commit your changes: `git commit -m "Add your feature"`.
+4. Push to your branch: `git push origin feature/your-feature-name`.
+5. Open a Pull Request.
+
+---
+
+## 📄 License
+
+This project is open-source and licensed under the **MIT License**.
+
+---
+
+## 💚 Vision
+
+Evergreeners is about showing up every day — not perfection, but persistence. Small actions, done consistently, grow into something meaningful.
+
+**Grow steadily. Stay evergreen. 🌲**

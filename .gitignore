@@ -7,10 +7,20 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+
 node_modules
 dist
 dist-ssr
 *.local
+
+# Environment Variables
+.env
+.env.*
+!.env.example
+
+# Testing
+coverage
+
 
 # Editor directories and files
 .vscode/*
@@ -22,3 +32,12 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+# Temp Scripts
+server/check-users.js
+server/delete-broken-user.js
+server/reset-db.js
+server/test-connection.js
+server/test-login.js
+server/build.log
+server/build_success.log
+server/*.log

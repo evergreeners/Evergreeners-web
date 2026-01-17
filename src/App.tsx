@@ -15,6 +15,7 @@ import Settings from "./pages/Settings";
 import Leaderboard from "./pages/Leaderboard";
 import NotFound from "./pages/NotFound";
 import ScrollToTop from "./components/ScrollToTop";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
@@ -29,13 +30,17 @@ const App = () => (
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
-          <Route path="/dashboard" element={<Index />} />
-          <Route path="/analytics" element={<Analytics />} />
-          <Route path="/streaks" element={<Streaks />} />
-          <Route path="/goals" element={<Goals />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/leaderboard" element={<Leaderboard />} />
+
+          <Route element={<ProtectedRoute />}>
+            <Route path="/dashboard" element={<Index />} />
+            <Route path="/analytics" element={<Analytics />} />
+            <Route path="/streaks" element={<Streaks />} />
+            <Route path="/goals" element={<Goals />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/leaderboard" element={<Leaderboard />} />
+          </Route>
+
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
