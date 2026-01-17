@@ -1,141 +1,190 @@
-# 🌲 Evergreeners
+<img width="200" height="200" alt="contribution_logo (1)" src="https://github.com/user-attachments/assets/263c80c4-998d-4be9-90f3-2aeac3ae19e8" /># 🌲 Evergreeners
 
 **Track your consistency. Grow your legacy.**
 
-Evergreeners is a beautiful, developer-focused habit and contribution tracking application ("Garden"). It allows users to visualize their daily activity, maintain streaks, and cultivate a digital garden of consistent effort.
+Evergreeners is a developer-focused habit and contribution tracking application — a **digital garden** where consistency compounds over time. It helps users visualize daily activity, maintain streaks, and build a lasting record of effort.
 
-![Evergreeners Banner](https://images.unsplash.com/photo-1550989460-0adf9ea622e2?q=80&w=1200&auto=format&fit=crop)
 
-## 🚀 Features
+---
 
-- **GitHub-style Contribution Graph**: visualize your daily activity in a familiar heatmap.
-- **Streak Tracking**: Keep your momentum going with streak counts and reminders.
-- **Dark Mode First**: A sleek, developer-friendly dark interface (using `lucide-react` icons).
-- **Authentication**: Secure email/password login and signup powered by **Better Auth**.
-- **Responsive Design**: Built with Tailwind CSS for a seamless experience on mobile and desktop.
-- **Backend API**: A robust Fastify server handling data persistence with **Drizzle ORM** and **Supabase**.
+## ✨ Features
+
+- **GitHub-style Contribution Graph**: Visualize daily activity using a familiar heatmap.
+- **Streak Tracking**: Track active streaks and maintain momentum over time.
+- **Dark Mode First**: Developer-friendly dark UI powered by Tailwind CSS and `lucide-react`.
+- **Authentication**: Secure email/password authentication using **Better Auth** (backend-only).
+- **Responsive Design**: Optimized for desktop and mobile devices.
+- **Backend API**: A Fastify server handling authentication, business logic, and data persistence with **Drizzle ORM** and **PostgreSQL**.
+
+---
+
+## 🧱 Architecture Overview
+
+```text
+Browser (React)
+   ↓
+Fastify API (Backend)
+   ↓
+Better Auth (Sessions & Users)
+   ↓
+Drizzle ORM
+   ↓
+PostgreSQL (Supabase)
+
+```
+
+> [!NOTE]
+> Supabase is used strictly as a managed PostgreSQL database. All authentication and application logic live in the Fastify backend.
+
+---
 
 ## 🛠️ Tech Stack
 
 ### Frontend
-- **Framework**: [React](https://react.dev/) + [Vite](https://vitejs.dev/)
-- **Styling**: [Tailwind CSS](https://tailwindcss.com/)
-- **UI Components**: [shadcn/ui](https://ui.shadcn.com/)
-- **Icons**: [Lucide React](https://lucide.dev/)
-- **State Management**: React Hooks & Context
+
+* **Framework**: React + Vite
+* **Styling**: Tailwind CSS
+* **UI Components**: shadcn/ui
+* **Icons**: Lucide React
+* **State Management**: React Hooks & Context
 
 ### Backend (`/server`)
-- **Server**: [Fastify](https://fastify.dev/)
-- **Database**: [PostgreSQL](https://www.postgresql.org/) (via [Supabase](https://supabase.com/))
-- **ORM**: [Drizzle ORM](https://orm.drizzle.team/)
-- **Authentication**: [Better Auth](https://www.better-auth.com/)
+
+* **Server**: Fastify
+* **Database**: PostgreSQL (Supabase)
+* **ORM**: Drizzle ORM
+* **Authentication**: Better Auth
 
 ---
 
 ## 🏁 Getting Started
 
-Follow these steps to set up the project locally.
-
 ### Prerequisites
-- Node.js (v18+)
-- A Supabase project (for the PostgreSQL database)
 
-### 1. Clone the Repository
+* Node.js v18+
+* A Supabase project (PostgreSQL)
+* Git
+
+### 📦 Installation
+
+#### 1. Clone the Repository
+
 ```bash
-git clone https://github.com/evergreeners/Evergreeners-web.git
+git clone [https://github.com/evergreeners/Evergreeners-web.git](https://github.com/evergreeners/Evergreeners-web.git)
 cd evergreeners
+
 ```
 
-### 2. Frontend Setup
-Install dependencies and configure the environment.
+#### 2. Frontend Setup
 
 ```bash
-# Install dependencies
 npm install
+npm run dev
 
-# Create .env.local file (if needed, mostly for future features)
-# cp .env.example .env.local 
 ```
 
-### 3. Backend Setup
-Navigate to the server directory and set up the backend.
+The frontend will run on `http://localhost:5173`.
+
+#### 3. Backend Setup
 
 ```bash
 cd server
 npm install
+
 ```
 
-Create a `.env` file in the `server` directory with your Supabase credentials:
+Create a `.env` file inside the `server` directory:
 
-```bash
-# server/.env
-DATABASE_URL="postgresql://postgres:[PASSWORD]@[HOST]:[PORT]/postgres"
+```env
 PORT=3000
-BETTER_AUTH_SECRET="your-generated-secret-key"
+
+# PostgreSQL connection (Supabase)
+DATABASE_URL="postgresql://app_user:YOUR_PASSWORD@YOUR_HOST:5432/postgres?sslmode=require"
+
+# Better Auth
+BETTER_AUTH_SECRET="your-secure-random-string"
 BETTER_AUTH_URL="http://localhost:3000"
-```
-> **Note**: If using Supabase Transaction Pooler (port 6543), ensure your `DATABASE_URL` is correct. The Drizzle setup is optimized for this (`prepare: false`).
 
-### 4. Database Migration
-Push the schema to your Supabase database.
+```
+
+> [!IMPORTANT]
+> **Security Notes:**
+> * Do NOT use the Supabase postgres admin user in production.
+> * Create a dedicated database role (e.g. `app_user`) with limited privileges.
+> * Never commit `.env` files to version control.
+> 
+> 
+
+#### 4. Database Migration
 
 ```bash
-# Inside the /server directory
+npm run db:generate
 npm run db:migrate
+
 ```
 
-### 5. Running the Application
+#### 5. Run the Backend
 
-You need to run both the backend and frontend terminals.
-
-**Terminal 1 (Backend):**
 ```bash
-cd server
 npm run dev
-```
-> Server runs on `http://localhost:3000`
 
-**Terminal 2 (Frontend):**
-```bash
-# Root directory
-npm run dev
 ```
-> Frontend runs on `http://localhost:8080` (or 5173)
+
+The backend will run on `http://localhost:3000`.
 
 ---
 
-## 🎨 Project Structure
+## 📂 Project Structure
+
+```text
+evergreeners/
+├── src/                 # Frontend React code
+│   ├── components/      # Reusable UI components
+│   ├── pages/           # App pages (Landing, Auth, Dashboard)
+│   ├── lib/             # Utilities (auth client, helpers)
+│   └── App.tsx
+│
+├── server/              # Backend (Fastify)
+│   ├── src/
+│   │   ├── db/          # Drizzle schema & DB connection
+│   │   ├── auth.ts      # Better Auth configuration
+│   │   └── index.ts     # Server entry point
+│   └── drizzle/         # Migration files
+│
+└── README.md
 
 ```
-evergreeners-main/
-├── src/                # Frontend React Code
-│   ├── components/     # Reusable UI components (Header, FloatingNav, etc.)
-│   ├── pages/          # Page views (Landing, Dashboard, Auth, Settings)
-│   ├── lib/            # Utilities (auth-client, cn helper)
-│   └── App.tsx         # Main App entry point
-├── server/             # Backend Node/Fastify Code
-│   ├── src/
-│   │   ├── db/         # Drizzle Schema & Connection
-│   │   ├── auth.ts     # Better Auth Configuration
-│   │   └── index.ts    # Fastify Server Entry
-│   └── drizzle/        # Migration files
-└── ...config files
-```
+
+---
+
+## 🚀 Deployment
+
+* **Frontend**: Vercel
+* **Backend**: Railway, Fly.io, or Render
+* **Database**: Supabase (PostgreSQL)
+
+*Ensure production environment variables match your local `.env` configuration.*
+
+---
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the project
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-## 📄 License
-
-This project is open-source and available under the MIT License.
+1. Fork the repository.
+2. Create a feature branch: `git checkout -b feature/your-feature-name`.
+3. Commit your changes: `git commit -m "Add your feature"`.
+4. Push to your branch: `git push origin feature/your-feature-name`.
+5. Open a Pull Request.
 
 ---
 
-Made with 💚 by **Evergreeners**.
+## 📄 License
+
+This project is open-source and licensed under the **MIT License**.
+
+---
+
+## 💚 Vision
+
+Evergreeners is about showing up every day — not perfection, but persistence. Small actions, done consistently, grow into something meaningful.
+
+**Grow steadily. Stay evergreen. 🌲**
