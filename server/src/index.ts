@@ -1,6 +1,7 @@
+import './env.js';
 import fastify from 'fastify';
 import cors from '@fastify/cors';
-import * as dotenv from 'dotenv';
+// dotenv is loaded first via ./env.js
 import { auth } from './auth.js';
 import { toNodeHandler } from 'better-auth/node';
 // import oauthPlugin from '@fastify/oauth2';
@@ -9,8 +10,6 @@ import { Octokit } from 'octokit';
 import { db } from './db/index.js';
 import * as schema from './db/schema.js';
 import { eq, and } from 'drizzle-orm';
-
-dotenv.config();
 
 const server = fastify({
     logger: true,

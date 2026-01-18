@@ -3,7 +3,7 @@ import postgres from 'postgres';
 import * as schema from './schema.js';
 import * as dotenv from 'dotenv';
 
-dotenv.config();
+// dotenv config is handled in index.ts/env.ts
 
 if (!process.env.DATABASE_URL) {
     throw new Error('DATABASE_URL is missing');
