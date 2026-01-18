@@ -34,22 +34,51 @@ const stats = [
   { label: "Best Rank", value: "#24", icon: Trophy },
 ];
 
+import { useSession, signIn } from "@/lib/auth-client";
+import { useEffect } from "react";
+
 export default function Profile() {
+  /* Hook and State Setup */
   const navigate = useNavigate();
+  const { data: session, isPending } = useSession();
+
   const [isPublic, setIsPublic] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [copied, setCopied] = useState(false);
+
   const [profile, setProfile] = useState({
-    name: "Alex Developer",
-    username: "alexdev",
-    bio: "Full-stack developer passionate about open source and building tools.",
-    location: "San Francisco, CA",
-    website: "https://alexdev.io",
-    joinDate: "Joined March 2024",
+    name: "Loading...",
+    username: "...",
+    bio: "",
+    location: "Earth",
+    website: "",
+    joinDate: "Joined recently",
+    image: "",
+    anonymousName: ""
   });
   const [editedProfile, setEditedProfile] = useState(profile);
 
-  const publicUrl = `evergreeners.dev/${profile.username}`;
+  /* Effect: Load session data into state */
+  useEffect(() => {
+    if (session?.user) {
+      const user = session.user as any;
+      const newProfile = {
+        name: user.name || "Tree Planter",
+        username: user.username || (user.email ? user.email.split('@')[0] : "user"),
+        bio: user.bio || "No bio yet.",
+        location: user.location || "Earth",
+        website: user.website || "",
+        joinDate: "Joined " + new Date(user.createdAt || Date.now()).toLocaleDateString(),
+        image: user.image || "",
+        anonymousName: user.anonymousName || ""
+      };
+      setIsPublic(user.isPublic !== false); // Default to true if undefined
+      setProfile(newProfile);
+      setEditedProfile(newProfile);
+    }
+  }, [session]);
+
+  const publicUrl = `evergreeners.dev/${isPublic ? profile.username : profile.anonymousName || 'anonymous'}`;
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(`https://${publicUrl}`);
@@ -58,10 +87,68 @@ export default function Profile() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleSaveProfile = () => {
-    setProfile(editedProfile);
-    setIsEditing(false);
-    toast.success("Profile updated!");
+  /* Save Profile Function */
+  const handleSaveProfile = async () => {
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/user/profile`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include", // Important for sending cookies!
+        body: JSON.stringify({
+          ...editedProfile,
+          isPublic // send current public state too, though separate toggle exists
+        })
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || "Failed to update profile");
+      }
+
+      setProfile(editedProfile);
+      setIsEditing(false);
+      toast.success("Profile updated!");
+      // Force reload or re-fetch session to get latest data if needed, 
+      // but local state update is instant for UX.
+      // window.location.reload(); 
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  };
+
+  /* Toggle Public/Private Function */
+  const handleTogglePublic = async () => {
+    const newStatus = !isPublic;
+    // Optimistic update
+    setIsPublic(newStatus);
+
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/user/profile`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include", // Important for sending cookies!
+        body: JSON.stringify({
+          isPublic: newStatus
+        })
+      });
+
+      const data = await res.json();
+      if (data.anonymousName) {
+        setProfile(prev => ({ ...prev, anonymousName: data.anonymousName }));
+      }
+
+      toast.success(newStatus ? "Profile is now public" : "Profile is now private");
+    } catch (e) {
+      setIsPublic(!newStatus); // Revert
+      toast.error("Failed to update visibility");
+    }
+  };
+
+  const handleConnectGithub = async () => {
+    await signIn.social({
+      provider: "github",
+      callbackURL: `${window.location.origin}/dashboard`
+    });
   };
 
   return (
@@ -76,7 +163,7 @@ export default function Profile() {
             <div className="relative group">
               <div className="w-24 h-24 rounded-2xl bg-secondary border border-border overflow-hidden">
                 <img
-                  src="https://avatars.githubusercontent.com/u/1?v=4"
+                  src={profile.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name)}&background=random`}
                   alt={profile.name}
                   className="w-full h-full object-cover"
                 />
@@ -94,7 +181,7 @@ export default function Profile() {
               <div className="flex items-start justify-between">
                 <div>
                   <h1 className="text-2xl font-bold">{profile.name}</h1>
-                  <p className="text-muted-foreground">@{profile.username}</p>
+                  <p className="text-muted-foreground">{isPublic ? `@${profile.username}` : `(Private • Playing as ${profile.anonymousName || "..."})`}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <Dialog open={isEditing} onOpenChange={setIsEditing}>
@@ -116,6 +203,44 @@ export default function Profile() {
                             onChange={(e) => setEditedProfile({ ...editedProfile, name: e.target.value })}
                             className="w-full mt-2 p-3 rounded-xl bg-secondary border border-border focus:border-primary focus:outline-none transition-colors"
                           />
+                        </div>
+                        <div>
+                          <label className="text-sm text-muted-foreground">Username</label>
+                          <input
+                            type="text"
+                            value={editedProfile.username}
+                            onChange={(e) => setEditedProfile({ ...editedProfile, username: e.target.value })}
+                            className="w-full mt-2 p-3 rounded-xl bg-secondary border border-border focus:border-primary focus:outline-none transition-colors"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm text-muted-foreground">Profile Picture (Max 1MB)</label>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+
+                              if (file.size > 1024 * 1024) {
+                                toast.error("Image size must be less than 1MB");
+                                e.target.value = ""; // Reset input
+                                return;
+                              }
+
+                              const reader = new FileReader();
+                              reader.onloadend = () => {
+                                setEditedProfile({ ...editedProfile, image: reader.result as string });
+                              };
+                              reader.readAsDataURL(file);
+                            }}
+                            className="w-full mt-2 p-3 rounded-xl bg-secondary border border-border focus:border-primary focus:outline-none transition-colors file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
+                          />
+                          {editedProfile.image && editedProfile.image.startsWith("data:") && (
+                            <div className="mt-2 text-xs text-muted-foreground">
+                              Image selected (Preview above when saved)
+                            </div>
+                          )}
                         </div>
                         <div>
                           <label className="text-sm text-muted-foreground">Bio</label>
@@ -167,9 +292,11 @@ export default function Profile() {
                 <span className="flex items-center gap-1">
                   <MapPin className="w-4 h-4" /> {profile.location}
                 </span>
-                <a href={profile.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-primary transition-colors">
-                  <LinkIcon className="w-4 h-4" /> {profile.website.replace("https://", "")}
-                </a>
+                {profile.website && (
+                  <a href={profile.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-primary transition-colors">
+                    <LinkIcon className="w-4 h-4" /> {profile.website.replace("https://", "").replace("http://", "")}
+                  </a>
+                )}
                 <span className="flex items-center gap-1">
                   <Calendar className="w-4 h-4" /> {profile.joinDate}
                 </span>
@@ -200,17 +327,14 @@ export default function Profile() {
             <div className="flex items-center gap-3">
               {isPublic ? <Eye className="w-5 h-5 text-primary" /> : <EyeOff className="w-5 h-5 text-muted-foreground" />}
               <div>
-                <p className="font-medium">Public Profile</p>
+                <p className="font-medium">{isPublic ? "Public Profile" : "Private Profile"}</p>
                 <p className="text-sm text-muted-foreground">
-                  {isPublic ? `Visible at ${publicUrl}` : "Only you can see your profile"}
+                  {isPublic ? "Others can see your progress" : `You appear as "${profile.anonymousName || '...'}" on leaderboards`}
                 </p>
               </div>
             </div>
             <button
-              onClick={() => {
-                setIsPublic(!isPublic);
-                toast.success(isPublic ? "Profile is now private" : "Profile is now public");
-              }}
+              onClick={handleTogglePublic}
               className={cn(
                 "w-12 h-6 rounded-full p-1 transition-colors duration-300",
                 isPublic ? "bg-primary" : "bg-secondary"
@@ -226,22 +350,30 @@ export default function Profile() {
 
         {/* GitHub Connection */}
         <Section className="animate-fade-up" style={{ animationDelay: "0.2s" }}>
-          <div className="flex items-center justify-between p-4 rounded-xl border border-primary/30 bg-primary/10">
+          <div className={`flex items-center justify-between p-4 rounded-xl border ${profile.image?.includes("github") ? "border-primary/30 bg-primary/10" : "border-zinc-800 bg-zinc-900/50"}`}>
             <div className="flex items-center gap-3">
-              <Github className="w-6 h-6 text-primary" />
+              <Github className={`w-6 h-6 ${profile.image?.includes("github") ? "text-primary" : "text-zinc-400"}`} />
               <div>
-                <p className="font-medium">GitHub Connected</p>
-                <p className="text-sm text-muted-foreground">@{profile.username}</p>
+                <p className="font-medium">{profile.image?.includes("github") ? "GitHub Connected" : "Connect GitHub"}</p>
+                <p className="text-sm text-muted-foreground">
+                  {profile.image?.includes("github") ? `@${profile.username}` : "Link your account to track contributions"}
+                </p>
               </div>
             </div>
-            <a
-              href={`https://github.com/${profile.username}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-2 rounded-xl hover:bg-primary/20 transition-colors"
-            >
-              <ExternalLink className="w-4 h-4 text-primary" />
-            </a>
+            {profile.image?.includes("github") ? (
+              <a
+                href={`https://github.com/${profile.username}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-2 rounded-xl hover:bg-primary/20 transition-colors"
+              >
+                <ExternalLink className="w-4 h-4 text-primary" />
+              </a>
+            ) : (
+              <Button variant="outline" size="sm" onClick={handleConnectGithub}>
+                Connect
+              </Button>
+            )}
           </div>
         </Section>
 
@@ -255,10 +387,10 @@ export default function Profile() {
                 <div
                   key={level}
                   className={`w-3 h-3 rounded-sm ${level === 0 ? "bg-secondary" :
-                      level === 1 ? "bg-primary/25" :
-                        level === 2 ? "bg-primary/50" :
-                          level === 3 ? "bg-primary/75" :
-                            "bg-primary"
+                    level === 1 ? "bg-primary/25" :
+                      level === 2 ? "bg-primary/50" :
+                        level === 3 ? "bg-primary/75" :
+                          "bg-primary"
                     }`}
                 />
               ))}

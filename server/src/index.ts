@@ -6,9 +6,14 @@ import { toNodeHandler } from 'better-auth/node';
 
 dotenv.config();
 
+import { db } from "./db/index.js";
+import { users } from "./db/schema.js";
+import { eq } from "drizzle-orm";
+
 const server = fastify({
     logger: true,
-    trustProxy: true
+    trustProxy: true,
+    bodyLimit: 5 * 1024 * 1024 // 5MB limit for Base64 image uploads
 });
 
 
@@ -33,6 +38,8 @@ server.register(async (instance) => {
         done(null);
     });
 
+    // Imports removed (moved to top)
+
     instance.all('/api/auth/*', async (req, reply) => {
         const origin = req.headers.origin;
         const allowedOrigins = [
@@ -52,6 +59,62 @@ server.register(async (instance) => {
 
         return toNodeHandler(auth)(req.raw, reply.raw);
     });
+
+});
+
+server.put('/api/user/profile', async (req, reply) => {
+    try {
+        const session = await auth.api.getSession({
+            headers: req.headers as any
+        });
+
+        if (!session) {
+            reply.code(401).send({ message: "Unauthorized" });
+            return;
+        }
+
+        const body = req.body as any;
+        if (!body) {
+            reply.code(400).send({ message: "Missing body" });
+            return;
+        }
+
+        const { name, username, bio, location, website, isPublic, image } = body;
+
+        // Check username uniqueness if changing
+        if (username) {
+            const existing = await db.select().from(users).where(eq(users.username, username)).limit(1);
+            if (existing.length > 0 && existing[0].id !== session.user.id) {
+                reply.code(409).send({ message: "Username already taken" });
+                return;
+            }
+        }
+
+        // Logic for Anonymous Name
+        let anonymousName = (session.user as any).anonymousName;
+        if (isPublic === false && !anonymousName) {
+            const animals = ["Axolotl", "Bear", "Cat", "Dog", "Elephant", "Fox", "Giraffe", "Hedgehog", "Iguana", "Jaguar", "Koala", "Lion", "Monkey", "Narwhal", "Octopus", "Penguin", "Quokka", "Rabbit", "Squirrel", "Tiger", "Unicorn", "Wolf", "Zebra"];
+            const adjectives = ["Anonymous", "Brave", "Calm", "Daring", "Eager", "Fantastic", "Gentle", "Happy", "Jolly", "Kind", "Lucky", "Mighty", "Neon", "Quiet", "Royal", "Super", "Tiny", "Violet", "Wild", "Yellow", "Zealous"];
+            anonymousName = `${adjectives[Math.floor(Math.random() * adjectives.length)]} ${animals[Math.floor(Math.random() * animals.length)]}`;
+        }
+
+        await db.update(users).set({
+            name,
+            username,
+            bio,
+            location,
+            website,
+            isPublic,
+            anonymousName,
+            image,
+            updatedAt: new Date()
+        }).where(eq(users.id, session.user.id));
+
+        return { success: true, anonymousName };
+    } catch (error: any) {
+        console.error("Profile update error:", error);
+        reply.code(500).send({ message: "Internal server error", error: error.message });
+    }
 });
 
 server.get('/', async (request, reply) => {
