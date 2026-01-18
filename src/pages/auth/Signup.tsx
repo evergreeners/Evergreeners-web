@@ -46,7 +46,7 @@ export default function Signup() {
     const handleGithubLogin = async () => {
         await signIn.social({
             provider: "github",
-            callbackURL: "/dashboard"
+            callbackURL: `${window.location.origin}/dashboard`
         });
     };
 

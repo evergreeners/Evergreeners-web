@@ -43,7 +43,7 @@ export default function Login() {
     const handleGithubLogin = async () => {
         await signIn.social({
             provider: "github",
-            callbackURL: "/dashboard" // or where you want to redirect
+            callbackURL: `${window.location.origin}/dashboard`
         });
     };
 
