@@ -45,6 +45,7 @@ export default function Profile() {
   const [isPublic, setIsPublic] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isGithubConnected, setIsGithubConnected] = useState(false); // New state
 
   const [profile, setProfile] = useState({
     name: "Loading...",
@@ -60,22 +61,59 @@ export default function Profile() {
 
   /* Effect: Load session data into state */
   useEffect(() => {
-    if (session?.user) {
-      const user = session.user as any;
-      const newProfile = {
-        name: user.name || "Tree Planter",
-        username: user.username || (user.email ? user.email.split('@')[0] : "user"),
-        bio: user.bio || "No bio yet.",
-        location: user.location || "Earth",
-        website: user.website || "",
-        joinDate: "Joined " + new Date(user.createdAt || Date.now()).toLocaleDateString(),
-        image: user.image || "",
-        anonymousName: user.anonymousName || ""
-      };
-      setIsPublic(user.isPublic !== false); // Default to true if undefined
-      setProfile(newProfile);
-      setEditedProfile(newProfile);
-    }
+    const fetchProfileData = async () => {
+      if (session?.user) {
+        // Initial hydrate from session (fast)
+        const user = session.user as any;
+        setProfile(prev => ({
+          ...prev,
+          name: user.name || "Tree Planter",
+          username: user.username || (user.email ? user.email.split('@')[0] : "user"),
+          bio: user.bio || "No bio yet.",
+          location: user.location || "Earth",
+          website: user.website || "",
+          joinDate: "Joined " + new Date(user.createdAt || Date.now()).toLocaleDateString(),
+          image: user.image || "",
+          anonymousName: user.anonymousName || ""
+        }));
+        setIsPublic(user.isPublic !== false);
+
+        // Fetch absolute latest + connected accounts from API
+        try {
+          const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/user/profile`, {
+            credentials: "include"
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setIsGithubConnected(data.isGithubConnected);
+
+            // Update profile with potentially newer data from DB
+            if (data.user) {
+              const dbUser = data.user;
+              const freshProfile = {
+                name: dbUser.name || "Tree Planter",
+                username: dbUser.username || (dbUser.email ? dbUser.email.split('@')[0] : "user"),
+                bio: dbUser.bio || "No bio yet.",
+                location: dbUser.location || "Earth",
+                website: dbUser.website || "",
+                joinDate: "Joined " + new Date(dbUser.createdAt || Date.now()).toLocaleDateString(),
+                image: dbUser.image || "",
+                anonymousName: dbUser.anonymousName || ""
+              };
+              setProfile(freshProfile);
+              setEditedProfile(freshProfile);
+              // Update isPublic from DB
+              if (typeof dbUser.isPublic !== 'undefined') {
+                setIsPublic(dbUser.isPublic);
+              }
+            }
+          }
+        } catch (error) {
+          console.error("Failed to fetch specific profile data", error);
+        }
+      }
+    };
+    fetchProfileData();
   }, [session]);
 
   const publicUrl = `evergreeners.dev/${isPublic ? profile.username : profile.anonymousName || 'anonymous'}`;
@@ -350,22 +388,23 @@ export default function Profile() {
 
         {/* GitHub Connection */}
         <Section className="animate-fade-up" style={{ animationDelay: "0.2s" }}>
-          <div className={`flex items-center justify-between p-4 rounded-xl border ${profile.image?.includes("github") ? "border-primary/30 bg-primary/10" : "border-zinc-800 bg-zinc-900/50"}`}>
+          <div className={`flex items-center justify-between p-4 rounded-xl border ${isGithubConnected ? "border-primary/30 bg-primary/10" : "border-zinc-800 bg-zinc-900/50"}`}>
             <div className="flex items-center gap-3">
-              <Github className={`w-6 h-6 ${profile.image?.includes("github") ? "text-primary" : "text-zinc-400"}`} />
+              <Github className={`w-6 h-6 ${isGithubConnected ? "text-primary" : "text-zinc-400"}`} />
               <div>
-                <p className="font-medium">{profile.image?.includes("github") ? "GitHub Connected" : "Connect GitHub"}</p>
+                <p className="font-medium">{isGithubConnected ? "GitHub Connected" : "Connect GitHub"}</p>
                 <p className="text-sm text-muted-foreground">
-                  {profile.image?.includes("github") ? `@${profile.username}` : "Link your account to track contributions"}
+                  {isGithubConnected ? `@${profile.username}` : "Link your account to track contributions"}
                 </p>
               </div>
             </div>
-            {profile.image?.includes("github") ? (
+            {isGithubConnected ? (
               <a
                 href={`https://github.com/${profile.username}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="p-2 rounded-xl hover:bg-primary/20 transition-colors"
+                title="View GitHub Profile"
               >
                 <ExternalLink className="w-4 h-4 text-primary" />
               </a>

@@ -7,8 +7,8 @@ import { toNodeHandler } from 'better-auth/node';
 dotenv.config();
 
 import { db } from "./db/index.js";
-import { users } from "./db/schema.js";
-import { eq } from "drizzle-orm";
+import { users, accounts } from "./db/schema.js";
+import { eq, and } from "drizzle-orm";
 
 const server = fastify({
     logger: true,
@@ -113,6 +113,34 @@ server.put('/api/user/profile', async (req, reply) => {
         return { success: true, anonymousName };
     } catch (error: any) {
         console.error("Profile update error:", error);
+        reply.code(500).send({ message: "Internal server error", error: error.message });
+    }
+});
+
+server.get('/api/user/profile', async (req, reply) => {
+    try {
+        const session = await auth.api.getSession({
+            headers: req.headers as any
+        });
+
+        if (!session) {
+            reply.code(401).send({ message: "Unauthorized" });
+            return;
+        }
+
+        const linkedAccounts = await db.select().from(accounts).where(and(
+            eq(accounts.userId, session.user.id),
+            eq(accounts.providerId, "github")
+        ));
+
+        const isGithubConnected = linkedAccounts.length > 0;
+
+        return {
+            user: session.user,
+            isGithubConnected
+        };
+    } catch (error: any) {
+        console.error("Profile fetch error:", error);
         reply.code(500).send({ message: "Internal server error", error: error.message });
     }
 });

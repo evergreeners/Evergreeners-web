@@ -10,18 +10,10 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { signOut } from "@/lib/auth-client";
+import { signOut, useSession } from "@/lib/auth-client";
+import { useEffect } from "react";
 
-interface SettingItem {
-  icon: React.ElementType;
-  title: string;
-  description?: string;
-  value?: string;
-  action?: () => void;
-  toggle?: boolean;
-  toggleValue?: boolean;
-  danger?: boolean;
-}
+// ... (existing helper function/interface code)
 
 export default function Settings() {
   const [timezone, setTimezone] = useState("America/Los_Angeles");
@@ -31,6 +23,33 @@ export default function Settings() {
   const [darkMode, setDarkMode] = useState(true);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
+
+  const [isGithubConnected, setIsGithubConnected] = useState(false);
+  const [githubUsername, setGithubUsername] = useState("");
+  const [showDisconnectInfo, setShowDisconnectInfo] = useState(false);
+
+  const { data: session } = useSession();
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/user/profile`, {
+          credentials: "include"
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setIsGithubConnected(data.isGithubConnected);
+          if (data.user) {
+            setGithubUsername(data.user.username);
+            if (typeof data.user.isPublic !== 'undefined') setPublicProfile(data.user.isPublic);
+          }
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    fetchSettings();
+  }, [session]);
 
   const timezones = [
     "America/Los_Angeles",
@@ -64,8 +83,9 @@ export default function Settings() {
     );
   };
 
-  const handleDisconnectGithub = () => {
-    toast.success("GitHub disconnected");
+  // Replaced disconnect logic with info dialog toggle
+  const handleDisconnectClick = () => {
+    setShowDisconnectInfo(true);
   };
 
   const handleDeleteAccount = () => {
@@ -86,288 +106,305 @@ export default function Settings() {
           <p className="text-muted-foreground mt-1">Manage your preferences</p>
         </section>
 
-        {/* Account Section */}
-        <Section title="Account" className="animate-fade-up" style={{ animationDelay: "0.1s" }}>
-          <div className="space-y-1 rounded-xl border border-border overflow-hidden">
-            {/* GitHub Connection */}
-            <div className="flex items-center justify-between p-4 bg-secondary/30 hover:bg-secondary/50 transition-colors">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
-                  <Github className="w-5 h-5 text-primary" />
-                </div>
-                <div>
-                  <p className="font-medium">GitHub Connected</p>
-                  <p className="text-sm text-muted-foreground">@alexdev</p>
-                </div>
-              </div>
-              <button
-                onClick={handleDisconnectGithub}
-                className="text-sm text-destructive hover:underline"
-              >
-                Disconnect
-              </button>
-            </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-            {/* Refresh Data */}
-            <button
-              onClick={handleRefreshData}
-              className="w-full flex items-center justify-between p-4 bg-secondary/30 hover:bg-secondary/50 transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center">
-                  <RefreshCw className="w-5 h-5 text-muted-foreground" />
-                </div>
-                <div className="text-left">
-                  <p className="font-medium">Refresh Data</p>
-                  <p className="text-sm text-muted-foreground">Sync with GitHub</p>
-                </div>
-              </div>
-              <ChevronRight className="w-5 h-5 text-muted-foreground" />
-            </button>
+          {/* Left Column */}
+          <div className="space-y-6">
+            {/* Account Section */}
+            <Section title="Account" className="animate-fade-up" style={{ animationDelay: "0.1s" }}>
+              <div className="space-y-1 rounded-xl border border-border overflow-hidden">
 
-            {/* Export Data */}
-            <button
-              onClick={handleExportData}
-              className="w-full flex items-center justify-between p-4 bg-secondary/30 hover:bg-secondary/50 transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center">
-                  <Download className="w-5 h-5 text-muted-foreground" />
-                </div>
-                <div className="text-left">
-                  <p className="font-medium">Export Data</p>
-                  <p className="text-sm text-muted-foreground">Download your data</p>
-                </div>
-              </div>
-              <ChevronRight className="w-5 h-5 text-muted-foreground" />
-            </button>
-          </div>
-        </Section>
-
-        {/* Preferences Section */}
-        <Section title="Preferences" className="animate-fade-up" style={{ animationDelay: "0.15s" }}>
-          <div className="space-y-1 rounded-xl border border-border overflow-hidden">
-            {/* Timezone */}
-            <div className="flex items-center justify-between p-4 bg-secondary/30">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center">
-                  <Clock className="w-5 h-5 text-muted-foreground" />
-                </div>
-                <div>
-                  <p className="font-medium">Timezone</p>
-                  <p className="text-sm text-muted-foreground">For accurate streak tracking</p>
-                </div>
-              </div>
-              <select
-                value={timezone}
-                onChange={(e) => {
-                  setTimezone(e.target.value);
-                  toast.success(`Timezone updated to ${e.target.value.split('/')[1]}`);
-                }}
-                className="bg-secondary border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary transition-colors"
-              >
-                {timezones.map((tz) => (
-                  <option key={tz} value={tz}>{tz.replace("_", " ")}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Dark Mode */}
-            <div className="flex items-center justify-between p-4 bg-secondary/30">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center">
-                  <Moon className="w-5 h-5 text-muted-foreground" />
-                </div>
-                <div>
-                  <p className="font-medium">Dark Mode</p>
-                  <p className="text-sm text-muted-foreground">Always on (we love dark mode)</p>
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  setDarkMode(!darkMode);
-                  toast.success("Dark mode is the only way!");
-                }}
-                className={cn(
-                  "w-12 h-6 rounded-full p-1 transition-colors duration-300",
-                  darkMode ? "bg-primary" : "bg-muted"
-                )}
-              >
-                <div className={cn(
-                  "w-4 h-4 rounded-full bg-white transition-transform duration-300",
-                  darkMode ? "translate-x-6" : "translate-x-0"
-                )} />
-              </button>
-            </div>
-          </div>
-        </Section>
-
-        {/* Notifications Section */}
-        <Section title="Notifications" className="animate-fade-up" style={{ animationDelay: "0.2s" }}>
-          <div className="space-y-1 rounded-xl border border-border overflow-hidden">
-            {/* Push Notifications */}
-            <div className="flex items-center justify-between p-4 bg-secondary/30">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center">
-                  <Bell className="w-5 h-5 text-muted-foreground" />
-                </div>
-                <div>
-                  <p className="font-medium">Push Notifications</p>
-                  <p className="text-sm text-muted-foreground">Streak reminders & updates</p>
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  setNotifications(!notifications);
-                  toast.success(notifications ? "Notifications disabled" : "Notifications enabled");
-                }}
-                className={cn(
-                  "w-12 h-6 rounded-full p-1 transition-colors duration-300",
-                  notifications ? "bg-primary" : "bg-muted"
-                )}
-              >
-                <div className={cn(
-                  "w-4 h-4 rounded-full bg-white transition-transform duration-300",
-                  notifications ? "translate-x-6" : "translate-x-0"
-                )} />
-              </button>
-            </div>
-
-            {/* Email Digest */}
-            <div className="flex items-center justify-between p-4 bg-secondary/30">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center">
-                  <Globe className="w-5 h-5 text-muted-foreground" />
-                </div>
-                <div>
-                  <p className="font-medium">Weekly Digest</p>
-                  <p className="text-sm text-muted-foreground">Weekly email summary</p>
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  setEmailDigest(!emailDigest);
-                  toast.success(emailDigest ? "Weekly digest disabled" : "Weekly digest enabled");
-                }}
-                className={cn(
-                  "w-12 h-6 rounded-full p-1 transition-colors duration-300",
-                  emailDigest ? "bg-primary" : "bg-muted"
-                )}
-              >
-                <div className={cn(
-                  "w-4 h-4 rounded-full bg-white transition-transform duration-300",
-                  emailDigest ? "translate-x-6" : "translate-x-0"
-                )} />
-              </button>
-            </div>
-          </div>
-        </Section>
-
-        {/* Privacy Section */}
-        <Section title="Privacy" className="animate-fade-up" style={{ animationDelay: "0.25s" }}>
-          <div className="space-y-1 rounded-xl border border-border overflow-hidden">
-            {/* Public Profile */}
-            <div className="flex items-center justify-between p-4 bg-secondary/30">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center">
-                  <Eye className="w-5 h-5 text-muted-foreground" />
-                </div>
-                <div>
-                  <p className="font-medium">Public Profile</p>
-                  <p className="text-sm text-muted-foreground">Allow others to see your profile</p>
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  setPublicProfile(!publicProfile);
-                  toast.success(publicProfile ? "Profile is now private" : "Profile is now public");
-                }}
-                className={cn(
-                  "w-12 h-6 rounded-full p-1 transition-colors duration-300",
-                  publicProfile ? "bg-primary" : "bg-muted"
-                )}
-              >
-                <div className={cn(
-                  "w-4 h-4 rounded-full bg-white transition-transform duration-300",
-                  publicProfile ? "translate-x-6" : "translate-x-0"
-                )} />
-              </button>
-            </div>
-
-            {/* Show on Leaderboard */}
-            <div className="flex items-center justify-between p-4 bg-secondary/30">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center">
-                  <Shield className="w-5 h-5 text-muted-foreground" />
-                </div>
-                <div>
-                  <p className="font-medium">Show on Leaderboard</p>
-                  <p className="text-sm text-muted-foreground">Appear in public rankings</p>
-                </div>
-              </div>
-              <button
-                onClick={() => toast.success("Leaderboard visibility updated")}
-                className="w-12 h-6 rounded-full p-1 transition-colors duration-300 bg-primary"
-              >
-                <div className="w-4 h-4 rounded-full bg-white translate-x-6 transition-transform duration-300" />
-              </button>
-            </div>
-          </div>
-        </Section>
-
-        {/* Danger Zone */}
-        <Section title="Danger Zone" className="animate-fade-up" style={{ animationDelay: "0.3s" }}>
-          <div className="space-y-3">
-            <button
-              onClick={async () => {
-                await signOut();
-                localStorage.setItem("logout_success", "true");
-                window.location.href = "/"; // Force a reload/redirect to clear state
-              }}
-              className="w-full flex items-center gap-3 p-4 rounded-xl border border-border bg-secondary/30 hover:bg-secondary/50 transition-colors text-left"
-            >
-              <LogOut className="w-5 h-5 text-muted-foreground" />
-              <span>Log Out</span>
-            </button>
-
-            <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-              <DialogTrigger asChild>
-                <button className="w-full flex items-center gap-3 p-4 rounded-xl border border-destructive/50 bg-destructive/10 hover:bg-destructive/20 transition-colors text-left text-destructive">
-                  <Trash2 className="w-5 h-5" />
-                  <span>Delete Account</span>
-                </button>
-              </DialogTrigger>
-              <DialogContent className="bg-background border-border">
-                <DialogHeader>
-                  <DialogTitle className="text-destructive">Delete Account</DialogTitle>
-                  <DialogDescription className="text-muted-foreground">
-                    This action cannot be undone. All your data will be permanently deleted.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div>
-                    <label className="text-sm text-muted-foreground">Type "DELETE" to confirm</label>
-                    <input
-                      type="text"
-                      value={deleteConfirmation}
-                      onChange={(e) => setDeleteConfirmation(e.target.value)}
-                      placeholder="DELETE"
-                      className="w-full mt-2 p-3 rounded-xl bg-secondary border border-border focus:border-destructive focus:outline-none transition-colors"
-                    />
+                {/* Refresh Data */}
+                <button
+                  onClick={handleRefreshData}
+                  className="w-full flex items-center justify-between p-4 bg-secondary/30 hover:bg-secondary/50 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center">
+                      <RefreshCw className="w-5 h-5 text-muted-foreground" />
+                    </div>
+                    <div className="text-left">
+                      <p className="font-medium">Refresh Data</p>
+                      <p className="text-sm text-muted-foreground">Sync with GitHub</p>
+                    </div>
                   </div>
-                  <Button
-                    onClick={handleDeleteAccount}
-                    disabled={deleteConfirmation !== "DELETE"}
-                    variant="destructive"
-                    className="w-full"
+                  <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                </button>
+
+                {/* Export Data */}
+                <button
+                  onClick={handleExportData}
+                  className="w-full flex items-center justify-between p-4 bg-secondary/30 hover:bg-secondary/50 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center">
+                      <Download className="w-5 h-5 text-muted-foreground" />
+                    </div>
+                    <div className="text-left">
+                      <p className="font-medium">Export Data</p>
+                      <p className="text-sm text-muted-foreground">Download your data</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                </button>
+              </div>
+            </Section>
+
+            {/* Notifications Section */}
+            <Section title="Notifications" className="animate-fade-up" style={{ animationDelay: "0.2s" }}>
+              <div className="space-y-1 rounded-xl border border-border overflow-hidden">
+                {/* Push Notifications */}
+                <div className="flex items-center justify-between p-4 bg-secondary/30">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center">
+                      <Bell className="w-5 h-5 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <p className="font-medium">Push Notifications</p>
+                      <p className="text-sm text-muted-foreground">Streak reminders & updates</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setNotifications(!notifications);
+                      toast.success(notifications ? "Notifications disabled" : "Notifications enabled");
+                    }}
+                    className={cn(
+                      "w-12 h-6 rounded-full p-1 transition-colors duration-300",
+                      notifications ? "bg-primary" : "bg-muted"
+                    )}
                   >
-                    Delete My Account
-                  </Button>
+                    <div className={cn(
+                      "w-4 h-4 rounded-full bg-white transition-transform duration-300",
+                      notifications ? "translate-x-6" : "translate-x-0"
+                    )} />
+                  </button>
                 </div>
-              </DialogContent>
-            </Dialog>
+
+                {/* Email Digest */}
+                <div className="flex items-center justify-between p-4 bg-secondary/30">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center">
+                      <Globe className="w-5 h-5 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <p className="font-medium">Weekly Digest</p>
+                      <p className="text-sm text-muted-foreground">Weekly email summary</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setEmailDigest(!emailDigest);
+                      toast.success(emailDigest ? "Weekly digest disabled" : "Weekly digest enabled");
+                    }}
+                    className={cn(
+                      "w-12 h-6 rounded-full p-1 transition-colors duration-300",
+                      emailDigest ? "bg-primary" : "bg-muted"
+                    )}
+                  >
+                    <div className={cn(
+                      "w-4 h-4 rounded-full bg-white transition-transform duration-300",
+                      emailDigest ? "translate-x-6" : "translate-x-0"
+                    )} />
+                  </button>
+                </div>
+              </div>
+            </Section>
           </div>
-        </Section>
+
+          {/* Right Column */}
+          <div className="space-y-6">
+            {/* Preferences Section */}
+            <Section title="Preferences" className="animate-fade-up" style={{ animationDelay: "0.15s" }}>
+              <div className="space-y-1 rounded-xl border border-border overflow-hidden">
+                {/* Timezone */}
+                <div className="flex items-center justify-between p-4 bg-secondary/30">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center">
+                      <Clock className="w-5 h-5 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <p className="font-medium">Timezone</p>
+                      <p className="text-sm text-muted-foreground">For accurate streak tracking</p>
+                    </div>
+                  </div>
+                  <select
+                    value={timezone}
+                    onChange={(e) => {
+                      setTimezone(e.target.value);
+                      toast.success(`Timezone updated to ${e.target.value.split('/')[1]}`);
+                    }}
+                    className="bg-secondary border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary transition-colors"
+                  >
+                    {timezones.map((tz) => (
+                      <option key={tz} value={tz}>{tz.replace("_", " ")}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Dark Mode */}
+                <div className="flex items-center justify-between p-4 bg-secondary/30">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center">
+                      <Moon className="w-5 h-5 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <p className="font-medium">Dark Mode</p>
+                      <p className="text-sm text-muted-foreground">Always on (we love dark mode)</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setDarkMode(!darkMode);
+                      toast.success("Dark mode is the only way!");
+                    }}
+                    className={cn(
+                      "w-12 h-6 rounded-full p-1 transition-colors duration-300",
+                      darkMode ? "bg-primary" : "bg-muted"
+                    )}
+                  >
+                    <div className={cn(
+                      "w-4 h-4 rounded-full bg-white transition-transform duration-300",
+                      darkMode ? "translate-x-6" : "translate-x-0"
+                    )} />
+                  </button>
+                </div>
+              </div>
+            </Section>
+
+            {/* Privacy Section */}
+            <Section title="Privacy" className="animate-fade-up" style={{ animationDelay: "0.25s" }}>
+              <div className="space-y-1 rounded-xl border border-border overflow-hidden">
+                {/* Public Profile */}
+                <div className="flex items-center justify-between p-4 bg-secondary/30">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center">
+                      <Eye className="w-5 h-5 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <p className="font-medium">Public Profile</p>
+                      <p className="text-sm text-muted-foreground">Allow others to see your profile</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setPublicProfile(!publicProfile);
+                      toast.success(publicProfile ? "Profile is now private" : "Profile is now public");
+                    }}
+                    className={cn(
+                      "w-12 h-6 rounded-full p-1 transition-colors duration-300",
+                      publicProfile ? "bg-primary" : "bg-muted"
+                    )}
+                  >
+                    <div className={cn(
+                      "w-4 h-4 rounded-full bg-white transition-transform duration-300",
+                      publicProfile ? "translate-x-6" : "translate-x-0"
+                    )} />
+                  </button>
+                </div>
+
+                {/* Show on Leaderboard */}
+                <div className="flex items-center justify-between p-4 bg-secondary/30">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center">
+                      <Shield className="w-5 h-5 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <p className="font-medium">Show on Leaderboard</p>
+                      <p className="text-sm text-muted-foreground">Appear in public rankings</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => toast.success("Leaderboard visibility updated")}
+                    className="w-12 h-6 rounded-full p-1 transition-colors duration-300 bg-primary"
+                  >
+                    <div className="w-4 h-4 rounded-full bg-white translate-x-6 transition-transform duration-300" />
+                  </button>
+                </div>
+              </div>
+            </Section>
+
+            {/* Danger Zone - Moved here for flow, or could be full width below */}
+            <Section title="Danger Zone" className="animate-fade-up" style={{ animationDelay: "0.3s" }}>
+              <div className="space-y-3">
+                {isGithubConnected && (
+                  <>
+                    <button
+                      onClick={handleDisconnectClick}
+                      className="w-full flex items-center justify-between p-4 rounded-xl border border-orange-500/50 bg-orange-500/10 hover:bg-orange-500/20 transition-colors text-left text-orange-500"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Github className="w-5 h-5" />
+                        <span>Disconnect GitHub</span>
+                      </div>
+                      <div className="text-sm opacity-80">
+                        Connected as @{githubUsername}
+                      </div>
+                    </button>
+
+                    <Dialog open={showDisconnectInfo} onOpenChange={setShowDisconnectInfo}>
+                      <DialogContent className="bg-background border-border">
+                        <DialogHeader>
+                          <DialogTitle>Cannot Disconnect Account</DialogTitle>
+                          <DialogDescription>
+                            Your GitHub account is permanently linked to your profile to track your progress and contributions.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="py-2 text-sm text-muted-foreground space-y-2">
+                          <p>To switch GitHub accounts, you must delete your current profile and create a new one.</p>
+                          <p>If you believe this is an error, please contact support.</p>
+                        </div>
+                        <div className="flex gap-2 justify-end mt-2">
+                          <Button variant="secondary" onClick={() => setShowDisconnectInfo(false)}>Close</Button>
+                          <Button variant="outline" asChild>
+                            <a href="mailto:support@evergreeners.dev">Contact Support</a>
+                          </Button>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </>
+                )}
+
+                <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+                  <DialogTrigger asChild>
+                    <button className="w-full flex items-center gap-3 p-4 rounded-xl border border-destructive/50 bg-destructive/10 hover:bg-destructive/20 transition-colors text-left text-destructive">
+                      <Trash2 className="w-5 h-5" />
+                      <span>Delete Account</span>
+                    </button>
+                  </DialogTrigger>
+                  <DialogContent className="bg-background border-border">
+                    <DialogHeader>
+                      <DialogTitle className="text-destructive">Delete Account</DialogTitle>
+                      <DialogDescription className="text-muted-foreground">
+                        This action cannot be undone. All your data will be permanently deleted.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div>
+                        <label className="text-sm text-muted-foreground">Type "DELETE" to confirm</label>
+                        <input
+                          type="text"
+                          value={deleteConfirmation}
+                          onChange={(e) => setDeleteConfirmation(e.target.value)}
+                          placeholder="DELETE"
+                          className="w-full mt-2 p-3 rounded-xl bg-secondary border border-border focus:border-destructive focus:outline-none transition-colors"
+                        />
+                      </div>
+                      <Button
+                        onClick={handleDeleteAccount}
+                        disabled={deleteConfirmation !== "DELETE"}
+                        variant="destructive"
+                        className="w-full"
+                      >
+                        Delete My Account
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </Section>
+          </div>
+        </div>
 
         {/* Version */}
         <div className="text-center text-xs text-muted-foreground animate-fade-up" style={{ animationDelay: "0.35s" }}>
