@@ -6,7 +6,11 @@ import { toNodeHandler } from 'better-auth/node';
 
 dotenv.config();
 
-const server = fastify({ logger: true });
+const server = fastify({
+    logger: true,
+    trustProxy: true
+});
+
 
 const allowedOrigins = [
     "http://localhost:5173",

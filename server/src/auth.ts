@@ -31,4 +31,10 @@ export const auth = betterAuth({
         ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(",") : [])
     ],
     // Add other plugins or providers here (e.g., GitHub)
+    advanced: {
+        defaultCookieAttributes: {
+            sameSite: "none",
+            secure: true
+        }
+    }
 });
