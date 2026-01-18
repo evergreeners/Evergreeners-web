@@ -11,9 +11,14 @@ import { eq, and } from 'drizzle-orm';
 
 dotenv.config();
 
+import { db } from "./db/index.js";
+import { users, accounts } from "./db/schema.js";
+import { eq, and } from "drizzle-orm";
+
 const server = fastify({
     logger: true,
-    trustProxy: true
+    trustProxy: true,
+    bodyLimit: 5 * 1024 * 1024 // 5MB limit for Base64 image uploads
 });
 
 
@@ -53,6 +58,8 @@ server.register(async (instance) => {
         done(null);
     });
 
+    // Imports removed (moved to top)
+
     instance.all('/api/auth/*', async (req, reply) => {
         const origin = req.headers.origin;
         // Check if allow origin logic needs to be repeated or if cors plugin handles it sufficient for preflights
@@ -74,175 +81,6 @@ server.register(async (instance) => {
 
         return toNodeHandler(auth)(req.raw, reply.raw);
     });
-
-    // GitHub Callback
-    instance.get('/api/auth/github/callback', async (request, reply) => {
-        try {
-            const { token } = await instance.github.getAccessTokenFromAuthorizationCodeFlow(request);
-
-            const octokit = new Octokit({ auth: token.access_token });
-            const { data: githubUser } = await octokit.rest.users.getAuthenticated();
-
-            // Get user emails to find primary email
-            const { data: emails } = await octokit.rest.users.listEmailsForAuthenticatedUser();
-            const primaryEmail = emails.find(e => e.primary)?.email || emails[0]?.email;
-
-            if (!primaryEmail) {
-                reply.redirect('https://evergreeners.vercel.app/login?error=github_no_email');
-                return;
-            }
-
-            // Get current session
-            const session = await auth.api.getSession({
-                headers: request.headers
-            });
-
-            // Restore state to find redirect target
-            const state = (request.query as any).state;
-            let targetPath = '/dashboard';
-            if (state) {
-                try {
-                    const decoded = JSON.parse(Buffer.from(state, 'base64').toString());
-                    if (decoded.path) targetPath = decoded.path;
-                    if (decoded.scroll) targetPath += `${targetPath.includes('?') ? '&' : '?'}scroll=${decoded.scroll}`;
-                } catch (e) {
-                    // ignore
-                }
-            }
-
-            // SCENARIO 1: User is already logged in (Connect from Settings)
-            if (session) {
-                const existingAccount = await db.query.accounts.findFirst({
-                    where: and(
-                        eq(schema.accounts.providerId, 'github'),
-                        eq(schema.accounts.accountId, githubUser.id.toString())
-                    )
-                });
-
-                if (existingAccount) {
-                    if (existingAccount.userId !== session.user.id) {
-                        reply.redirect(`https://evergreeners.vercel.app/settings?error=github_account_already_linked`);
-                        return;
-                    }
-                    // Update token
-                    await db.update(schema.accounts)
-                        .set({ accessToken: token.access_token, updatedAt: new Date() })
-                        .where(eq(schema.accounts.id, existingAccount.id));
-                } else {
-                    // Create link
-                    await db.insert(schema.accounts).values({
-                        id: crypto.randomUUID(),
-                        userId: session.user.id,
-                        accountId: githubUser.id.toString(),
-                        providerId: 'github',
-                        accessToken: token.access_token,
-                        createdAt: new Date(),
-                        updatedAt: new Date()
-                    });
-                }
-                reply.redirect(`https://evergreeners.vercel.app${targetPath}`);
-                return;
-            }
-
-            // SCENARIO 2: User is NOT logged in (Login/Signup)
-
-            // 1. Check if GitHub account is already linked
-            const existingAccount = await db.query.accounts.findFirst({
-                where: and(
-                    eq(schema.accounts.providerId, 'github'),
-                    eq(schema.accounts.accountId, githubUser.id.toString())
-                )
-            });
-
-            let userId = "";
-
-            if (existingAccount) {
-                // Account exists, log them in
-                userId = existingAccount.userId;
-                // Update access token
-                await db.update(schema.accounts)
-                    .set({ accessToken: token.access_token, updatedAt: new Date() })
-                    .where(eq(schema.accounts.id, existingAccount.id));
-            } else {
-                // Account doesn't exist. Check if user with same email exists
-                const existingUser = await db.query.users.findFirst({
-                    where: eq(schema.users.email, primaryEmail)
-                });
-
-                if (existingUser) {
-                    // Link existing user to GitHub
-                    userId = existingUser.id;
-                    await db.insert(schema.accounts).values({
-                        id: crypto.randomUUID(),
-                        userId: existingUser.id,
-                        accountId: githubUser.id.toString(),
-                        providerId: 'github',
-                        accessToken: token.access_token,
-                        createdAt: new Date(),
-                        updatedAt: new Date()
-                    });
-                } else {
-                    // Create NEW user
-                    userId = crypto.randomUUID();
-                    await db.insert(schema.users).values({
-                        id: userId,
-                        name: githubUser.name || githubUser.login,
-                        email: primaryEmail,
-                        emailVerified: true,
-                        image: githubUser.avatar_url,
-                        createdAt: new Date(),
-                        updatedAt: new Date()
-                    });
-
-                    // Create account link
-                    await db.insert(schema.accounts).values({
-                        id: crypto.randomUUID(),
-                        userId: userId,
-                        accountId: githubUser.id.toString(),
-                        providerId: 'github',
-                        accessToken: token.access_token,
-                        createdAt: new Date(),
-                        updatedAt: new Date()
-                    });
-                }
-            }
-
-            // Create Session manually since we are outside of better-auth normal flow
-            const sessionToken = crypto.randomUUID();
-            const expiresAt = new Date();
-            expiresAt.setDate(expiresAt.getDate() + 30); // 30 days
-
-            await db.insert(schema.sessions).values({
-                id: crypto.randomUUID(),
-                userId: userId,
-                token: sessionToken,
-                expiresAt: expiresAt,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-                userAgent: request.headers['user-agent'],
-                ipAddress: request.ip
-            });
-
-            // Set cookie
-            const isSecure = process.env.NODE_ENV === 'production' || process.env.BETTER_AUTH_URL?.startsWith('https');
-            const cookieName = isSecure ? "__Secure-better-auth.session_token" : "better-auth.session_token";
-
-            reply.setCookie(cookieName, sessionToken, {
-                path: '/',
-                httpOnly: true,
-                secure: isSecure,
-                sameSite: 'none',
-                expires: expiresAt
-            });
-
-            reply.redirect(`https://evergreeners.vercel.app${targetPath}`);
-
-        } catch (err) {
-            console.error(err);
-            reply.redirect('https://evergreeners.vercel.app/login?error=github_callback_failed');
-        }
-    });
-
 });
 
 server.get('/', async (request, reply) => {

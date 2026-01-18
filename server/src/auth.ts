@@ -31,6 +31,16 @@ export const auth = betterAuth({
         ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(",") : [])
     ],
     // Add other plugins or providers here (e.g., GitHub)
+    user: {
+        additionalFields: {
+            username: { type: "string" },
+            bio: { type: "string" },
+            location: { type: "string" },
+            website: { type: "string" },
+            isPublic: { type: "boolean" },
+            anonymousName: { type: "string" }
+        }
+    },
     socialProviders: {
         github: {
             clientId: process.env.GITHUB_CLIENT_ID!,

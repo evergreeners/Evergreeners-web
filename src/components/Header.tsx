@@ -4,7 +4,7 @@ import { Logo } from "@/components/Logo";
 import { useState } from "react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { cn, triggerHaptic } from "@/lib/utils";
-import { signOut } from "@/lib/auth-client";
+import { signOut, useSession } from "@/lib/auth-client";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,6 +30,7 @@ export function Header() {
   const location = useLocation();
   const currentPath = location.pathname;
   const [notifications] = useState(3);
+  const { data: session } = useSession();
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 px-4 md:px-0">
@@ -102,7 +103,7 @@ export function Header() {
               className="ml-2 w-8 h-8 rounded-full bg-secondary border border-primary overflow-hidden hover:border-primary transition-colors"
             >
               <img
-                src="https://avatars.githubusercontent.com/u/1?v=4"
+                src={session?.user?.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(session?.user?.name || "User")}&background=random`}
                 alt="User"
                 className="w-full h-full object-cover"
               />

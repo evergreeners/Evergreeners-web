@@ -11,6 +11,12 @@ export const users = mySchema.table('users', {
     createdAt: timestamp('created_at').notNull(),
     updatedAt: timestamp('updated_at').notNull(),
     role: text('role').default('user'), // Custom field
+    username: text('username').unique(),
+    bio: text('bio'),
+    location: text('location'),
+    website: text('website'),
+    isPublic: boolean('is_public').default(true).notNull(),
+    anonymousName: text('anonymous_name'),
 });
 
 export const sessions = mySchema.table('sessions', {
