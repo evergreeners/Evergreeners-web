@@ -103,7 +103,7 @@ async function getGithubContributions(username: string, token: string) {
         }
     }
 
-    return { totalCommits, currentStreak, todayCommits };
+    return { totalCommits, currentStreak, todayCommits, contributionCalendar: allDays };
 }
 
 // Auth Routes Scope (No Body Parsing for better-auth)
@@ -182,26 +182,22 @@ server.register(async (instance) => {
             const ghUser = await ghRes.json();
 
             // 3. Fetch Contributions (Streak & Total Commits)
-            const { totalCommits, currentStreak, todayCommits } = await getGithubContributions(ghUser.login, account[0].accessToken);
+            const { totalCommits, currentStreak, todayCommits, contributionCalendar } = await getGithubContributions(ghUser.login, account[0].accessToken);
 
             // 4. Update User Profile
             await db.update(schema.users)
                 .set({
-                    username: ghUser.login,   // Force update username
-                    name: ghUser.name || ghUser.login,
-                    image: ghUser.avatar_url,
-                    bio: ghUser.bio,
-                    location: ghUser.location,
-                    website: ghUser.blog,
+                    // Only update stats, preserve user's custom profile data
                     streak: currentStreak,
                     totalCommits: totalCommits,
-                    todayCommits: todayCommits, // Save today's commits
+                    todayCommits: todayCommits,
+                    contributionData: contributionCalendar,
                     isGithubConnected: true,
                     updatedAt: new Date()
                 })
                 .where(eq(schema.users.id, userId));
 
-            return { success: true, username: ghUser.login, streak: currentStreak, totalCommits, todayCommits };
+            return { success: true, username: ghUser.login, streak: currentStreak, totalCommits, todayCommits, contributionData: contributionCalendar };
         } catch (error) {
             console.error(error);
             return reply.status(500).send({ message: "Failed to sync with GitHub" });

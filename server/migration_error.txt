@@ -1,0 +1,54 @@
+
+> server@1.0.0 db:migrate
+> drizzle-kit migrate
+
+No config path provided, using default 'drizzle.config.ts'
+Reading config file '/home/adam/Projects/Evergreeners-main/server/drizzle.config.ts'
+[dotenv@17.2.3] injecting env (0) from .env -- tip: 📡 add observability to secrets: https://dotenvx.com/ops
+Using 'postgres' driver for database querying
+[⣷] applying migrations...[2K[1G[⣯] applying migrations...[2K[1G[⣟] applying migrations...[2K[1G[⡿] applying migrations...[2K[1G[⢿] applying migrations...[2K[1G[⣻] applying migrations...[2K[1G[⣽] applying migrations...[2K[1G[⣷] applying migrations...[2K[1G[⣯] applying migrations...[2K[1G[⣟] applying migrations...[2K[1G[⡿] applying migrations...[2K[1G[⢿] applying migrations...[2K[1G[⣻] applying migrations...[2K[1G[⣽] applying migrations...[2K[1G[⣷] applying migrations...[2K[1G[⣯] applying migrations...[2K[1G[⣟] applying migrations...[2K[1G[⡿] applying migrations...[2K[1G[⢿] applying migrations...[2K[1G[⣻] applying migrations...[2K[1G[⣽] applying migrations...[2K[1G[⣷] applying migrations...[2K[1G[⣯] applying migrations...[2K[1G[⣟] applying migrations...[2K[1G[⡿] applying migrations...[2K[1G[⢿] applying migrations...[2K[1G[⣻] applying migrations...[2K[1G[⣽] applying migrations...[2K[1G[⣷] applying migrations...[2K[1G[⣯] applying migrations...[2K[1G[⣟] applying migrations...[2K[1G[⡿] applying migrations...[2K[1G[⢿] applying migrations...[2K[1G[⣻] applying migrations...[2K[1G[⣽] applying migrations...[2K[1G[⣷] applying migrations...[2K[1G[⣯] applying migrations...[2K[1G[⣟] applying migrations...[2K[1G[⡿] applying migrations...[2K[1G[⢿] applying migrations...[2K[1G[⣻] applying migrations...[2K[1G[⣽] applying migrations...[2K[1G[⣷] applying migrations...[2K[1G[⣯] applying migrations...[2K[1G[⣟] applying migrations...[2K[1G[⡿] applying migrations...[2K[1G[⢿] applying migrations...[2K[1G[⣻] applying migrations...[2K[1G[⣽] applying migrations...[2K[1G[⣷] applying migrations...{
+  severity_local: 'NOTICE',
+  severity: 'NOTICE',
+  code: '42P06',
+  message: 'schema "drizzle" already exists, skipping',
+  file: 'schemacmds.c',
+  line: '132',
+  routine: 'CreateSchemaCommand'
+}
+[2K[1G[⣯] applying migrations...[2K[1G[⣟] applying migrations...{
+  severity_local: 'NOTICE',
+  severity: 'NOTICE',
+  code: '42P07',
+  message: 'relation "__drizzle_migrations" already exists, skipping',
+  file: 'parse_utilcmd.c',
+  line: '207',
+  routine: 'transformCreateStmt'
+}
+[2K[1G[⡿] applying migrations...[2K[1G[⢿] applying migrations...[2K[1G[⣻] applying migrations...[2K[1G[⣽] applying migrations...[2K[1G[⣷] applying migrations...[2K[1G[⣯] applying migrations...DrizzleQueryError: Failed query: ALTER TABLE "evergreeners"."users" ADD COLUMN "is_github_connected" boolean DEFAULT false;
+params: 
+    at PostgresJsPreparedQuery.queryWithCache (/home/adam/Projects/Evergreeners-main/server/node_modules/src/pg-core/session.ts:73:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async <anonymous> (/home/adam/Projects/Evergreeners-main/server/node_modules/src/pg-core/dialect.ts:102:7)
+    at async scope (file:///home/adam/Projects/Evergreeners-main/server/node_modules/postgres/src/index.js:260:18)
+    at async Function.begin (file:///home/adam/Projects/Evergreeners-main/server/node_modules/postgres/src/index.js:243:14)
+    at async PgDialect.migrate (/home/adam/Projects/Evergreeners-main/server/node_modules/src/pg-core/dialect.ts:95:3)
+    at async migrate (/home/adam/Projects/Evergreeners-main/server/node_modules/src/postgres-js/migrator.ts:10:2) {
+  query: 'ALTER TABLE "evergreeners"."users" ADD COLUMN "is_github_connected" boolean DEFAULT false;',
+  params: [],
+  cause: PostgresError: column "is_github_connected" of relation "users" already exists
+      at ErrorResponse (file:///home/adam/Projects/Evergreeners-main/server/node_modules/postgres/src/connection.js:815:30)
+      at handle (file:///home/adam/Projects/Evergreeners-main/server/node_modules/postgres/src/connection.js:489:6)
+      at Socket.data (file:///home/adam/Projects/Evergreeners-main/server/node_modules/postgres/src/connection.js:324:9)
+      at Socket.emit (node:events:519:28)
+      at addChunk (node:internal/streams/readable:561:12)
+      at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+      at Readable.push (node:internal/streams/readable:392:5)
+      at TCP.onStreamRead (node:internal/stream_base_commons:189:23) {
+    severity_local: 'ERROR',
+    severity: 'ERROR',
+    code: '42701',
+    file: 'tablecmds.c',
+    line: '7478',
+    routine: 'check_for_column_name_collision'
+  }
+}

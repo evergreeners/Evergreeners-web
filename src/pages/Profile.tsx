@@ -57,7 +57,8 @@ export default function Profile() {
     anonymousName: "",
     streak: 0,
     totalCommits: 0,
-    todayCommits: 0 // New field
+    todayCommits: 0, // New field
+    contributionData: [] as any[] // New field
   });
 
   const stats = [
@@ -87,7 +88,8 @@ export default function Profile() {
           anonymousName: user.anonymousName || "",
           streak: user.streak || 0,
           totalCommits: user.totalCommits || 0,
-          todayCommits: user.todayCommits || 0
+          todayCommits: user.todayCommits || 0,
+          contributionData: user.contributionData || []
         }));
         setIsPublic(user.isPublic !== false);
 
@@ -142,7 +144,8 @@ export default function Profile() {
           username: data.username || prev.username,
           streak: data.streak,
           totalCommits: data.totalCommits,
-          todayCommits: data.todayCommits
+          todayCommits: data.todayCommits,
+          contributionData: data.contributionData || []
         }));
         if (!silent) toast.success("GitHub data synced!");
       } else {
@@ -390,7 +393,7 @@ export default function Profile() {
 
         {/* Activity Grid */}
         <Section title="Recent Activity" className="animate-fade-up" style={{ animationDelay: "0.25s" }}>
-          <ActivityGrid data={activityData} />
+          <ActivityGrid data={profile.contributionData && profile.contributionData.length > 0 ? [...profile.contributionData].reverse() : activityData} />
           <div className="flex items-center justify-end gap-2 mt-3">
             <span className="text-xs text-muted-foreground">Less</span>
             <div className="flex gap-1">
