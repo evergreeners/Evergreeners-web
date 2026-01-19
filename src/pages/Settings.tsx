@@ -32,6 +32,12 @@ export default function Settings() {
   // Check connection status
   useEffect(() => {
     const checkConnections = async () => {
+      const user = session?.user as any;
+      if (user && typeof user.isGithubConnected === 'boolean') {
+        setIsGithubConnected(user.isGithubConnected);
+        return;
+      }
+
       try {
         const accounts = await authClient.listAccounts();
         if (accounts.data) {

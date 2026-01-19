@@ -86,15 +86,19 @@ export default function Profile() {
         setIsPublic(user.isPublic !== false);
         setEditedProfile(prev => ({ ...prev, ...user }));
 
-        // Check connected accounts
-        try {
-          const accounts = await authClient.listAccounts();
-          if (accounts.data) {
-            const hasGithub = accounts.data.some((acc) => acc.providerId === "github");
-            setIsGithubConnected(hasGithub);
+        if (typeof user.isGithubConnected === 'boolean') {
+          setIsGithubConnected(user.isGithubConnected);
+        } else {
+          // Fallback for older sessions or if field missing
+          try {
+            const accounts = await authClient.listAccounts();
+            if (accounts.data) {
+              const hasGithub = accounts.data.some((acc) => acc.providerId === "github");
+              setIsGithubConnected(hasGithub);
+            }
+          } catch (error) {
+            console.error("Failed to list accounts", error);
           }
-        } catch (error) {
-          console.error("Failed to list accounts", error);
         }
       }
     };
@@ -134,11 +138,12 @@ export default function Profile() {
   };
 
   // Auto-sync effect
-  useEffect(() => {
-    if (isGithubConnected && profile.streak === 0 && profile.totalCommits === 0) {
-      syncGithubData();
-    }
-  }, [isGithubConnected]);
+  // Auto-sync effect removed as per user request to rely on DB data
+  // useEffect(() => {
+  //   if (isGithubConnected && profile.streak === 0 && profile.totalCommits === 0) {
+  //     syncGithubData();
+  //   }
+  // }, [isGithubConnected]);
 
   const publicUrl = `evergreeners.dev/${isPublic ? profile.username : profile.anonymousName || 'anonymous'}`;
 

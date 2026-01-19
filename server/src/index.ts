@@ -197,6 +197,7 @@ server.register(async (instance) => {
                     website: ghUser.blog,
                     streak: currentStreak,
                     totalCommits: totalCommits,
+                    isGithubConnected: true,
                     updatedAt: new Date()
                 })
                 .where(eq(schema.users.id, userId));
