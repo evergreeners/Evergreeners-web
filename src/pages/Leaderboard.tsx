@@ -6,11 +6,7 @@ import { cn, triggerHaptic } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 
-const getBaseURL = (url: string) => {
-  if (url.startsWith("http://") || url.startsWith("https://")) return url;
-  if (url.includes("localhost") || url.includes("127.0.0.1")) return `http://${url}`;
-  return `https://${url}`;
-};
+import { getApiUrl } from "@/lib/api-config";
 
 interface LeaderboardUser {
   id: string;
@@ -41,8 +37,7 @@ export default function Leaderboard() {
     async function fetchLeaderboard() {
       setIsLoading(true);
       try {
-        const baseUrl = getBaseURL(import.meta.env.VITE_API_URL || "http://localhost:3000");
-        const res = await fetch(`${baseUrl}/api/leaderboard?filter=${filter}`, {
+        const res = await fetch(getApiUrl(`/api/leaderboard?filter=${filter}`), {
           credentials: "include"
         });
         if (!res.ok) throw new Error("Failed to fetch leaderboard");

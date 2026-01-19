@@ -17,6 +17,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { getApiUrl } from "@/lib/api-config";
 
 
 
@@ -141,17 +142,10 @@ export default function Profile() {
     initProfile();
   }, [session]);
 
-  const getBaseURL = (url: string) => {
-    if (url.startsWith("http://") || url.startsWith("https://")) return url;
-    if (url.includes("localhost") || url.includes("127.0.0.1")) return `http://${url}`;
-    return `https://${url}`;
-  };
-
   const syncGithubData = async (silent = false) => {
     try {
       if (!silent) toast.info("Syncing GitHub data...");
-      const baseUrl = getBaseURL(import.meta.env.VITE_API_URL || 'http://localhost:3000');
-      const res = await fetch(`${baseUrl}/api/user/sync-github`, {
+      const res = await fetch(getApiUrl("/api/user/sync-github"), {
         method: "POST",
         credentials: "include"
       });
