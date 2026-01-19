@@ -163,6 +163,7 @@ server.register(async (instance) => {
         }
 
         try {
+            console.log("Sync started for user:", userId);
             // 2. Fetch GitHub Profile
             const ghRes = await fetch("https://api.github.com/user", {
                 headers: {
@@ -171,13 +172,20 @@ server.register(async (instance) => {
                 }
             });
 
-            if (!ghRes.ok) throw new Error("Failed to fetch from GitHub");
+            if (!ghRes.ok) {
+                const errText = await ghRes.text();
+                console.error("GitHub Profile Fetch Failed:", errText);
+                throw new Error("Failed to fetch from GitHub");
+            }
             const ghUser = await ghRes.json();
+            console.log("GitHub user found:", ghUser.login);
 
             // 3. Fetch Contributions (Streak & Total Commits)
+            console.log("Fetching contributions...");
             const { totalCommits, currentStreak } = await getGithubContributions(ghUser.login, account[0].accessToken);
 
             // 4. Update User Profile
+            console.log("Updating DB with streak:", currentStreak, "commits:", totalCommits);
             await db.update(schema.users)
                 .set({
                     username: ghUser.login,   // Force update username
@@ -192,10 +200,11 @@ server.register(async (instance) => {
                 })
                 .where(eq(schema.users.id, userId));
 
+            console.log("Sync complete!");
             return { success: true, username: ghUser.login, streak: currentStreak, totalCommits };
-        } catch (error) {
-            console.error(error);
-            return reply.status(500).send({ message: "Failed to sync with GitHub" });
+        } catch (error: any) {
+            console.error("Sync Route Error:", error);
+            return reply.status(500).send({ message: error.message || "Failed to sync with GitHub" });
         }
     });
 });
