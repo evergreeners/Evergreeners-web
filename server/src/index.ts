@@ -317,104 +317,107 @@ server.register(async (instance) => {
 
         if (!user.length) return reply.status(404).send({ message: "User not found" });
 
-        // GET Leaderboard Route
-        instance.get('/api/leaderboard', async (req, reply) => {
-            const { filter = 'streak' } = req.query as any;
+        return { user: user[0] };
+    });
 
-            let orderByField;
-            if (filter === 'commits') {
-                orderByField = schema.users.totalCommits;
-            } else if (filter === 'weekly') {
-                orderByField = schema.users.weeklyCommits;
+    // GET Leaderboard Route
+    instance.get('/api/leaderboard', async (req, reply) => {
+        const { filter = 'streak' } = req.query as any;
+
+        let orderByField;
+        if (filter === 'commits') {
+            orderByField = schema.users.totalCommits;
+        } else if (filter === 'weekly') {
+            orderByField = schema.users.weeklyCommits;
+        } else {
+            orderByField = schema.users.streak;
+        }
+
+        // 1. Get Top 100 Users
+        const topUsers = await db.select({
+            id: schema.users.id,
+            username: schema.users.username,
+            name: schema.users.name,
+            image: schema.users.image,
+            streak: schema.users.streak,
+            totalCommits: schema.users.totalCommits,
+            todayCommits: schema.users.todayCommits,
+            yesterdayCommits: schema.users.yesterdayCommits,
+            weeklyCommits: schema.users.weeklyCommits,
+        })
+            .from(schema.users)
+            .where(eq(schema.users.isPublic, true))
+            .orderBy(desc(orderByField))
+            .limit(100);
+
+        // 2. Get Current User Rank
+        const headers = new Headers();
+        Object.entries(req.headers).forEach(([key, value]) => {
+            if (Array.isArray(value)) value.forEach(v => headers.append(key, v));
+            else if (typeof value === 'string') headers.set(key, value);
+        });
+
+        const session = await auth.api.getSession({ headers });
+        let currentUserRank = null;
+
+        if (session) {
+            const userId = session.session.userId;
+            // Find user in the top list first (performance)
+            const index = topUsers.findIndex(u => u.id === userId);
+            if (index !== -1) {
+                currentUserRank = {
+                    rank: index + 1,
+                    user: topUsers[index]
+                };
             } else {
-                orderByField = schema.users.streak;
-            }
+                // If not in top 100, we need to count how many users have a higher score
+                const userQuery = await db.select().from(schema.users).where(eq(schema.users.id, userId)).limit(1);
+                if (userQuery.length) {
+                    const user = userQuery[0];
+                    const score = (user as any)[filter === 'commits' ? 'totalCommits' : filter === 'weekly' ? 'weeklyCommits' : 'streak'] || 0;
 
-            // 1. Get Top 100 Users
-            const topUsers = await db.select({
-                id: schema.users.id,
-                username: schema.users.username,
-                name: schema.users.name,
-                image: schema.users.image,
-                streak: schema.users.streak,
-                totalCommits: schema.users.totalCommits,
-                todayCommits: schema.users.todayCommits,
-                yesterdayCommits: schema.users.yesterdayCommits,
-                weeklyCommits: schema.users.weeklyCommits,
-            })
-                .from(schema.users)
-                .where(eq(schema.users.isPublic, true))
-                .orderBy(desc(orderByField))
-                .limit(100);
+                    const countRes = await db.select({ val: count() })
+                        .from(schema.users)
+                        .where(gt(orderByField, score));
 
-            // 2. Get Current User Rank
-            const headers = new Headers();
-            Object.entries(req.headers).forEach(([key, value]) => {
-                if (Array.isArray(value)) value.forEach(v => headers.append(key, v));
-                else if (typeof value === 'string') headers.set(key, value);
-            });
-
-            const session = await auth.api.getSession({ headers });
-            let currentUserRank = null;
-
-            if (session) {
-                const userId = session.session.userId;
-                // Find user in the top list first (performance)
-                const index = topUsers.findIndex(u => u.id === userId);
-                if (index !== -1) {
                     currentUserRank = {
-                        rank: index + 1,
-                        user: topUsers[index]
+                        rank: Number(countRes[0].val) + 1,
+                        user: {
+                            id: user.id,
+                            username: user.username,
+                            name: user.name,
+                            image: user.image,
+                            streak: user.streak,
+                            totalCommits: user.totalCommits,
+                            todayCommits: user.todayCommits,
+                            yesterdayCommits: user.yesterdayCommits,
+                            weeklyCommits: user.weeklyCommits,
+                        }
                     };
-                } else {
-                    // If not in top 100, we need to count how many users have a higher score
-                    const userQuery = await db.select().from(schema.users).where(eq(schema.users.id, userId)).limit(1);
-                    if (userQuery.length) {
-                        const user = userQuery[0];
-                        const score = (user as any)[filter === 'commits' ? 'totalCommits' : filter === 'weekly' ? 'weeklyCommits' : 'streak'] || 0;
-
-                        const countRes = await db.select({ val: count() })
-                            .from(schema.users)
-                            .where(gt(orderByField, score));
-
-                        currentUserRank = {
-                            rank: Number(countRes[0].val) + 1,
-                            user: {
-                                id: user.id,
-                                username: user.username,
-                                name: user.name,
-                                image: user.image,
-                                streak: user.streak,
-                                totalCommits: user.totalCommits,
-                                todayCommits: user.todayCommits,
-                                yesterdayCommits: user.yesterdayCommits,
-                                weeklyCommits: user.weeklyCommits,
-                            }
-                        };
-                    }
                 }
             }
-
-            return {
-                users: topUsers,
-                currentUserRank: currentUserRank
-            };
-        });
-    });
-
-    server.get('/', async (request, reply) => {
-        return { hello: 'world' };
-    });
-
-    const start = async () => {
-        try {
-            const port = Number(process.env.PORT) || 3000;
-            await server.listen({ port, host: '0.0.0.0' });
-            console.log(`Server listening on port ${port}`);
-        } catch (err) {
-            server.log.error(err);
-            process.exit(1);
         }
-    };
 
-    start();
+        return {
+            users: topUsers,
+            currentUserRank: currentUserRank
+        };
+    });
+});
+
+server.get('/', async (request, reply) => {
+    return { hello: 'world' };
+});
+
+const start = async () => {
+    try {
+        const port = Number(process.env.PORT) || 3000;
+        await server.listen({ port, host: '0.0.0.0' });
+        console.log(`Server listening on port ${port}`);
+    } catch (err) {
+        server.log.error(err);
+        process.exit(1);
+    }
+};
+
+start();
