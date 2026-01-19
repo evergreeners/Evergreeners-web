@@ -1,11 +1,9 @@
-import './env.js';
+import './env.js'; // Trigger restart
 import fastify from 'fastify';
 import cors from '@fastify/cors';
 // dotenv is loaded first via ./env.js
 import { auth } from './auth.js';
 import { toNodeHandler } from 'better-auth/node';
-// import oauthPlugin from '@fastify/oauth2';
-import { Octokit } from 'octokit';
 
 import { db } from './db/index.js';
 import * as schema from './db/schema.js';
@@ -16,7 +14,6 @@ const server = fastify({
     trustProxy: true,
     bodyLimit: 5 * 1024 * 1024 // 5MB limit for Base64 image uploads
 });
-
 
 const allowedOrigins = [
     "http://localhost:5173",
@@ -74,7 +71,6 @@ async function getGithubContributions(username: string, token: string) {
     const calendar = data.data.user.contributionsCollection.contributionCalendar;
     const totalCommits = calendar.totalContributions;
 
-    // Flatten all days into a single array, reversed (latest first)
     const allDays = calendar.weeks
         .flatMap((w: any) => w.contributionDays)
         .reverse();
@@ -85,6 +81,10 @@ async function getGithubContributions(username: string, token: string) {
 
     // Check if user has contributed today or yesterday to start the streak count
     let startIndex = allDays.findIndex((d: any) => d.contributionCount > 0);
+
+    // Calculate Today's Commits
+    const todayData = allDays.find((d: any) => d.date === todayStr);
+    const todayCommits = todayData ? todayData.contributionCount : 0;
 
     if (startIndex !== -1) {
         const lastContribDate = allDays[startIndex].date;
@@ -103,10 +103,10 @@ async function getGithubContributions(username: string, token: string) {
         }
     }
 
-    return { totalCommits, currentStreak };
+    return { totalCommits, currentStreak, todayCommits, contributionCalendar: allDays };
 }
 
-// Auth Routes
+// Auth Routes Scope (No Body Parsing for better-auth)
 server.register(async (instance) => {
     // Prevent Fastify from parsing the body so better-auth can handle the raw stream
     instance.removeContentTypeParser('application/json');
@@ -114,13 +114,8 @@ server.register(async (instance) => {
         done(null);
     });
 
-    // Imports removed (moved to top)
-
     instance.all('/api/auth/*', async (req, reply) => {
         const origin = req.headers.origin;
-        // Check if allow origin logic needs to be repeated or if cors plugin handles it sufficient for preflights
-        // better-auth needs CORS headers on its responses too
-
         const allowedOrigins = [
             "http://localhost:5173",
             "http://localhost:8080",
@@ -137,11 +132,23 @@ server.register(async (instance) => {
 
         return toNodeHandler(auth)(req.raw, reply.raw);
     });
+});
 
+// API Routes Scope (Standard JSON Parsing)
+server.register(async (instance) => {
     // Custom route to force-sync GitHub data
     instance.post('/api/user/sync-github', async (req, reply) => {
+        const headers = new Headers();
+        Object.entries(req.headers).forEach(([key, value]) => {
+            if (Array.isArray(value)) {
+                value.forEach(v => headers.append(key, v));
+            } else if (typeof value === 'string') {
+                headers.set(key, value);
+            }
+        });
+
         const session = await auth.api.getSession({
-            headers: req.headers
+            headers
         });
 
         if (!session) {
@@ -181,31 +188,131 @@ server.register(async (instance) => {
             console.log("GitHub user found:", ghUser.login);
 
             // 3. Fetch Contributions (Streak & Total Commits)
+<<<<<<< HEAD
             console.log("Fetching contributions...");
             const { totalCommits, currentStreak } = await getGithubContributions(ghUser.login, account[0].accessToken);
+=======
+            const { totalCommits, currentStreak, todayCommits, contributionCalendar } = await getGithubContributions(ghUser.login, account[0].accessToken);
+>>>>>>> ce02579de6f410c62181f8bb9fbff9629149cae3
 
             // 4. Update User Profile
             console.log("Updating DB with streak:", currentStreak, "commits:", totalCommits);
             await db.update(schema.users)
                 .set({
-                    username: ghUser.login,   // Force update username
-                    name: ghUser.name || ghUser.login,
-                    image: ghUser.avatar_url,
-                    bio: ghUser.bio,
-                    location: ghUser.location,
-                    website: ghUser.blog,
+                    // Only update stats, preserve user's custom profile data
                     streak: currentStreak,
                     totalCommits: totalCommits,
+                    todayCommits: todayCommits,
+                    contributionData: contributionCalendar,
+                    isGithubConnected: true,
                     updatedAt: new Date()
                 })
                 .where(eq(schema.users.id, userId));
 
+<<<<<<< HEAD
             console.log("Sync complete!");
             return { success: true, username: ghUser.login, streak: currentStreak, totalCommits };
         } catch (error: any) {
             console.error("Sync Route Error:", error);
             return reply.status(500).send({ message: error.message || "Failed to sync with GitHub" });
+=======
+            return { success: true, username: ghUser.login, streak: currentStreak, totalCommits, todayCommits, contributionData: contributionCalendar };
+        } catch (error) {
+            console.error(error);
+            return reply.status(500).send({ message: "Failed to sync with GitHub" });
+>>>>>>> ce02579de6f410c62181f8bb9fbff9629149cae3
         }
+    });
+
+    // Update User Profile Route
+    instance.put('/api/user/profile', async (req, reply: any) => {
+        const headers = new Headers();
+        Object.entries(req.headers).forEach(([key, value]) => {
+            if (Array.isArray(value)) {
+                value.forEach(v => headers.append(key, v));
+            } else if (typeof value === 'string') {
+                headers.set(key, value);
+            }
+        });
+
+        const session = await auth.api.getSession({
+            headers
+        });
+
+        if (!session) {
+            return reply.status(401).send({ message: "Unauthorized" });
+        }
+
+        const userId = session.session.userId;
+        const body = req.body as any;
+
+        try {
+            const updateData: any = {
+                updatedAt: new Date()
+            };
+
+            if (body.name !== undefined) updateData.name = body.name;
+            if (body.username !== undefined) updateData.username = body.username;
+            if (body.bio !== undefined) updateData.bio = body.bio;
+            if (body.location !== undefined) updateData.location = body.location;
+            if (body.website !== undefined) updateData.website = body.website;
+            if (body.image !== undefined) updateData.image = body.image;
+            if (body.isPublic !== undefined) updateData.isPublic = body.isPublic;
+
+            if (body.anonymousName !== undefined) updateData.anonymousName = body.anonymousName;
+
+            if (body.isPublic === false) {
+                const currentUser = await db.select().from(schema.users).where(eq(schema.users.id, userId)).limit(1);
+                if (currentUser.length && !currentUser[0].anonymousName && !body.anonymousName) {
+                    const adjectives = ["Hidden", "Secret", "Silent", "Quiet", "Mysterious"];
+                    const nouns = ["Tree", "Leaf", "Sprout", "Root", "Seed"];
+                    const randomAdj = adjectives[Math.floor(Math.random() * adjectives.length)];
+                    const randomNoun = nouns[Math.floor(Math.random() * nouns.length)];
+                    const randomNumber = Math.floor(Math.random() * 1000);
+                    updateData.anonymousName = `${randomAdj}${randomNoun}${randomNumber}`;
+                }
+            }
+
+            await db.update(schema.users)
+                .set(updateData)
+                .where(eq(schema.users.id, userId));
+
+            return {
+                success: true,
+                message: "Profile updated successfully",
+                anonymousName: updateData.anonymousName
+            };
+        } catch (error) {
+            console.error("Profile update error:", error);
+            return reply.status(500).send({ message: "Failed to update profile", error: String(error) });
+        }
+    });
+
+    // GET User Profile Route
+    instance.get('/api/user/profile', async (req, reply) => {
+        const headers = new Headers();
+        Object.entries(req.headers).forEach(([key, value]) => {
+            if (Array.isArray(value)) {
+                value.forEach(v => headers.append(key, v));
+            } else if (typeof value === 'string') {
+                headers.set(key, value);
+            }
+        });
+
+        const session = await auth.api.getSession({
+            headers
+        });
+
+        if (!session) {
+            return reply.status(401).send({ message: "Unauthorized" });
+        }
+
+        const userId = session.session.userId;
+        const user = await db.select().from(schema.users).where(eq(schema.users.id, userId)).limit(1);
+
+        if (!user.length) return reply.status(404).send({ message: "User not found" });
+
+        return { user: user[0] };
     });
 });
 

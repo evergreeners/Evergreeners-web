@@ -1,0 +1,1 @@
+-- ALTER TABLE "evergreeners"."users" ADD COLUMN "is_github_connected" boolean DEFAULT false;

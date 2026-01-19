@@ -1,49 +1,146 @@
 import { cn } from "@/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
-interface ActivityGridProps {
-  data: number[]; // 0-4 scale for intensity
+interface ContributionDay {
+  contributionCount: number;
+  date: string;
 }
 
-export function ActivityGrid({ data }: ActivityGridProps) {
-  const getIntensityClass = (value: number) => {
-    switch (value) {
-      case 0:
-        return "bg-secondary";
-      case 1:
-        return "bg-primary/25";
-      case 2:
-        return "bg-primary/50";
-      case 3:
-        return "bg-primary/75";
-      case 4:
-        return "bg-primary";
-      default:
-        return "bg-secondary";
+interface ContributionWeek {
+  contributionDays: ContributionDay[];
+}
+
+interface ActivityGridProps {
+  data?: ContributionDay[] | number[]; // Handle both flattened array (current) and potential future structures
+  loading?: boolean;
+}
+
+export function ActivityGrid({ data, loading }: ActivityGridProps) {
+  // Generate random fallback data if no real data is provided
+  // Generate empty fallback data (0 contributions) if no real data is provided
+  const getFallbackData = () => {
+    const days: ContributionDay[] = [];
+    const today = new Date();
+
+    // Generate last 365 days (approx 1 year)
+    for (let d = 365; d >= 0; d--) {
+      days.push({
+        contributionCount: 0,
+        date: new Date(today.getTime() - d * 86400000).toISOString().split('T')[0]
+      });
     }
+    return days;
   };
 
-  const weeks = [];
-  for (let i = 0; i < data.length; i += 7) {
-    weeks.push(data.slice(i, i + 7));
+  // Normalize data to ContributionDay[]
+  let displayData: ContributionDay[] = [];
+
+  if (Array.isArray(data) && data.length > 0) {
+    // Check if it's already ContributionDay[] (has date field)
+    let rawData: ContributionDay[] = [];
+    if (typeof data[0] === 'object' && 'date' in (data[0] as any)) {
+      rawData = data as ContributionDay[];
+    } else if (typeof data[0] === 'number') {
+      // Convert number[] to dummy ContributionDay[]
+      const today = new Date();
+      rawData = (data as number[]).map((count, i) => ({
+        contributionCount: count,
+        date: new Date(today.getTime() - (data.length - 1 - i) * 86400000).toISOString().split('T')[0]
+      }));
+    }
+    // Server sends data as [Today, Yesterday, ... Oldest] (Newest First)
+    // We want to display [Oldest ... Today] (Oldest First) for the graph
+    displayData = [...rawData].reverse();
+  } else {
+    displayData = getFallbackData();
   }
 
+  // Split into weeks
+  const weeks: ContributionWeek[] = [];
+  let currentWeek: ContributionDay[] = [];
+
+  displayData.forEach((day, i) => {
+    currentWeek.push(day);
+    if (currentWeek.length === 7 || i === displayData.length - 1) {
+      weeks.push({ contributionDays: currentWeek });
+      currentWeek = [];
+    }
+  });
+
+  // Ensure we display reasonably recent history (e.g., last 52 weeks / 1 year)
+  const displayWeeks = weeks.slice(-52);
+
+  const getIntensityClass = (count: number) => {
+    if (count === 0) return "bg-zinc-800/50 hover:bg-zinc-700/50";
+    if (count <= 2) return "bg-primary/30 shadow-[0_0_5px_rgba(var(--primary),0.3)] hover:bg-primary/40";
+    if (count <= 4) return "bg-primary/50 shadow-[0_0_8px_rgba(var(--primary),0.5)] hover:bg-primary/60";
+    if (count <= 6) return "bg-primary/70 shadow-[0_0_12px_rgba(var(--primary),0.7)] hover:bg-primary/80";
+    return "bg-primary shadow-[0_0_15px_rgba(var(--primary),0.9)] hover:bg-primary/90";
+  };
+
   return (
-    <div className="overflow-x-auto no-scrollbar">
-      <div className="flex gap-1">
-        {weeks.map((week, weekIndex) => (
-          <div key={weekIndex} className="flex flex-col gap-1">
-            {week.map((day, dayIndex) => (
-              <div
-                key={dayIndex}
-                className={cn(
-                  "w-3 h-3 rounded-sm transition-colors",
-                  getIntensityClass(day)
-                )}
-              />
+    <div className="w-full overflow-hidden rounded-2xl border border-zinc-800/50 bg-zinc-900/20 backdrop-blur-sm p-6">
+      <div className="flex flex-col gap-4">
+        <div className="overflow-x-auto pb-2 custom-scrollbar">
+          <div className="flex gap-1.5 min-w-max mx-auto">
+            {displayWeeks.map((week, weekIndex) => (
+              <div key={weekIndex} className="flex flex-col gap-1.5">
+                {week.contributionDays.map((day, dayIndex) => (
+                  <TooltipProvider key={`${weekIndex}-${dayIndex}`} delayDuration={0}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div
+                          className={cn(
+                            "w-3.5 h-3.5 rounded-sm transition-all duration-300",
+                            getIntensityClass(day.contributionCount),
+                            "border border-white/5"
+                          )}
+                        />
+                      </TooltipTrigger>
+                      <TooltipContentSide day={day} />
+                    </Tooltip>
+                  </TooltipProvider>
+                ))}
+              </div>
             ))}
           </div>
-        ))}
+        </div>
+
+        <div className="flex items-center justify-end gap-2 text-[10px] text-muted-foreground px-2">
+          <span>Less</span>
+          <div className="flex gap-1">
+            <div className="w-3 h-3 rounded-sm bg-zinc-800/50 border border-white/5" />
+            <div className="w-3 h-3 rounded-sm bg-primary/30 border border-white/5" />
+            <div className="w-3 h-3 rounded-sm bg-primary/70 border border-white/5" />
+            <div className="w-3 h-3 rounded-sm bg-primary border border-white/5" />
+          </div>
+          <span>More</span>
+        </div>
       </div>
     </div>
+  );
+}
+
+function TooltipContentSide({ day }: { day: ContributionDay }) {
+  const date = new Date(day.date);
+  const formattedDate = date.toLocaleDateString(undefined, {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  });
+
+  return (
+    <TooltipContent className="bg-zinc-900 border border-zinc-800 text-xs">
+      <p className="font-medium text-white">
+        {day.contributionCount === 0 ? "No contributions" : `${day.contributionCount} contributions`}
+      </p>
+      <p className="text-zinc-400">{formattedDate}</p>
+    </TooltipContent>
   );
 }

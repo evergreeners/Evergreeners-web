@@ -5,18 +5,20 @@ import { ActivityGrid } from "@/components/ActivityGrid";
 import {
   Github, MapPin, Calendar, Link as LinkIcon,
   Edit2, Share2, Check, Copy, Trophy, Flame, Target, GitCommit,
-  Eye, EyeOff, ExternalLink
+  Eye, EyeOff, ExternalLink, RefreshCw
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+// import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog"; // Removed
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerFooter } from "@/components/ui/drawer";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { ProfileEditForm } from "@/components/ProfileEditForm";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
-const activityData = Array.from({ length: 84 }, () =>
-  Math.random() > 0.3 ? Math.floor(Math.random() * 5) : 0
-);
+
 
 const achievements = [
   { name: "Early Adopter", icon: "🌱", earned: true },
@@ -33,9 +35,9 @@ import { useSession, signIn, authClient } from "@/lib/auth-client";
 import { useEffect } from "react";
 
 export default function Profile() {
-  /* Hook and State Setup */
   const navigate = useNavigate();
   const { data: session, isPending } = useSession();
+  const isMobile = useIsMobile();
 
   const [isPublic, setIsPublic] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
@@ -52,14 +54,16 @@ export default function Profile() {
     image: "",
     anonymousName: "",
     streak: 0,
-    totalCommits: 0
+    totalCommits: 0,
+    todayCommits: 0, // New field
+    contributionData: [] as any[] // New field
   });
 
   const stats = [
     { label: "Current Streak", value: profile.streak?.toString() || "0", icon: Flame },
-    { label: "Total Commits", value: (profile.totalCommits || 0).toLocaleString(), icon: GitCommit },
-    { label: "Goals Hit", value: "12", icon: Target },
-    { label: "Best Rank", value: "#24", icon: Trophy },
+    { label: "Commits Today", value: (profile.todayCommits || 0).toString(), icon: GitCommit },
+    { label: "Total Commits", value: (profile.totalCommits || 0).toLocaleString(), icon: Trophy },
+    { label: "Best Rank", value: "#24", icon: Target },
   ];
 
   const [editedProfile, setEditedProfile] = useState(profile);
@@ -68,8 +72,10 @@ export default function Profile() {
   useEffect(() => {
     const initProfile = async () => {
       if (session?.user) {
-        // Initial hydrate from session (fast)
+        // Initial hydrate from session (fast but potentially stale)
         const user = session.user as any;
+
+        // Optimistically set from session first to show SOMETHING immediately
         setProfile(prev => ({
           ...prev,
           name: user.name || "Tree Planter",
@@ -81,25 +87,100 @@ export default function Profile() {
           image: user.image || "",
           anonymousName: user.anonymousName || "",
           streak: user.streak || 0,
-          totalCommits: user.totalCommits || 0
+          totalCommits: user.totalCommits || 0,
+          todayCommits: user.todayCommits || 0,
+          contributionData: user.contributionData || []
         }));
         setIsPublic(user.isPublic !== false);
-        setEditedProfile(prev => ({ ...prev, ...user }));
 
-        // Check connected accounts
+        // Fetch FRESH data only (no profile overwrite if not needed, but here we want fresh stats AND fresh profile info if it changed)
+        // Actually, the issue was user edits disappearing.
+        // We fetching /api/user/profile ensures we display what is in the DB, not what is in the stale session cookie.
         try {
-          const accounts = await authClient.listAccounts();
-          if (accounts.data) {
-            const hasGithub = accounts.data.some((acc) => acc.providerId === "github");
-            setIsGithubConnected(hasGithub);
+          const baseUrl = getBaseURL(import.meta.env.VITE_API_URL || 'http://localhost:3000');
+          const res = await fetch(`${baseUrl}/api/user/profile`, { credentials: "include" });
+          if (res.ok) {
+            const { user: freshUser } = await res.json();
+            setProfile(prev => ({
+              ...prev,
+              name: freshUser.name || prev.name,
+              username: freshUser.username || prev.username,
+              bio: freshUser.bio || prev.bio,
+              location: freshUser.location || prev.location,
+              website: freshUser.website || prev.website,
+              image: freshUser.image || prev.image,
+              anonymousName: freshUser.anonymousName || prev.anonymousName,
+              streak: freshUser.streak,
+              totalCommits: freshUser.totalCommits,
+              todayCommits: freshUser.todayCommits,
+              contributionData: freshUser.contributionData || prev.contributionData
+            }));
+            // Also update the edit form state so it doesn't revert if they open it
+            setEditedProfile(prev => ({ ...prev, ...freshUser }));
+            setIsPublic(freshUser.isPublic !== false);
           }
-        } catch (error) {
-          console.error("Failed to list accounts", error);
+        } catch (e) {
+          console.error("Failed to fetch fresh profile", e);
+        }
+
+        if (typeof user.isGithubConnected === 'boolean') {
+          setIsGithubConnected(user.isGithubConnected);
+        } else {
+          try {
+            const accounts = await authClient.listAccounts();
+            if (accounts.data) {
+              const hasGithub = accounts.data.some((acc) => acc.providerId === "github");
+              setIsGithubConnected(hasGithub);
+            }
+          } catch (error) {
+            console.error("Failed to list accounts", error);
+          }
         }
       }
     };
     initProfile();
   }, [session]);
+
+  const getBaseURL = (url: string) => {
+    if (url.startsWith("http://") || url.startsWith("https://")) return url;
+    if (url.includes("localhost") || url.includes("127.0.0.1")) return `http://${url}`;
+    return `https://${url}`;
+  };
+
+  const syncGithubData = async (silent = false) => {
+    try {
+      if (!silent) toast.info("Syncing GitHub data...");
+      const baseUrl = getBaseURL(import.meta.env.VITE_API_URL || 'http://localhost:3000');
+      const res = await fetch(`${baseUrl}/api/user/sync-github`, {
+        method: "POST",
+        credentials: "include"
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setProfile(prev => ({
+          ...prev,
+          username: data.username || prev.username,
+          streak: data.streak,
+          totalCommits: data.totalCommits,
+          todayCommits: data.todayCommits,
+          contributionData: data.contributionData || []
+        }));
+        if (!silent) toast.success("GitHub data synced!");
+      } else {
+        console.error("Sync failed with status:", res.status);
+      }
+    } catch (e) {
+      console.error("Sync failed", e);
+    }
+  };
+
+  // Auto-sync effect: Always sync on load if connected (Real-time feel)
+  useEffect(() => {
+    if (isGithubConnected) {
+      syncGithubData(true);
+    }
+  }, [isGithubConnected]);
 
   const publicUrl = `evergreeners.dev/${isPublic ? profile.username : profile.anonymousName || 'anonymous'}`;
 
@@ -113,7 +194,8 @@ export default function Profile() {
   /* Save Profile Function */
   const handleSaveProfile = async () => {
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/user/profile`, {
+      const baseUrl = getBaseURL(import.meta.env.VITE_API_URL || 'http://localhost:3000');
+      const res = await fetch(`${baseUrl}/api/user/profile`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include", // Important for sending cookies!
@@ -146,7 +228,8 @@ export default function Profile() {
     setIsPublic(newStatus);
 
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/user/profile`, {
+      const baseUrl = getBaseURL(import.meta.env.VITE_API_URL || 'http://localhost:3000');
+      const res = await fetch(`${baseUrl}/api/user/profile`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include", // Important for sending cookies!
@@ -207,99 +290,12 @@ export default function Profile() {
                   <p className="text-muted-foreground">{isPublic ? `@${profile.username}` : `(Private • Playing as ${profile.anonymousName || "..."})`}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Dialog open={isEditing} onOpenChange={setIsEditing}>
-                    <DialogTrigger asChild>
-                      <button className="p-2 rounded-xl border border-border hover:bg-secondary transition-colors">
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                    </DialogTrigger>
-                    <DialogContent className="bg-background border-border">
-                      <DialogHeader>
-                        <DialogTitle>Edit Profile</DialogTitle>
-                      </DialogHeader>
-                      <div className="space-y-4 py-4">
-                        <div>
-                          <label className="text-sm text-muted-foreground">Display Name</label>
-                          <input
-                            type="text"
-                            value={editedProfile.name}
-                            onChange={(e) => setEditedProfile({ ...editedProfile, name: e.target.value })}
-                            className="w-full mt-2 p-3 rounded-xl bg-secondary border border-border focus:border-primary focus:outline-none transition-colors"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-sm text-muted-foreground">Username</label>
-                          <input
-                            type="text"
-                            value={editedProfile.username}
-                            onChange={(e) => setEditedProfile({ ...editedProfile, username: e.target.value })}
-                            className="w-full mt-2 p-3 rounded-xl bg-secondary border border-border focus:border-primary focus:outline-none transition-colors"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-sm text-muted-foreground">Profile Picture (Max 1MB)</label>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (!file) return;
-
-                              if (file.size > 1024 * 1024) {
-                                toast.error("Image size must be less than 1MB");
-                                e.target.value = ""; // Reset input
-                                return;
-                              }
-
-                              const reader = new FileReader();
-                              reader.onloadend = () => {
-                                setEditedProfile({ ...editedProfile, image: reader.result as string });
-                              };
-                              reader.readAsDataURL(file);
-                            }}
-                            className="w-full mt-2 p-3 rounded-xl bg-secondary border border-border focus:border-primary focus:outline-none transition-colors file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
-                          />
-                          {editedProfile.image && editedProfile.image.startsWith("data:") && (
-                            <div className="mt-2 text-xs text-muted-foreground">
-                              Image selected (Preview above when saved)
-                            </div>
-                          )}
-                        </div>
-                        <div>
-                          <label className="text-sm text-muted-foreground">Bio</label>
-                          <textarea
-                            value={editedProfile.bio}
-                            onChange={(e) => setEditedProfile({ ...editedProfile, bio: e.target.value })}
-                            className="w-full mt-2 p-3 rounded-xl bg-secondary border border-border focus:border-primary focus:outline-none transition-colors resize-none h-24"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-sm text-muted-foreground">Location</label>
-                          <input
-                            type="text"
-                            value={editedProfile.location}
-                            onChange={(e) => setEditedProfile({ ...editedProfile, location: e.target.value })}
-                            className="w-full mt-2 p-3 rounded-xl bg-secondary border border-border focus:border-primary focus:outline-none transition-colors"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-sm text-muted-foreground">Website</label>
-                          <input
-                            type="url"
-                            value={editedProfile.website}
-                            onChange={(e) => setEditedProfile({ ...editedProfile, website: e.target.value })}
-                            className="w-full mt-2 p-3 rounded-xl bg-secondary border border-border focus:border-primary focus:outline-none transition-colors"
-                          />
-                        </div>
-                        <Button
-                          onClick={handleSaveProfile}
-                          className="w-full bg-primary hover:bg-primary/90"
-                        >
-                          Save Changes
-                        </Button>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
+                  <button
+                    className="p-2 rounded-xl border border-border hover:bg-secondary transition-colors"
+                    onClick={() => setIsEditing(true)}
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
                   <button
                     className="p-2 rounded-xl border border-border hover:bg-secondary transition-colors"
                     onClick={handleCopyLink}
@@ -334,11 +330,24 @@ export default function Profile() {
             {stats.map((stat) => (
               <div
                 key={stat.label}
-                className="p-4 rounded-xl border border-border bg-secondary/30 text-center hover:bg-secondary/50 transition-all duration-300"
+                className="p-4 rounded-xl border border-border bg-secondary/30 text-center hover:bg-secondary/50 transition-all duration-300 relative group"
               >
                 <stat.icon className="w-5 h-5 text-primary mx-auto mb-2" />
                 <p className="text-2xl font-bold">{stat.value}</p>
                 <p className="text-xs text-muted-foreground mt-1">{stat.label}</p>
+
+                {(stat.label === "Total Commits" || stat.label === "Commits Today") && isGithubConnected && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      syncGithubData();
+                    }}
+                    className="absolute top-2 right-2 p-1 rounded-full hover:bg-background/50 opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="Refresh Data"
+                  >
+                    <RefreshCw className="w-3 h-3 text-muted-foreground" />
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -403,24 +412,8 @@ export default function Profile() {
 
         {/* Activity Grid */}
         <Section title="Recent Activity" className="animate-fade-up" style={{ animationDelay: "0.25s" }}>
-          <ActivityGrid data={activityData} />
-          <div className="flex items-center justify-end gap-2 mt-3">
-            <span className="text-xs text-muted-foreground">Less</span>
-            <div className="flex gap-1">
-              {[0, 1, 2, 3, 4].map((level) => (
-                <div
-                  key={level}
-                  className={`w-3 h-3 rounded-sm ${level === 0 ? "bg-secondary" :
-                    level === 1 ? "bg-primary/25" :
-                      level === 2 ? "bg-primary/50" :
-                        level === 3 ? "bg-primary/75" :
-                          "bg-primary"
-                    }`}
-                />
-              ))}
-            </div>
-            <span className="text-xs text-muted-foreground">More</span>
-          </div>
+          <ActivityGrid data={profile.contributionData} />
+
         </Section>
 
         {/* Achievements */}
@@ -463,6 +456,44 @@ export default function Profile() {
           </div>
         </Section>
       </main>
+
+      {/* Responsive Edit Profile Modal */}
+      {isMobile ? (
+        <Drawer open={isEditing} onOpenChange={setIsEditing}>
+          <DrawerContent>
+            <DrawerHeader className="text-left">
+              <DrawerTitle>Edit Profile</DrawerTitle>
+              <DrawerDescription>Update your public profile details.</DrawerDescription>
+            </DrawerHeader>
+            <div className="px-4 pb-4">
+              <ProfileEditForm
+                editedProfile={editedProfile}
+                setEditedProfile={setEditedProfile}
+                handleSaveProfile={handleSaveProfile}
+                handleCopyLink={handleCopyLink}
+                copied={copied}
+              />
+              <Button variant="outline" className="w-full mt-2" onClick={() => setIsEditing(false)}>Cancel</Button>
+            </div>
+          </DrawerContent>
+        </Drawer>
+      ) : (
+        <Sheet open={isEditing} onOpenChange={setIsEditing}>
+          <SheetContent side="right" className="overflow-y-auto mb-16 sm:mb-0">
+            <SheetHeader>
+              <SheetTitle>Edit Profile</SheetTitle>
+              <SheetDescription>Update your public profile details.</SheetDescription>
+            </SheetHeader>
+            <ProfileEditForm
+              editedProfile={editedProfile}
+              setEditedProfile={setEditedProfile}
+              handleSaveProfile={handleSaveProfile}
+              handleCopyLink={handleCopyLink}
+              copied={copied}
+            />
+          </SheetContent>
+        </Sheet>
+      )}
 
       <FloatingNav />
     </div>

@@ -19,6 +19,9 @@ export const users = mySchema.table('users', {
     anonymousName: text('anonymous_name'),
     streak: integer('streak').default(0),
     totalCommits: integer('total_commits').default(0),
+    todayCommits: integer('today_commits').default(0), // New field for daily tracking
+    contributionData: jsonb('contribution_data'), // Store full calendar data
+    isGithubConnected: boolean('is_github_connected').default(false),
 });
 
 export const sessions = mySchema.table('sessions', {

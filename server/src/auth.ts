@@ -43,7 +43,11 @@ export const auth = betterAuth({
             location: { type: "string" },
             website: { type: "string" },
             isPublic: { type: "boolean" },
-            anonymousName: { type: "string" }
+            anonymousName: { type: "string" },
+            streak: { type: "number" },
+            totalCommits: { type: "number" },
+            todayCommits: { type: "number" }, // Field for daily stats
+            isGithubConnected: { type: "boolean" }
         }
     },
     socialProviders: {
@@ -52,7 +56,8 @@ export const auth = betterAuth({
             clientSecret: process.env.GITHUB_CLIENT_SECRET!,
             mapProfileToUser: (profile) => {
                 return {
-                    username: profile.login
+                    username: profile.login,
+                    isGithubConnected: true
                 }
             }
         }

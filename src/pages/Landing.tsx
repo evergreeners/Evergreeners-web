@@ -39,7 +39,10 @@ export default function Landing() {
     const [loopNum, setLoopNum] = useState(0);
     const [typingSpeed, setTypingSpeed] = useState(150);
     const navigate = useNavigate();
-    const { data: session } = useSession();
+    const { data: session, isPending } = useSession();
+
+    // Prevent flash of landing page if already logged in:
+    // Move logic to final return to respect Rule of Hooks
 
     useEffect(() => {
         if (session) {
@@ -88,7 +91,12 @@ export default function Landing() {
 
         const timer = setTimeout(handleType, typingSpeed);
         return () => clearTimeout(timer);
-    }, [text, isDeleting, loopNum]); // Removed typingSpeed to avoid rapid re-triggering issues, relying on the value in setTimeout
+    }, [text, isDeleting, loopNum]);
+
+    // Early return AFTER all hooks call
+    if (isPending) {
+        return <div className="min-h-screen bg-black" />;
+    }
 
     return (
         <div className="min-h-screen bg-black text-foreground font-sans selection:bg-primary/30 overflow-x-hidden">

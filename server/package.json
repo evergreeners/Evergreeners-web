@@ -17,6 +17,7 @@
   "license": "ISC",
   "dependencies": {
     "@fastify/cors": "^11.2.0",
+    "@fastify/formbody": "^8.0.2",
     "@fastify/oauth2": "^8.1.2",
     "better-auth": "^1.4.14",
     "dotenv": "^17.2.3",

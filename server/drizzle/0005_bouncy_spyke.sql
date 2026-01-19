@@ -1,0 +1,1 @@
+ALTER TABLE "evergreeners"."users" ADD COLUMN "contribution_data" jsonb;

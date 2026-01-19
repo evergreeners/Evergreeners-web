@@ -1,0 +1,1 @@
+-- ALTER TABLE "evergreeners"."users" ADD COLUMN "today_commits" integer DEFAULT 0;

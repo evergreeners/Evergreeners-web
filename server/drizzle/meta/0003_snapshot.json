@@ -1,10 +1,6 @@
 {
-<<<<<<< HEAD
-  "id": "443fcf47-adbc-49a7-a130-e664df7a38cf",
-=======
-  "id": "2be0f56b-28b6-4ce6-b665-ff9ed7b37d65",
->>>>>>> ce02579de6f410c62181f8bb9fbff9629149cae3
-  "prevId": "e1915586-386c-472a-9c3d-2c02e2857296",
+  "id": "a18a835f-7c7b-4e2e-9fcd-6e023ba04029",
+  "prevId": "2be0f56b-28b6-4ce6-b665-ff9ed7b37d65",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -466,6 +462,13 @@
           "primaryKey": false,
           "notNull": false,
           "default": 0
+        },
+        "is_github_connected": {
+          "name": "is_github_connected",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
         }
       },
       "indexes": {},
