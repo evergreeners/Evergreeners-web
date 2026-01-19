@@ -64,6 +64,62 @@ server.register(async (instance) => {
 
         return toNodeHandler(auth)(req.raw, reply.raw);
     });
+
+    // Custom route to force-sync GitHub data
+    instance.post('/api/user/sync-github', async (req, reply) => {
+        const session = await auth.api.getSession({
+            headers: req.headers
+        });
+
+        if (!session) {
+            return reply.status(401).send({ message: "Unauthorized" });
+        }
+
+        const userId = session.session.userId;
+
+        // 1. Get GitHub Account
+        const account = await db.select().from(schema.accounts)
+            .where(and(
+                eq(schema.accounts.userId, userId),
+                eq(schema.accounts.providerId, 'github')
+            ))
+            .limit(1);
+
+        if (!account.length || !account[0].accessToken) {
+            return reply.status(400).send({ message: "No connected GitHub account found." });
+        }
+
+        try {
+            // 2. Fetch GitHub Profile
+            const ghRes = await fetch("https://api.github.com/user", {
+                headers: {
+                    Authorization: `Bearer ${account[0].accessToken}`,
+                    "User-Agent": "Evergreeners-App"
+                }
+            });
+
+            if (!ghRes.ok) throw new Error("Failed to fetch from GitHub");
+            const ghUser = await ghRes.json();
+
+            // 3. Update User Profile
+            await db.update(schema.users)
+                .set({
+                    username: ghUser.login,   // Force update username
+                    name: ghUser.name || ghUser.login,
+                    image: ghUser.avatar_url,
+                    bio: ghUser.bio,
+                    location: ghUser.location,
+                    website: ghUser.blog,
+                    updatedAt: new Date()
+                })
+                .where(eq(schema.users.id, userId));
+
+            return { success: true, username: ghUser.login };
+        } catch (error) {
+            console.error(error);
+            return reply.status(500).send({ message: "Failed to sync with GitHub" });
+        }
+    });
 });
 
 server.get('/', async (request, reply) => {

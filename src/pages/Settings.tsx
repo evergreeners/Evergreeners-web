@@ -80,13 +80,24 @@ export default function Settings() {
     "Australia/Sydney",
   ];
 
-  const handleRefreshData = () => {
+  const handleRefreshData = async () => {
     toast.promise(
-      new Promise((resolve) => setTimeout(resolve, 2000)),
+      (async () => {
+        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/user/sync-github`, {
+          method: "POST",
+          credentials: "include"
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.message || "Failed to sync");
+        }
+        // Reload to show changes
+        setTimeout(() => window.location.reload(), 1000);
+      })(),
       {
         loading: "Syncing with GitHub...",
-        success: "Data refreshed successfully!",
-        error: "Failed to refresh data",
+        success: "Profile synced! Reloading...",
+        error: (err) => `Sync failed: ${err.message}`,
       }
     );
   };
@@ -155,7 +166,7 @@ export default function Settings() {
                     <div>
                       <p className="font-medium">{isGithubConnected ? "GitHub Connected" : "Connect GitHub"}</p>
                       <p className="text-sm text-muted-foreground">
-                        {isGithubConnected ? `@${session?.user?.name || 'user'}` : "Sync your contributions"}
+                        {isGithubConnected ? `@${(session?.user as any)?.username || session?.user?.name || 'user'}` : "Sync your contributions"}
                       </p>
                     </div>
                   </div>
@@ -400,7 +411,7 @@ export default function Settings() {
                         <span>Disconnect GitHub</span>
                       </div>
                       <div className="text-sm opacity-80">
-                        Connected as @{githubUsername}
+                        Connected as @{(session?.user as any)?.username || githubUsername || session?.user?.name}
                       </div>
                     </button>
 

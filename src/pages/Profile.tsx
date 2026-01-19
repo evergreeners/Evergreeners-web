@@ -34,7 +34,7 @@ const stats = [
   { label: "Best Rank", value: "#24", icon: Trophy },
 ];
 
-import { useSession, signIn } from "@/lib/auth-client";
+import { useSession, signIn, authClient } from "@/lib/auth-client";
 import { useEffect } from "react";
 
 export default function Profile() {
@@ -59,9 +59,9 @@ export default function Profile() {
   });
   const [editedProfile, setEditedProfile] = useState(profile);
 
-  /* Effect: Load session data into state */
+  /* Effect: Load session data into state and check connections */
   useEffect(() => {
-    const fetchProfileData = async () => {
+    const initProfile = async () => {
       if (session?.user) {
         // Initial hydrate from session (fast)
         const user = session.user as any;
@@ -77,43 +77,21 @@ export default function Profile() {
           anonymousName: user.anonymousName || ""
         }));
         setIsPublic(user.isPublic !== false);
+        setEditedProfile(prev => ({ ...prev, ...user })); // Ensure edit form has data
 
-        // Fetch absolute latest + connected accounts from API
+        // Check connected accounts
         try {
-          const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/user/profile`, {
-            credentials: "include"
-          });
-          if (res.ok) {
-            const data = await res.json();
-            setIsGithubConnected(data.isGithubConnected);
-
-            // Update profile with potentially newer data from DB
-            if (data.user) {
-              const dbUser = data.user;
-              const freshProfile = {
-                name: dbUser.name || "Tree Planter",
-                username: dbUser.username || (dbUser.email ? dbUser.email.split('@')[0] : "user"),
-                bio: dbUser.bio || "No bio yet.",
-                location: dbUser.location || "Earth",
-                website: dbUser.website || "",
-                joinDate: "Joined " + new Date(dbUser.createdAt || Date.now()).toLocaleDateString(),
-                image: dbUser.image || "",
-                anonymousName: dbUser.anonymousName || ""
-              };
-              setProfile(freshProfile);
-              setEditedProfile(freshProfile);
-              // Update isPublic from DB
-              if (typeof dbUser.isPublic !== 'undefined') {
-                setIsPublic(dbUser.isPublic);
-              }
-            }
+          const accounts = await authClient.listAccounts();
+          if (accounts.data) {
+            const hasGithub = accounts.data.some((acc) => acc.providerId === "github");
+            setIsGithubConnected(hasGithub);
           }
         } catch (error) {
-          console.error("Failed to fetch specific profile data", error);
+          console.error("Failed to list accounts", error);
         }
       }
     };
-    fetchProfileData();
+    initProfile();
   }, [session]);
 
   const publicUrl = `evergreeners.dev/${isPublic ? profile.username : profile.anonymousName || 'anonymous'}`;
