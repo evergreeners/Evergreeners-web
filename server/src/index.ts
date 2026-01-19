@@ -7,7 +7,7 @@ import { toNodeHandler } from 'better-auth/node';
 
 import { db } from './db/index.js';
 import * as schema from './db/schema.js';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, desc, count, gt } from 'drizzle-orm';
 
 const server = fastify({
     logger: true,
@@ -82,9 +82,14 @@ async function getGithubContributions(username: string, token: string) {
     // Check if user has contributed today or yesterday to start the streak count
     let startIndex = allDays.findIndex((d: any) => d.contributionCount > 0);
 
-    // Calculate Today's Commits
+    // Calculate Today's, Yesterday's and Weekly Commits
     const todayData = allDays.find((d: any) => d.date === todayStr);
     const todayCommits = todayData ? todayData.contributionCount : 0;
+
+    const yesterdayData = allDays.find((d: any) => d.date === yesterdayStr);
+    const yesterdayCommits = yesterdayData ? yesterdayData.contributionCount : 0;
+
+    const weeklyCommits = allDays.slice(0, 7).reduce((acc: number, d: any) => acc + d.contributionCount, 0);
 
     if (startIndex !== -1) {
         const lastContribDate = allDays[startIndex].date;
@@ -103,7 +108,7 @@ async function getGithubContributions(username: string, token: string) {
         }
     }
 
-    return { totalCommits, currentStreak, todayCommits, contributionCalendar: allDays };
+    return { totalCommits, currentStreak, todayCommits, yesterdayCommits, weeklyCommits, contributionCalendar: allDays };
 }
 
 // Auth Routes Scope (No Body Parsing for better-auth)
@@ -188,12 +193,8 @@ server.register(async (instance) => {
             console.log("GitHub user found:", ghUser.login);
 
             // 3. Fetch Contributions (Streak & Total Commits)
-<<<<<<< HEAD
             console.log("Fetching contributions...");
-            const { totalCommits, currentStreak } = await getGithubContributions(ghUser.login, account[0].accessToken);
-=======
-            const { totalCommits, currentStreak, todayCommits, contributionCalendar } = await getGithubContributions(ghUser.login, account[0].accessToken);
->>>>>>> ce02579de6f410c62181f8bb9fbff9629149cae3
+            const { totalCommits, currentStreak, todayCommits, yesterdayCommits, weeklyCommits, contributionCalendar } = await getGithubContributions(ghUser.login, account[0].accessToken);
 
             // 4. Update User Profile
             console.log("Updating DB with streak:", currentStreak, "commits:", totalCommits);
@@ -203,24 +204,28 @@ server.register(async (instance) => {
                     streak: currentStreak,
                     totalCommits: totalCommits,
                     todayCommits: todayCommits,
+                    yesterdayCommits: yesterdayCommits,
+                    weeklyCommits: weeklyCommits,
                     contributionData: contributionCalendar,
                     isGithubConnected: true,
                     updatedAt: new Date()
                 })
                 .where(eq(schema.users.id, userId));
 
-<<<<<<< HEAD
             console.log("Sync complete!");
-            return { success: true, username: ghUser.login, streak: currentStreak, totalCommits };
+            return {
+                success: true,
+                username: ghUser.login,
+                streak: currentStreak,
+                totalCommits,
+                todayCommits,
+                yesterdayCommits,
+                weeklyCommits,
+                contributionData: contributionCalendar
+            };
         } catch (error: any) {
             console.error("Sync Route Error:", error);
             return reply.status(500).send({ message: error.message || "Failed to sync with GitHub" });
-=======
-            return { success: true, username: ghUser.login, streak: currentStreak, totalCommits, todayCommits, contributionData: contributionCalendar };
-        } catch (error) {
-            console.error(error);
-            return reply.status(500).send({ message: "Failed to sync with GitHub" });
->>>>>>> ce02579de6f410c62181f8bb9fbff9629149cae3
         }
     });
 
@@ -312,23 +317,104 @@ server.register(async (instance) => {
 
         if (!user.length) return reply.status(404).send({ message: "User not found" });
 
-        return { user: user[0] };
+        // GET Leaderboard Route
+        instance.get('/api/leaderboard', async (req, reply) => {
+            const { filter = 'streak' } = req.query as any;
+
+            let orderByField;
+            if (filter === 'commits') {
+                orderByField = schema.users.totalCommits;
+            } else if (filter === 'weekly') {
+                orderByField = schema.users.weeklyCommits;
+            } else {
+                orderByField = schema.users.streak;
+            }
+
+            // 1. Get Top 100 Users
+            const topUsers = await db.select({
+                id: schema.users.id,
+                username: schema.users.username,
+                name: schema.users.name,
+                image: schema.users.image,
+                streak: schema.users.streak,
+                totalCommits: schema.users.totalCommits,
+                todayCommits: schema.users.todayCommits,
+                yesterdayCommits: schema.users.yesterdayCommits,
+                weeklyCommits: schema.users.weeklyCommits,
+            })
+                .from(schema.users)
+                .where(eq(schema.users.isPublic, true))
+                .orderBy(desc(orderByField))
+                .limit(100);
+
+            // 2. Get Current User Rank
+            const headers = new Headers();
+            Object.entries(req.headers).forEach(([key, value]) => {
+                if (Array.isArray(value)) value.forEach(v => headers.append(key, v));
+                else if (typeof value === 'string') headers.set(key, value);
+            });
+
+            const session = await auth.api.getSession({ headers });
+            let currentUserRank = null;
+
+            if (session) {
+                const userId = session.session.userId;
+                // Find user in the top list first (performance)
+                const index = topUsers.findIndex(u => u.id === userId);
+                if (index !== -1) {
+                    currentUserRank = {
+                        rank: index + 1,
+                        user: topUsers[index]
+                    };
+                } else {
+                    // If not in top 100, we need to count how many users have a higher score
+                    const userQuery = await db.select().from(schema.users).where(eq(schema.users.id, userId)).limit(1);
+                    if (userQuery.length) {
+                        const user = userQuery[0];
+                        const score = (user as any)[filter === 'commits' ? 'totalCommits' : filter === 'weekly' ? 'weeklyCommits' : 'streak'] || 0;
+
+                        const countRes = await db.select({ val: count() })
+                            .from(schema.users)
+                            .where(gt(orderByField, score));
+
+                        currentUserRank = {
+                            rank: Number(countRes[0].val) + 1,
+                            user: {
+                                id: user.id,
+                                username: user.username,
+                                name: user.name,
+                                image: user.image,
+                                streak: user.streak,
+                                totalCommits: user.totalCommits,
+                                todayCommits: user.todayCommits,
+                                yesterdayCommits: user.yesterdayCommits,
+                                weeklyCommits: user.weeklyCommits,
+                            }
+                        };
+                    }
+                }
+            }
+
+            return {
+                users: topUsers,
+                currentUserRank: currentUserRank
+            };
+        });
     });
-});
 
-server.get('/', async (request, reply) => {
-    return { hello: 'world' };
-});
+    server.get('/', async (request, reply) => {
+        return { hello: 'world' };
+    });
 
-const start = async () => {
-    try {
-        const port = Number(process.env.PORT) || 3000;
-        await server.listen({ port, host: '0.0.0.0' });
-        console.log(`Server listening on port ${port}`);
-    } catch (err) {
-        server.log.error(err);
-        process.exit(1);
-    }
-};
+    const start = async () => {
+        try {
+            const port = Number(process.env.PORT) || 3000;
+            await server.listen({ port, host: '0.0.0.0' });
+            console.log(`Server listening on port ${port}`);
+        } catch (err) {
+            server.log.error(err);
+            process.exit(1);
+        }
+    };
 
-start();
+    start();

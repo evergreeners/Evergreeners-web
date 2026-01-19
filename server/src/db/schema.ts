@@ -20,6 +20,8 @@ export const users = mySchema.table('users', {
     streak: integer('streak').default(0),
     totalCommits: integer('total_commits').default(0),
     todayCommits: integer('today_commits').default(0), // New field for daily tracking
+    yesterdayCommits: integer('yesterday_commits').default(0), // For rise/fall trend
+    weeklyCommits: integer('weekly_commits').default(0), // For weekly filter
     contributionData: jsonb('contribution_data'), // Store full calendar data
     isGithubConnected: boolean('is_github_connected').default(false),
 });
