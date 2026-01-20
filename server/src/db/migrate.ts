@@ -1,4 +1,6 @@
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
+import * as dotenv from 'dotenv';
+dotenv.config();
 import { db } from './index.js';
 
 async function main() {

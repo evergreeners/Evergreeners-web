@@ -27,8 +27,12 @@ const activityData = Array.from({ length: 84 }, () =>
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { useSession } from "@/lib/auth-client";
 
 export default function Index() {
+  const { data: session } = useSession();
+  const user = session?.user as any;
+
   useEffect(() => {
     if (localStorage.getItem("login_success") === "true") {
       toast.success("Welcome back!", {
@@ -49,7 +53,7 @@ export default function Index() {
       <main className="container-fluid px-4 md:px-8 pt-24 pb-32 md:pb-12 space-y-8">
         {/* Hero Streak Section */}
         <section className="animate-fade-in">
-          <StreakDisplay current={47} longest={63} />
+          <StreakDisplay current={user?.streak || 0} longest={user?.longestStreak || 0} />
         </section>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:items-start">
@@ -96,8 +100,8 @@ export default function Index() {
             {/* Today's Status */}
             <Section className="animate-fade-up" style={{ animationDelay: "0.1s" }}>
               <TodayStatus
-                active={true}
-                commits={4}
+                active={user?.yesterdayCommits > 0}
+                commits={user?.yesterdayCommits || 0}
                 lastActivity="2 hours ago"
               />
             </Section>
@@ -105,7 +109,7 @@ export default function Index() {
             {/* Stats Row */}
             <Section className="animate-fade-up" style={{ animationDelay: "0.15s" }}>
               <div className="grid grid-cols-3 gap-4">
-                <StatItem label="This Week" value="42" subtext="commits" />
+                <StatItem label="This Week" value={user?.weeklyCommits || 0} subtext="commits" />
                 <StatItem label="Active Days" value="5/7" subtext="this week" />
                 <StatItem label="Repos" value="3" subtext="touched" />
               </div>

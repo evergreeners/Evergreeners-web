@@ -48,6 +48,13 @@
       "tag": "0005_bouncy_spyke",
 >>>>>>> ce02579de6f410c62181f8bb9fbff9629149cae3
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1768888833187,
+      "tag": "0006_bright_reaper",
+      "breakpoints": true
     }
   ]
 }

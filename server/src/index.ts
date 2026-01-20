@@ -7,7 +7,13 @@ import { toNodeHandler } from 'better-auth/node';
 
 import { db } from './db/index.js';
 import * as schema from './db/schema.js';
+<<<<<<< HEAD
 import { eq, and, desc, count, gt } from 'drizzle-orm';
+=======
+import { eq, and, desc, gt } from 'drizzle-orm';
+import { getGithubContributions } from './lib/github.js';
+import { setupCronJobs } from './cron.js';
+>>>>>>> 0d1d35fd7874c727782df5250162068e9b4e49cf
 
 const server = fastify({
     logger: true,
@@ -30,6 +36,7 @@ server.register(cors, {
 
 // GitHub OAuth is handled by better-auth in separate adapter
 
+<<<<<<< HEAD
 async function getGithubContributions(username: string, token: string) {
     const query = `
         query($username: String!) {
@@ -111,6 +118,9 @@ async function getGithubContributions(username: string, token: string) {
     return { totalCommits, currentStreak, todayCommits, yesterdayCommits, weeklyCommits, contributionCalendar: allDays };
 }
 
+=======
+// Auth Routes Scope (No Body Parsing for better-auth)
+>>>>>>> 0d1d35fd7874c727782df5250162068e9b4e49cf
 // Auth Routes Scope (No Body Parsing for better-auth)
 server.register(async (instance) => {
     // Prevent Fastify from parsing the body so better-auth can handle the raw stream
@@ -193,7 +203,10 @@ server.register(async (instance) => {
             console.log("GitHub user found:", ghUser.login);
 
             // 3. Fetch Contributions (Streak & Total Commits)
+<<<<<<< HEAD
             console.log("Fetching contributions...");
+=======
+>>>>>>> 0d1d35fd7874c727782df5250162068e9b4e49cf
             const { totalCommits, currentStreak, todayCommits, yesterdayCommits, weeklyCommits, contributionCalendar } = await getGithubContributions(ghUser.login, account[0].accessToken);
 
             // 4. Update User Profile
@@ -212,6 +225,7 @@ server.register(async (instance) => {
                 })
                 .where(eq(schema.users.id, userId));
 
+<<<<<<< HEAD
             console.log("Sync complete!");
             return {
                 success: true,
@@ -226,6 +240,12 @@ server.register(async (instance) => {
         } catch (error: any) {
             console.error("Sync Route Error:", error);
             return reply.status(500).send({ message: error.message || "Failed to sync with GitHub" });
+=======
+            return { success: true, username: ghUser.login, streak: currentStreak, totalCommits, todayCommits, yesterdayCommits, weeklyCommits, contributionData: contributionCalendar };
+        } catch (error) {
+            console.error(error);
+            return reply.status(500).send({ message: "Failed to sync with GitHub" });
+>>>>>>> 0d1d35fd7874c727782df5250162068e9b4e49cf
         }
     });
 
@@ -319,6 +339,7 @@ server.register(async (instance) => {
 
         return { user: user[0] };
     });
+<<<<<<< HEAD
 
     // GET Leaderboard Route
     instance.get('/api/leaderboard', async (req, reply) => {
@@ -402,6 +423,65 @@ server.register(async (instance) => {
             users: topUsers,
             currentUserRank: currentUserRank
         };
+=======
+    // Leaderboard Endpoint
+    instance.get('/api/leaderboard', async (req, reply) => {
+        try {
+            const topUsers = await db.select({
+                id: schema.users.id,
+                name: schema.users.name,
+                username: schema.users.username,
+                image: schema.users.image,
+                streak: schema.users.streak,
+                totalCommits: schema.users.totalCommits,
+                weeklyCommits: schema.users.weeklyCommits,
+                yesterdayCommits: schema.users.yesterdayCommits,
+                isPublic: schema.users.isPublic,
+                anonymousName: schema.users.anonymousName,
+            })
+                .from(schema.users)
+                .where(gt(schema.users.streak, 0))
+                .orderBy(desc(schema.users.streak))
+                .limit(50);
+
+            console.log(`Fetching leaderboard. Found ${topUsers.length} users with streak > 0`);
+
+
+            const leaderboard = topUsers.map((user, index) => {
+                const isAnonymous = !user.isPublic;
+                // Determine display name
+                let displayName = user.username || user.name;
+                if (isAnonymous) {
+                    displayName = user.anonymousName || `User${user.id.substring(0, 6)}`;
+                }
+
+                // Determine avatar
+                let avatar = user.image;
+                if (isAnonymous) {
+                    // We'll let the frontend handle the default avatar logic if null
+                    avatar = null;
+                }
+
+                return {
+                    rank: index + 1,
+                    username: displayName,
+                    avatar: avatar,
+                    streak: user.streak || 0,
+                    totalCommits: user.totalCommits || 0,
+                    yesterdayCommits: user.yesterdayCommits || 0,
+                    weeklyCommits: user.weeklyCommits || 0,
+                    // We don't determine isCurrentUser here, frontend will do it by comparing username/id
+                    originalUsername: user.username // Helper for frontend to identify current user if needed, though matching by string might be tricky if anonymous. 
+                    // Better to send ID or handle 'isCurrentUser' if we have session.
+                };
+            });
+
+            return { leaderboard };
+        } catch (error) {
+            console.error("Leaderboard error:", error);
+            return reply.status(500).send({ message: "Failed to fetch leaderboard" });
+        }
+>>>>>>> 0d1d35fd7874c727782df5250162068e9b4e49cf
     });
 });
 
@@ -414,6 +494,10 @@ const start = async () => {
         const port = Number(process.env.PORT) || 3000;
         await server.listen({ port, host: '0.0.0.0' });
         console.log(`Server listening on port ${port}`);
+
+        // Start Cron Jobs
+        setupCronJobs();
+
     } catch (err) {
         server.log.error(err);
         process.exit(1);
