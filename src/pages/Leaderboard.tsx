@@ -165,15 +165,22 @@ export default function Leaderboard() {
                       </div>
                       <div className="flex items-center gap-1 text-sm">
                         {(() => {
-                          // Try to match current user in leaderboard to get rank change, else default
-                          const entry = leaderboardData?.find(e => e.username === currentUser.username);
-                          const change = entry ? getRankChange(entry.rank, entry.previousRank) : { icon: Minus, class: "text-muted-foreground", text: "0" };
-                          return (
-                            <>
-                              <change.icon className={cn("w-3 h-3", change.class)} />
-                              <span className={change.class}>{change.text} this week</span>
-                            </>
-                          );
+                          const weeklyCommits = currentUser.weeklyCommits || 0;
+                          if (weeklyCommits > 0) {
+                            return (
+                              <>
+                                <TrendingUp className="w-3 h-3 text-primary" />
+                                <span className="text-primary">{weeklyCommits} this week</span>
+                              </>
+                            );
+                          } else {
+                            return (
+                              <>
+                                <Minus className="w-3 h-3 text-muted-foreground" />
+                                <span className="text-muted-foreground">{weeklyCommits} this week</span>
+                              </>
+                            );
+                          }
                         })()}
                       </div>
                     </div>
