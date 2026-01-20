@@ -7,13 +7,9 @@ import { toNodeHandler } from 'better-auth/node';
 
 import { db } from './db/index.js';
 import * as schema from './db/schema.js';
-<<<<<<< HEAD
-import { eq, and, desc, count, gt } from 'drizzle-orm';
-=======
 import { eq, and, desc, gt } from 'drizzle-orm';
 import { getGithubContributions } from './lib/github.js';
 import { setupCronJobs } from './cron.js';
->>>>>>> 0d1d35fd7874c727782df5250162068e9b4e49cf
 
 const server = fastify({
     logger: true,
@@ -36,91 +32,7 @@ server.register(cors, {
 
 // GitHub OAuth is handled by better-auth in separate adapter
 
-<<<<<<< HEAD
-async function getGithubContributions(username: string, token: string) {
-    const query = `
-        query($username: String!) {
-            user(login: $username) {
-                contributionsCollection {
-                    contributionCalendar {
-                        totalContributions
-                        weeks {
-                            contributionDays {
-                                contributionCount
-                                date
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    `;
-
-    const response = await fetch("https://api.github.com/graphql", {
-        method: "POST",
-        headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-            "User-Agent": "Evergreeners-App"
-        },
-        body: JSON.stringify({ query, variables: { username } })
-    });
-
-    if (!response.ok) {
-        throw new Error("GitHub GraphQL API failed");
-    }
-
-    const data: any = await response.json();
-    if (data.errors) {
-        throw new Error(data.errors[0].message);
-    }
-
-    const calendar = data.data.user.contributionsCollection.contributionCalendar;
-    const totalCommits = calendar.totalContributions;
-
-    const allDays = calendar.weeks
-        .flatMap((w: any) => w.contributionDays)
-        .reverse();
-
-    let currentStreak = 0;
-    const todayStr = new Date().toISOString().split('T')[0];
-    const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-
-    // Check if user has contributed today or yesterday to start the streak count
-    let startIndex = allDays.findIndex((d: any) => d.contributionCount > 0);
-
-    // Calculate Today's, Yesterday's and Weekly Commits
-    const todayData = allDays.find((d: any) => d.date === todayStr);
-    const todayCommits = todayData ? todayData.contributionCount : 0;
-
-    const yesterdayData = allDays.find((d: any) => d.date === yesterdayStr);
-    const yesterdayCommits = yesterdayData ? yesterdayData.contributionCount : 0;
-
-    const weeklyCommits = allDays.slice(0, 7).reduce((acc: number, d: any) => acc + d.contributionCount, 0);
-
-    if (startIndex !== -1) {
-        const lastContribDate = allDays[startIndex].date;
-        // If the last contribution was more than 1 day ago, the current streak is 0
-        if (lastContribDate < yesterdayStr && lastContribDate !== todayStr) {
-            currentStreak = 0;
-        } else {
-            // Count backwards
-            for (let i = startIndex; i < allDays.length; i++) {
-                if (allDays[i].contributionCount > 0) {
-                    currentStreak++;
-                } else {
-                    break;
-                }
-            }
-        }
-    }
-
-    return { totalCommits, currentStreak, todayCommits, yesterdayCommits, weeklyCommits, contributionCalendar: allDays };
-}
-
-=======
 // Auth Routes Scope (No Body Parsing for better-auth)
->>>>>>> 0d1d35fd7874c727782df5250162068e9b4e49cf
 // Auth Routes Scope (No Body Parsing for better-auth)
 server.register(async (instance) => {
     // Prevent Fastify from parsing the body so better-auth can handle the raw stream
@@ -203,10 +115,6 @@ server.register(async (instance) => {
             console.log("GitHub user found:", ghUser.login);
 
             // 3. Fetch Contributions (Streak & Total Commits)
-<<<<<<< HEAD
-            console.log("Fetching contributions...");
-=======
->>>>>>> 0d1d35fd7874c727782df5250162068e9b4e49cf
             const { totalCommits, currentStreak, todayCommits, yesterdayCommits, weeklyCommits, contributionCalendar } = await getGithubContributions(ghUser.login, account[0].accessToken);
 
             // 4. Update User Profile
@@ -225,27 +133,10 @@ server.register(async (instance) => {
                 })
                 .where(eq(schema.users.id, userId));
 
-<<<<<<< HEAD
-            console.log("Sync complete!");
-            return {
-                success: true,
-                username: ghUser.login,
-                streak: currentStreak,
-                totalCommits,
-                todayCommits,
-                yesterdayCommits,
-                weeklyCommits,
-                contributionData: contributionCalendar
-            };
-        } catch (error: any) {
-            console.error("Sync Route Error:", error);
-            return reply.status(500).send({ message: error.message || "Failed to sync with GitHub" });
-=======
             return { success: true, username: ghUser.login, streak: currentStreak, totalCommits, todayCommits, yesterdayCommits, weeklyCommits, contributionData: contributionCalendar };
         } catch (error) {
             console.error(error);
             return reply.status(500).send({ message: "Failed to sync with GitHub" });
->>>>>>> 0d1d35fd7874c727782df5250162068e9b4e49cf
         }
     });
 
@@ -339,91 +230,6 @@ server.register(async (instance) => {
 
         return { user: user[0] };
     });
-<<<<<<< HEAD
-
-    // GET Leaderboard Route
-    instance.get('/api/leaderboard', async (req, reply) => {
-        const { filter = 'streak' } = req.query as any;
-
-        let orderByField;
-        if (filter === 'commits') {
-            orderByField = schema.users.totalCommits;
-        } else if (filter === 'weekly') {
-            orderByField = schema.users.weeklyCommits;
-        } else {
-            orderByField = schema.users.streak;
-        }
-
-        // 1. Get Top 100 Users
-        const topUsers = await db.select({
-            id: schema.users.id,
-            username: schema.users.username,
-            name: schema.users.name,
-            image: schema.users.image,
-            streak: schema.users.streak,
-            totalCommits: schema.users.totalCommits,
-            todayCommits: schema.users.todayCommits,
-            yesterdayCommits: schema.users.yesterdayCommits,
-            weeklyCommits: schema.users.weeklyCommits,
-        })
-            .from(schema.users)
-            .where(eq(schema.users.isPublic, true))
-            .orderBy(desc(orderByField))
-            .limit(100);
-
-        // 2. Get Current User Rank
-        const headers = new Headers();
-        Object.entries(req.headers).forEach(([key, value]) => {
-            if (Array.isArray(value)) value.forEach(v => headers.append(key, v));
-            else if (typeof value === 'string') headers.set(key, value);
-        });
-
-        const session = await auth.api.getSession({ headers });
-        let currentUserRank = null;
-
-        if (session) {
-            const userId = session.session.userId;
-            // Find user in the top list first (performance)
-            const index = topUsers.findIndex(u => u.id === userId);
-            if (index !== -1) {
-                currentUserRank = {
-                    rank: index + 1,
-                    user: topUsers[index]
-                };
-            } else {
-                // If not in top 100, we need to count how many users have a higher score
-                const userQuery = await db.select().from(schema.users).where(eq(schema.users.id, userId)).limit(1);
-                if (userQuery.length) {
-                    const user = userQuery[0];
-                    const score = (user as any)[filter === 'commits' ? 'totalCommits' : filter === 'weekly' ? 'weeklyCommits' : 'streak'] || 0;
-
-                    const countRes = await db.select({ val: count() })
-                        .from(schema.users)
-                        .where(gt(orderByField, score));
-
-                    currentUserRank = {
-                        rank: Number(countRes[0].val) + 1,
-                        user: {
-                            id: user.id,
-                            username: user.username,
-                            name: user.name,
-                            image: user.image,
-                            streak: user.streak,
-                            totalCommits: user.totalCommits,
-                            todayCommits: user.todayCommits,
-                            yesterdayCommits: user.yesterdayCommits,
-                            weeklyCommits: user.weeklyCommits,
-                        }
-                    };
-                }
-            }
-        }
-
-        return {
-            users: topUsers,
-            currentUserRank: currentUserRank
-        };
-=======
     // Leaderboard Endpoint
     instance.get('/api/leaderboard', async (req, reply) => {
         try {
@@ -471,7 +277,7 @@ server.register(async (instance) => {
                     yesterdayCommits: user.yesterdayCommits || 0,
                     weeklyCommits: user.weeklyCommits || 0,
                     // We don't determine isCurrentUser here, frontend will do it by comparing username/id
-                    originalUsername: user.username // Helper for frontend to identify current user if needed, though matching by string might be tricky if anonymous. 
+                    originalUsername: user.username // Helper for frontend to identify current user if needed, though matching by string might be tricky if anonymous.
                     // Better to send ID or handle 'isCurrentUser' if we have session.
                 };
             });
@@ -481,7 +287,7 @@ server.register(async (instance) => {
             console.error("Leaderboard error:", error);
             return reply.status(500).send({ message: "Failed to fetch leaderboard" });
         }
->>>>>>> 0d1d35fd7874c727782df5250162068e9b4e49cf
+
     });
 });
 
