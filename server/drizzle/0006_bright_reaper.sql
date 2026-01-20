@@ -1,0 +1,2 @@
+ALTER TABLE "evergreeners"."users" ADD COLUMN IF NOT EXISTS "yesterday_commits" integer DEFAULT 0;--> statement-breakpoint
+ALTER TABLE "evergreeners"."users" ADD COLUMN IF NOT EXISTS "weekly_commits" integer DEFAULT 0;
