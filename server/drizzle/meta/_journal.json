@@ -43,6 +43,13 @@
       "when": 1768795187475,
       "tag": "0005_bouncy_spyke",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1768888833187,
+      "tag": "0006_bright_reaper",
+      "breakpoints": true
     }
   ]
 }
