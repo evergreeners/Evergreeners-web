@@ -52,6 +52,34 @@ export function setupCronJobs() {
                         })
                         .where(eq(users.id, user.id));
 
+                    // Update User Goals based on new stats
+                    // Ideally this logic should be a shared function but for now inline to ensure it works
+                    // Need to import goals schema first
+                    // Assuming goals is exported from db/schema.js
+                    const { goals } = await import('./db/schema.js');
+
+                    const userGoals = await db.select().from(goals).where(eq(goals.userId, user.id));
+
+                    for (const goal of userGoals) {
+                        let newCurrent = goal.current;
+
+                        if (goal.type === 'streak') {
+                            newCurrent = currentStreak;
+                        } else if (goal.type === 'commits' && goal.title.toLowerCase().includes('weekly')) {
+                            newCurrent = weeklyCommits;
+                        } else {
+                            continue;
+                        }
+
+                        const newCompleted = newCurrent >= goal.target;
+
+                        if (newCurrent !== goal.current || newCompleted !== goal.completed) {
+                            await db.update(goals)
+                                .set({ current: newCurrent, completed: newCompleted, updatedAt: new Date() })
+                                .where(eq(goals.id, goal.id));
+                        }
+                    }
+
                 } catch (err) {
                     console.error(`Failed to sync user ${user.username}:`, err);
                 }

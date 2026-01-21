@@ -126,6 +126,30 @@ server.register(async (instance) => {
                 })
                 .where(eq(schema.users.id, userId));
 
+            // 5. Update User Goals based on new stats
+            const userGoals = await db.select().from(schema.goals).where(eq(schema.goals.userId, userId));
+            const goalsToUpdate = [];
+
+            for (const goal of userGoals) {
+                let newCurrent = goal.current;
+
+                if (goal.type === 'streak') {
+                    newCurrent = currentStreak;
+                } else if (goal.type === 'commits' && goal.title.toLowerCase().includes('weekly')) {
+                    newCurrent = weeklyCommits;
+                } else {
+                    continue;
+                }
+
+                const newCompleted = newCurrent >= goal.target;
+
+                if (newCurrent !== goal.current || newCompleted !== goal.completed) {
+                    await db.update(schema.goals)
+                        .set({ current: newCurrent, completed: newCompleted, updatedAt: new Date() })
+                        .where(eq(schema.goals.id, goal.id));
+                }
+            }
+
             return { success: true, username: ghUser.login, streak: currentStreak, totalCommits, todayCommits, yesterdayCommits, weeklyCommits, contributionData: contributionCalendar };
         } catch (error) {
             console.error(error);
@@ -279,6 +303,180 @@ server.register(async (instance) => {
         } catch (error) {
             console.error("Leaderboard error:", error);
             return reply.status(500).send({ message: "Failed to fetch leaderboard" });
+        }
+    });
+    // Goals Endpoints
+    // GET /api/goals
+    instance.get('/api/goals', async (req, reply) => {
+        const headers = new Headers();
+        Object.entries(req.headers).forEach(([key, value]) => {
+            if (Array.isArray(value)) {
+                value.forEach(v => headers.append(key, v));
+            } else if (typeof value === 'string') {
+                headers.set(key, value);
+            }
+        });
+
+        const session = await auth.api.getSession({ headers });
+        if (!session) return reply.status(401).send({ message: "Unauthorized" });
+
+        const userId = session.session.userId;
+
+        try {
+            const userGoals = await db.select().from(schema.goals)
+                .where(eq(schema.goals.userId, userId))
+                .orderBy(desc(schema.goals.createdAt));
+            return { goals: userGoals };
+        } catch (error) {
+            console.error("Fetch goals error:", error);
+            return reply.status(500).send({ message: "Failed to fetch goals" });
+        }
+    });
+
+    // POST /api/goals
+    instance.post('/api/goals', async (req, reply) => {
+        const headers = new Headers();
+        Object.entries(req.headers).forEach(([key, value]) => {
+            if (Array.isArray(value)) {
+                value.forEach(v => headers.append(key, v));
+            } else if (typeof value === 'string') {
+                headers.set(key, value);
+            }
+        });
+
+        const session = await auth.api.getSession({ headers });
+        if (!session) return reply.status(401).send({ message: "Unauthorized" });
+
+        const userId = session.session.userId;
+        const body = req.body as any;
+
+        try {
+            // Fetch user stats to initialize goal progress
+            const user = await db.select().from(schema.users).where(eq(schema.users.id, userId)).limit(1);
+            let current = body.current || 0;
+            const target = parseInt(body.target);
+
+            if (user.length) {
+                if (body.type === 'streak') {
+                    current = user[0].streak || 0;
+                } else if (body.type === 'commits' && body.title.toLowerCase().includes('weekly')) {
+                    current = user[0].weeklyCommits || 0;
+                }
+            }
+
+            const completed = current >= target;
+
+            console.log(`Creating goal: ${body.title}, Type: ${body.type}, Current: ${current}, Target: ${target}, Completed: ${completed}`);
+
+            const newGoal = await db.insert(schema.goals).values({
+                userId,
+                title: body.title,
+                type: body.type,
+                target: target,
+                current: current,
+                dueDate: body.dueDate,
+                completed: completed,
+            }).returning();
+
+            return { goal: newGoal[0] };
+        } catch (error) {
+            console.error("Create goal error:", error);
+            return reply.status(500).send({ message: "Failed to create goal" });
+        }
+    });
+
+    // PUT /api/goals/:id
+    instance.put('/api/goals/:id', async (req, reply: any) => {
+        const headers = new Headers();
+        Object.entries(req.headers).forEach(([key, value]) => {
+            if (Array.isArray(value)) {
+                value.forEach(v => headers.append(key, v));
+            } else if (typeof value === 'string') {
+                headers.set(key, value);
+            }
+        });
+
+        const session = await auth.api.getSession({ headers });
+        if (!session) return reply.status(401).send({ message: "Unauthorized" });
+
+        const userId = session.session.userId;
+        const { id } = req.params as { id: string };
+        const body = req.body as any;
+
+        try {
+            // Verify ownership
+            const existingGoal = await db.select().from(schema.goals)
+                .where(and(eq(schema.goals.id, parseInt(id)), eq(schema.goals.userId, userId)))
+                .limit(1);
+
+            if (!existingGoal.length) return reply.status(404).send({ message: "Goal not found" });
+            const goal = existingGoal[0];
+
+            const updateData: any = { updatedAt: new Date() };
+            if (body.title !== undefined) updateData.title = body.title;
+            if (body.dueDate !== undefined) updateData.dueDate = body.dueDate;
+
+            let newCurrent = goal.current;
+            let newTarget = goal.target;
+
+            if (body.current !== undefined) {
+                updateData.current = body.current;
+                newCurrent = body.current;
+            }
+            if (body.target !== undefined) {
+                updateData.target = body.target;
+                newTarget = body.target;
+            }
+
+            // Recalculate completed status
+            const completed = newCurrent >= newTarget;
+            updateData.completed = completed;
+
+            if (body.completed !== undefined) {
+                // If explicitly setting completed (e.g. manual checking?), respect it, but usually auto-calc is better for stats
+                updateData.completed = body.completed;
+            }
+
+            const updatedGoal = await db.update(schema.goals)
+                .set(updateData)
+                .where(eq(schema.goals.id, parseInt(id)))
+                .returning();
+
+            return { goal: updatedGoal[0] };
+        } catch (error) {
+            console.error("Update goal error:", error);
+            return reply.status(500).send({ message: "Failed to update goal" });
+        }
+    });
+
+    // DELETE /api/goals/:id
+    instance.delete('/api/goals/:id', async (req, reply: any) => {
+        const headers = new Headers();
+        Object.entries(req.headers).forEach(([key, value]) => {
+            if (Array.isArray(value)) {
+                value.forEach(v => headers.append(key, v));
+            } else if (typeof value === 'string') {
+                headers.set(key, value);
+            }
+        });
+
+        const session = await auth.api.getSession({ headers });
+        if (!session) return reply.status(401).send({ message: "Unauthorized" });
+
+        const userId = session.session.userId;
+        const { id } = req.params as { id: string };
+
+        try {
+            const deleted = await db.delete(schema.goals)
+                .where(and(eq(schema.goals.id, parseInt(id)), eq(schema.goals.userId, userId)))
+                .returning();
+
+            if (!deleted.length) return reply.status(404).send({ message: "Goal not found" });
+
+            return { success: true };
+        } catch (error) {
+            console.error("Delete goal error:", error);
+            return reply.status(500).send({ message: "Failed to delete goal" });
         }
     });
 });

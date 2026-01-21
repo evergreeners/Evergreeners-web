@@ -50,6 +50,13 @@
       "when": 1768888833187,
       "tag": "0006_bright_reaper",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1768998111500,
+      "tag": "0007_uneven_silver_samurai",
+      "breakpoints": true
     }
   ]
 }

@@ -90,3 +90,16 @@ export const stories = mySchema.table('stories', {
     published: boolean('published').default(false),
     createdAt: timestamp('created_at').defaultNow(),
 });
+
+export const goals = mySchema.table('goals', {
+    id: serial('id').primaryKey(),
+    userId: text('user_id').notNull().references(() => users.id),
+    title: text('title').notNull(),
+    type: text('type').notNull(),
+    target: integer('target').notNull(),
+    current: integer('current').default(0).notNull(),
+    dueDate: text('due_date'),
+    completed: boolean('completed').default(false).notNull(),
+    createdAt: timestamp('created_at').defaultNow(),
+    updatedAt: timestamp('updated_at').defaultNow(),
+});
