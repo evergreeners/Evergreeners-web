@@ -31,7 +31,7 @@ const goalTemplates = [
   { type: "projects", title: "Contribute to repos", icon: BookOpen, defaultTarget: 3 },
 ];
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+const API_URL = import.meta.env.VITE_API_URL || "";
 
 export default function Goals() {
   const [goals, setGoals] = useState<Goal[]>([]);

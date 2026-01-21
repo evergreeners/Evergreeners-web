@@ -7,7 +7,7 @@ const getBaseURL = (url: string) => {
 };
 
 export const authClient = createAuthClient({
-    baseURL: getBaseURL(import.meta.env.VITE_API_URL || "http://localhost:3000") // the base url of your auth server
+    baseURL: import.meta.env.VITE_API_URL || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000") // the base url of your auth server
 })
 
 export const { signIn, signUp, useSession, signOut } = authClient;
