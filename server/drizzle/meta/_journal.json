@@ -57,6 +57,13 @@
       "when": 1768998111500,
       "tag": "0007_uneven_silver_samurai",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1769000932375,
+      "tag": "0008_warm_nightshade",
+      "breakpoints": true
     }
   ]
 }

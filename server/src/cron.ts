@@ -38,7 +38,7 @@ export function setupCronJobs() {
 
                 try {
                     // console.log(`Syncing user: ${user.username}`);
-                    const { totalCommits, currentStreak, todayCommits, yesterdayCommits, weeklyCommits, contributionCalendar } = await getGithubContributions(user.username || "", account.accessToken);
+                    const { totalCommits, currentStreak, todayCommits, yesterdayCommits, weeklyCommits, activeDays, totalProjects, contributionCalendar } = await getGithubContributions(user.username || "", account.accessToken);
 
                     await db.update(users)
                         .set({
@@ -47,6 +47,8 @@ export function setupCronJobs() {
                             todayCommits: todayCommits,
                             yesterdayCommits: yesterdayCommits,
                             weeklyCommits: weeklyCommits,
+                            activeDays: activeDays,
+                            totalProjects: totalProjects,
                             contributionData: contributionCalendar,
                             updatedAt: new Date()
                         })
@@ -67,6 +69,10 @@ export function setupCronJobs() {
                             newCurrent = currentStreak;
                         } else if (goal.type === 'commits' && goal.title.toLowerCase().includes('weekly')) {
                             newCurrent = weeklyCommits;
+                        } else if (goal.type === 'days') {
+                            newCurrent = activeDays;
+                        } else if (goal.type === 'projects') {
+                            newCurrent = totalProjects;
                         } else {
                             continue;
                         }

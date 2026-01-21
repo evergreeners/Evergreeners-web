@@ -109,7 +109,7 @@ server.register(async (instance) => {
             const ghUser = await ghRes.json();
 
             // 3. Fetch Contributions (Streak & Total Commits)
-            const { totalCommits, currentStreak, todayCommits, yesterdayCommits, weeklyCommits, contributionCalendar } = await getGithubContributions(ghUser.login, account[0].accessToken);
+            const { totalCommits, currentStreak, todayCommits, yesterdayCommits, weeklyCommits, activeDays, totalProjects, contributionCalendar } = await getGithubContributions(ghUser.login, account[0].accessToken);
 
             // 4. Update User Profile
             await db.update(schema.users)
@@ -120,6 +120,8 @@ server.register(async (instance) => {
                     todayCommits: todayCommits,
                     yesterdayCommits: yesterdayCommits,
                     weeklyCommits: weeklyCommits,
+                    activeDays: activeDays,
+                    totalProjects: totalProjects,
                     contributionData: contributionCalendar,
                     isGithubConnected: true,
                     updatedAt: new Date()
@@ -137,6 +139,10 @@ server.register(async (instance) => {
                     newCurrent = currentStreak;
                 } else if (goal.type === 'commits' && goal.title.toLowerCase().includes('weekly')) {
                     newCurrent = weeklyCommits;
+                } else if (goal.type === 'days') {
+                    newCurrent = activeDays;
+                } else if (goal.type === 'projects') {
+                    newCurrent = totalProjects;
                 } else {
                     continue;
                 }
@@ -359,8 +365,18 @@ server.register(async (instance) => {
             if (user.length) {
                 if (body.type === 'streak') {
                     current = user[0].streak || 0;
-                } else if (body.type === 'commits' && body.title.toLowerCase().includes('weekly')) {
-                    current = user[0].weeklyCommits || 0;
+                } else if (body.type === 'commits') {
+                    // Default to weekly commits logic if title mentions it, or just 0 if generic
+                    if (body.title.toLowerCase().includes('weekly') || body.title.toLowerCase().includes('week')) {
+                        current = user[0].weeklyCommits || 0;
+                    } else {
+                        // Could be total commits or daily
+                        current = user[0].totalCommits || 0;
+                    }
+                } else if (body.type === 'days') {
+                    current = user[0].activeDays || 0;
+                } else if (body.type === 'projects') {
+                    current = user[0].totalProjects || 0;
                 }
             }
 

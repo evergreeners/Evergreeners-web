@@ -3,6 +3,9 @@ export async function getGithubContributions(username: string, token: string) {
     const query = `
         query($username: String!) {
             user(login: $username) {
+                repositoriesContributedTo(first: 100, contributionTypes: [COMMIT, ISSUE, PULL_REQUEST, REPOSITORY]) {
+                    totalCount
+                }
                 contributionsCollection {
                     contributionCalendar {
                         totalContributions
@@ -37,8 +40,10 @@ export async function getGithubContributions(username: string, token: string) {
         throw new Error(data.errors[0].message);
     }
 
-    const calendar = data.data.user.contributionsCollection.contributionCalendar;
+    const user = data.data.user;
+    const calendar = user.contributionsCollection.contributionCalendar;
     const totalCommits = calendar.totalContributions;
+    const totalProjects = user.repositoriesContributedTo.totalCount;
 
     const allDays = calendar.weeks
         .flatMap((w: any) => w.contributionDays)
@@ -83,6 +88,7 @@ export async function getGithubContributions(username: string, token: string) {
 
     const weeklyData = allDays.filter((d: any) => d.date >= oneWeekAgoStr && d.date <= todayStr);
     const weeklyCommits = weeklyData.reduce((acc: number, d: any) => acc + d.contributionCount, 0);
+    const activeDays = weeklyData.filter((d: any) => d.contributionCount > 0).length;
 
-    return { totalCommits, currentStreak, todayCommits, yesterdayCommits, weeklyCommits, contributionCalendar: allDays };
+    return { totalCommits, currentStreak, todayCommits, yesterdayCommits, weeklyCommits, activeDays, totalProjects, contributionCalendar: allDays };
 }

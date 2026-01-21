@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { triggerHaptic } from "@/lib/utils";
 import { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { authClient } from "@/lib/auth-client";
@@ -182,6 +182,11 @@ export default function Goals() {
             <DialogContent className="bg-background border-border">
               <DialogHeader>
                 <DialogTitle>Add New Goal</DialogTitle>
+                <div className="sr-only">
+                  <DialogDescription>
+                    Choose a goal type and set your target.
+                  </DialogDescription>
+                </div>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 {newGoalType === null ? (
@@ -312,6 +317,11 @@ export default function Goals() {
                         <DialogContent className="bg-background border-border">
                           <DialogHeader>
                             <DialogTitle>Edit Goal</DialogTitle>
+                            <div className="sr-only">
+                              <DialogDescription>
+                                Modify the target of your existing goal.
+                              </DialogDescription>
+                            </div>
                           </DialogHeader>
                           <div className="space-y-4 py-4">
                             <div>
