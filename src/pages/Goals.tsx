@@ -55,11 +55,17 @@ export default function Goals() {
         // If API is on different port, we need credentials include.
       });
       if (res.ok) {
-        const data = await res.json();
-        setGoals(data.goals.map((g: any) => ({
-          ...g,
-          icon: goalTemplates.find(t => t.type === g.type)?.icon || Trophy
-        })));
+        const contentType = res.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const data = await res.json();
+          setGoals(data.goals.map((g: any) => ({
+            ...g,
+            icon: goalTemplates.find(t => t.type === g.type)?.icon || Trophy
+          })));
+        } else {
+          console.error("Received non-JSON response from server:", await res.text());
+          throw new Error("Received non-JSON response from server. Check API URL.");
+        }
       }
     } catch (error) {
       console.error("Failed to fetch goals", error);
