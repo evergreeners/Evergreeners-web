@@ -4,7 +4,7 @@ import { Section } from "@/components/Section";
 import { GoalProgress } from "@/components/GoalProgress";
 import {
   Target, Plus, Edit2, Trash2, Check, Calendar,
-  Flame, GitCommit, BookOpen, Trophy, Clock
+  Flame, GitCommit, BookOpen, Trophy, Clock, Info
 } from "lucide-react";
 import { triggerHaptic } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -12,6 +12,30 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { authClient } from "@/lib/auth-client";
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } from "@/components/ui/drawer";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { ExternalLink, Eye } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+
+const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+const getEndDay = (startDay: string, target: number) => {
+  const startIndex = daysOfWeek.indexOf(startDay);
+  const endIndex = Math.min(startIndex + target - 1, 6);
+  return daysOfWeek[endIndex];
+};
 
 interface Goal {
   id: number;
@@ -25,10 +49,10 @@ interface Goal {
 }
 
 const goalTemplates = [
-  { type: "streak", title: "Maintain streak", icon: Flame, defaultTarget: 30 },
-  { type: "commits", title: "Weekly commits", icon: GitCommit, defaultTarget: 20 },
-  { type: "days", title: "Code X days/week", icon: Calendar, defaultTarget: 5 },
-  { type: "projects", title: "Contribute to repos", icon: BookOpen, defaultTarget: 3 },
+  { type: "streak", title: "Maintain streak", icon: Flame, defaultTarget: 30, description: "Track consecutive days of GitHub contributions" },
+  { type: "commits", title: "Weekly commits", icon: GitCommit, defaultTarget: 20, description: "Count commits made in the last 7 days (rolling window)" },
+  { type: "days", title: "Code X days/week", icon: Calendar, defaultTarget: 5, description: "Track active coding days in the current week (Mon-Sun)" },
+  { type: "projects", title: "Contribute to repos", icon: BookOpen, defaultTarget: 3, description: "Number of repositories you've contributed to" },
 ];
 
 const API_URL = import.meta.env.VITE_API_URL || "";
@@ -39,8 +63,14 @@ export default function Goals() {
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
   const [newGoalType, setNewGoalType] = useState<string | null>(null);
   const [newGoalTarget, setNewGoalTarget] = useState(30);
+  const [newGoalStartDay, setNewGoalStartDay] = useState("Monday");
   const [isLoading, setIsLoading] = useState(true);
+  const [isSavingGoal, setIsSavingGoal] = useState(false);
+  const [isCreatingGoal, setIsCreatingGoal] = useState(false);
   const { data: session } = authClient.useSession();
+  const [projectsData, setProjectsData] = useState<any[]>([]);
+  const [repoDetailsOpen, setRepoDetailsOpen] = useState(false);
+  const isMobile = useIsMobile();
 
   const fetchGoals = async () => {
     try {
@@ -62,6 +92,8 @@ export default function Goals() {
             ...g,
             icon: goalTemplates.find(t => t.type === g.type)?.icon || Trophy
           })));
+          // Cache goals for fast reload
+          localStorage.setItem('cached_goals', JSON.stringify(data.goals));
         } else {
           console.error("Received non-JSON response from server:", await res.text());
           throw new Error("Received non-JSON response from server. Check API URL.");
@@ -75,9 +107,40 @@ export default function Goals() {
     }
   };
 
+
+
+  // Load cached goals on mount to prevent empty flash
+  useEffect(() => {
+    const cached = localStorage.getItem('cached_goals');
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        setGoals(parsed.map((g: any) => ({
+          ...g,
+          icon: goalTemplates.find(t => t.type === g.type)?.icon || Trophy
+        })));
+        setIsLoading(false); // We have meaningful data to show
+      } catch (e) {
+        // ignore invalid cache
+      }
+    }
+  }, []); // Run once on mount
+
   useEffect(() => {
     if (session) {
       fetchGoals();
+
+      // Background sync GitHub data
+      fetch(`${API_URL}/api/user/sync-github`, { method: "POST", credentials: "include" })
+        .catch(console.error);
+
+      // Fetch user profile for projects data
+      fetch(`${API_URL}/api/user/profile`, { credentials: "include" })
+        .then(res => res.json())
+        .then(data => {
+          if (data.user?.projectsData) setProjectsData(data.user.projectsData);
+        })
+        .catch(err => console.error(err));
     }
   }, [session]);
 
@@ -85,17 +148,20 @@ export default function Goals() {
   const completedGoals = goals.filter(g => g.completed);
 
   const addGoal = async (template: typeof goalTemplates[0]) => {
+    setIsCreatingGoal(true);
     try {
       const res = await fetch(`${API_URL}/api/goals`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: `${template.title} (${newGoalTarget})`,
+          title: template.type === 'days'
+            ? `Code ${newGoalTarget} days (${newGoalStartDay}-${getEndDay(newGoalStartDay, newGoalTarget)})`
+            : `${template.title} (${newGoalTarget})`,
           type: template.type,
           target: newGoalTarget,
           current: 0,
-          dueDate: template.type === 'days' || template.type === 'commits' ? 'Sunday' : undefined
+          dueDate: template.type === 'days' ? newGoalStartDay : (template.type === 'commits' ? 'Sunday' : undefined)
         })
       });
 
@@ -117,6 +183,8 @@ export default function Goals() {
     } catch (error) {
       console.error(error);
       toast.error("Failed to create goal");
+    } finally {
+      setIsCreatingGoal(false);
     }
   };
 
@@ -137,6 +205,7 @@ export default function Goals() {
   };
 
   const updateGoalTarget = async (id: number, newTarget: number) => {
+    setIsSavingGoal(true);
     try {
       // Find existing to get title prefix
       const goal = goals.find(g => g.id === id);
@@ -160,13 +229,16 @@ export default function Goals() {
       fetchGoals(); // Refresh to get server-side calculations (like completion)
     } catch (error) {
       toast.error("Failed to update goal");
+    } finally {
+      setIsSavingGoal(false);
     }
   };
 
-  if (!session) {
-    if (isLoading && !session) return <div className="min-h-screen bg-background flex items-center justify-center text-muted-foreground">Loading...</div>;
-    // Assuming Header/Layout handles non-auth viewing or redirects, calling fetchGoals normally fails.
+  if (!session && isLoading) {
+    return <div className="min-h-screen bg-background flex items-center justify-center text-muted-foreground">Loading...</div>;
   }
+  // If we have a session but data is still loading, we can show skeleton or just render.
+  // Optimistically allow render to proceed if session exists, preventing full page spinner on tab switch.
 
   return (
     <div className="min-h-screen bg-background custom-scrollbar">
@@ -225,15 +297,47 @@ export default function Goals() {
                       )}
                       <p className="font-medium">{goalTemplates.find(t => t.type === newGoalType)?.title}</p>
                     </div>
-                    <div>
-                      <label className="text-sm text-muted-foreground">Target</label>
-                      <input
-                        type="number"
-                        value={newGoalTarget}
-                        onChange={(e) => setNewGoalTarget(parseInt(e.target.value) || 1)}
-                        className="w-full mt-2 p-3 rounded-xl bg-secondary border border-border focus:border-primary focus:outline-none transition-colors"
-                        min={1}
-                      />
+                    <div className="flex gap-3">
+                      <div className="flex-1">
+                        <label className="text-sm text-muted-foreground">Target {newGoalType === 'days' && `(Max: ${7 - daysOfWeek.indexOf(newGoalStartDay)})`}</label>
+                        <input
+                          type="number"
+                          value={newGoalTarget}
+                          onChange={(e) => {
+                            let val = parseInt(e.target.value) || 0;
+                            if (newGoalType === 'days') {
+                              const max = 7 - daysOfWeek.indexOf(newGoalStartDay);
+                              if (val > max) val = max;
+                              if (val < 1) val = 1;
+                            } else {
+                              if (val < 1) val = 1;
+                            }
+                            setNewGoalTarget(val);
+                          }}
+                          className="w-full mt-2 p-3 rounded-xl bg-secondary border border-border focus:border-primary focus:outline-none transition-colors"
+                          min={1}
+                          max={newGoalType === 'days' ? (7 - daysOfWeek.indexOf(newGoalStartDay)) : undefined}
+                        />
+                      </div>
+                      {newGoalType === 'days' && (
+                        <div className="flex-1">
+                          <label className="text-sm text-muted-foreground">Starts On</label>
+                          <select
+                            value={newGoalStartDay}
+                            onChange={(e) => {
+                              const newStart = e.target.value;
+                              setNewGoalStartDay(newStart);
+                              const max = 7 - daysOfWeek.indexOf(newStart);
+                              if (newGoalTarget > max) setNewGoalTarget(max);
+                            }}
+                            className="w-full mt-2 p-3 rounded-xl bg-secondary border border-border focus:border-primary focus:outline-none transition-colors appearance-none cursor-pointer"
+                          >
+                            {daysOfWeek.map(day => (
+                              <option key={day} value={day}>{day}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
                     </div>
                     <div className="flex gap-3">
                       <Button
@@ -252,8 +356,9 @@ export default function Goals() {
                           }
                         }}
                         className="flex-1 bg-primary hover:bg-primary/90"
+                        disabled={isCreatingGoal}
                       >
-                        Create Goal
+                        {isCreatingGoal ? "Creating..." : "Create Goal"}
                       </Button>
                     </div>
                   </div>
@@ -288,26 +393,71 @@ export default function Goals() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {activeGoals.map((goal) => {
               const Icon = goal.icon || Trophy;
+              const isProjectsGoal = goal.type === 'projects';
+              const goalTemplate = goalTemplates.find(t => t.type === goal.type);
               return (
                 <div
                   key={goal.id}
-                  className="p-4 rounded-xl border border-border bg-secondary/30 hover:bg-secondary/50 transition-all duration-300 group flex flex-col justify-between"
+                  className={`p-4 rounded-xl border border-border bg-secondary/30 transition-all duration-300 group flex flex-col justify-between ${isProjectsGoal ? 'hover:bg-secondary/50' : 'hover:bg-secondary/50'}`}
                 >
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center shrink-0">
-                        <Icon className="w-5 h-5 text-primary" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="font-medium truncate">{goal.title}</p>
-                        {goal.dueDate && (
-                          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                            <Clock className="w-3 h-3" /> Due: {goal.dueDate}
-                          </p>
+                  {/* Header with icon, title, and actions */}
+                  <div className="flex items-start gap-3 mb-3">
+                    {/* Icon */}
+                    <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center shrink-0">
+                      <Icon className="w-5 h-5 text-primary" />
+                    </div>
+
+                    {/* Title and status - flexible to take available space */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start gap-1.5">
+                        <p className="font-medium text-sm leading-tight flex-1">{goal.title}</p>
+                        {goalTemplate?.description && (
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <button
+                                className="shrink-0 p-1 rounded-lg hover:bg-secondary/50 transition-colors"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <Info className="w-3.5 h-3.5 text-muted-foreground" />
+                              </button>
+                            </DialogTrigger>
+                            <DialogContent className="bg-background border-border max-w-sm">
+                              <DialogHeader>
+                                <DialogTitle className="flex items-center gap-2">
+                                  <Icon className="w-5 h-5 text-primary" />
+                                  {goalTemplate.title}
+                                </DialogTitle>
+                                <DialogDescription className="text-left pt-2">
+                                  {goalTemplate.description}
+                                </DialogDescription>
+                              </DialogHeader>
+                            </DialogContent>
+                          </Dialog>
                         )}
                       </div>
+                      {goal.type === 'days' && (() => {
+                        const todayIndex = (new Date().getDay() + 6) % 7; // Mon=0, Sun=6
+                        const startIndex = daysOfWeek.indexOf(goal.dueDate || "Monday");
+
+                        // How many days of the range have strictly passed before today?
+                        const daysPassedInRangeBeforeToday = Math.max(0, todayIndex - startIndex);
+
+                        // If our current consecutive count is less than the days that should have been hit...
+                        const isBroken = goal.current < daysPassedInRangeBeforeToday;
+
+                        if (isBroken) return <span className="text-xs font-bold text-destructive flex items-center gap-1 mt-1">Goal Broken</span>;
+                        if (goal.completed) return <span className="text-xs font-bold text-green-500 flex items-center gap-1 mt-1">Completed!</span>;
+                        return <span className="text-xs text-green-500 flex items-center gap-1 mt-1">On Track</span>;
+                      })()}
+                      {goal.dueDate && goal.type !== 'days' && (
+                        <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                          <Clock className="w-3 h-3" /> Due: {goal.dueDate}
+                        </p>
+                      )}
                     </div>
-                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+
+                    {/* Action buttons - always stay on the right */}
+                    <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                       <Dialog open={editingGoal?.id === goal.id} onOpenChange={(open) => !open && setEditingGoal(null)}>
                         <DialogTrigger asChild>
                           <button
@@ -347,23 +497,65 @@ export default function Goals() {
                             <Button
                               onClick={() => editingGoal && updateGoalTarget(editingGoal.id, editingGoal.target)}
                               className="w-full bg-primary hover:bg-primary/90"
+                              disabled={isSavingGoal}
                             >
-                              Save Changes
+                              {isSavingGoal ? "Saving..." : "Save Changes"}
                             </Button>
                           </div>
                         </DialogContent>
                       </Dialog>
-                      <button
-                        onClick={() => {
-                          deleteGoal(goal.id);
-                          triggerHaptic();
-                        }}
-                        className="p-2 rounded-lg hover:bg-destructive/20 transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4 text-destructive" />
-                      </button>
+
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation(); // prevent card click
+                              triggerHaptic();
+                            }}
+                            className="p-2 rounded-lg hover:bg-destructive/20 transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent className="bg-background border-border">
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Goal?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This action cannot be undone. This will permanently remove your goal progress.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel onClick={(e) => e.stopPropagation()}>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteGoal(goal.id);
+                                triggerHaptic();
+                              }}
+                              className="bg-destructive hover:bg-destructive/90"
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
                   </div>
+
+                  {isProjectsGoal && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setRepoDetailsOpen(true);
+                        triggerHaptic();
+                      }}
+                      className="flex items-center gap-2 text-xs text-primary mb-2 opacity-80 hover:opacity-100 transition-opacity cursor-pointer focus:outline-none"
+                    >
+                      <Eye className="w-3 h-3" />
+                      <span>View Details</span>
+                    </button>
+                  )}
+
                   <GoalProgress
                     title=""
                     current={goal.current}
@@ -445,9 +637,88 @@ export default function Goals() {
             </div>
           </div>
         </Section>
+
+        {/* Repo Details Modal */}
+        {isMobile ? (
+          <Drawer open={repoDetailsOpen} onOpenChange={setRepoDetailsOpen}>
+            <DrawerContent>
+              <DrawerHeader className="text-left">
+                <DrawerTitle>Repositories Contributed To</DrawerTitle>
+                <DrawerDescription>
+                  Your contributions tracked by GitHub.
+                </DrawerDescription>
+              </DrawerHeader>
+              <div className="p-4 pt-0 h-[60vh]">
+                <ScrollArea className="h-full pr-4">
+                  <div className="space-y-3">
+                    {projectsData.length > 0 ? projectsData.map((repo, i) => (
+                      <a
+                        key={i}
+                        href={repo.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-between p-3 rounded-xl border border-border bg-secondary/10 hover:bg-secondary/30 transition-colors group/item"
+                      >
+                        <div className="min-w-0 flex-1 mr-3">
+                          <p className="font-medium truncate text-foreground group-hover/item:text-primary transition-colors">
+                            {repo.nameWithOwner}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Last active: {new Date(repo.updatedAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <ExternalLink className="w-4 h-4 text-muted-foreground group-hover/item:text-primary transition-colors shrink-0" />
+                      </a>
+                    )) : (
+                      <p className="text-center text-muted-foreground py-8">No repository data available.</p>
+                    )}
+                  </div>
+                </ScrollArea>
+              </div>
+            </DrawerContent>
+          </Drawer>
+        ) : (
+          <Sheet open={repoDetailsOpen} onOpenChange={setRepoDetailsOpen}>
+            <SheetContent side="right" className="w-[400px] sm:w-[540px]">
+              <SheetHeader>
+                <SheetTitle>Repositories Contributed To</SheetTitle>
+                <SheetDescription>
+                  Your contributions tracked by GitHub.
+                </SheetDescription>
+              </SheetHeader>
+              <div className="mt-6 h-[calc(100vh-10rem)]">
+                <ScrollArea className="h-full pr-4">
+                  <div className="space-y-3">
+                    {projectsData.length > 0 ? projectsData.map((repo, i) => (
+                      <a
+                        key={i}
+                        href={repo.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-between p-3 rounded-xl border border-border bg-secondary/10 hover:bg-secondary/30 transition-colors group/item"
+                      >
+                        <div className="min-w-0 flex-1 mr-3">
+                          <p className="font-medium truncate text-foreground group-hover/item:text-primary transition-colors">
+                            {repo.nameWithOwner}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Last active: {new Date(repo.updatedAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <ExternalLink className="w-4 h-4 text-muted-foreground group-hover/item:text-primary transition-colors shrink-0" />
+                      </a>
+                    )) : (
+                      <p className="text-center text-muted-foreground py-8">No repository data available.</p>
+                    )}
+                  </div>
+                </ScrollArea>
+              </div>
+            </SheetContent>
+          </Sheet>
+        )}
       </main>
 
       <FloatingNav />
-    </div>
+    </div >
   );
 }

@@ -10,6 +10,8 @@ import * as schema from './db/schema.js';
 import { eq, and, desc, gt } from 'drizzle-orm';
 import { getGithubContributions } from './lib/github.js';
 import { setupCronJobs } from './cron.js';
+import { updateUserGoals } from './lib/goals.js';
+
 
 const server = fastify({
     logger: true,
@@ -109,7 +111,7 @@ server.register(async (instance) => {
             const ghUser = await ghRes.json();
 
             // 3. Fetch Contributions (Streak & Total Commits)
-            const { totalCommits, currentStreak, todayCommits, yesterdayCommits, weeklyCommits, activeDays, totalProjects, contributionCalendar } = await getGithubContributions(ghUser.login, account[0].accessToken);
+            const { totalCommits, currentStreak, todayCommits, yesterdayCommits, weeklyCommits, activeDays, totalProjects, projects, contributionCalendar } = await getGithubContributions(ghUser.login, account[0].accessToken);
 
             // 4. Update User Profile
             await db.update(schema.users)
@@ -122,6 +124,7 @@ server.register(async (instance) => {
                     weeklyCommits: weeklyCommits,
                     activeDays: activeDays,
                     totalProjects: totalProjects,
+                    projectsData: projects,
                     contributionData: contributionCalendar,
                     isGithubConnected: true,
                     updatedAt: new Date()
@@ -129,34 +132,15 @@ server.register(async (instance) => {
                 .where(eq(schema.users.id, userId));
 
             // 5. Update User Goals based on new stats
-            const userGoals = await db.select().from(schema.goals).where(eq(schema.goals.userId, userId));
-            const goalsToUpdate = [];
+            await updateUserGoals(userId, {
+                currentStreak,
+                weeklyCommits,
+                activeDays,
+                totalProjects,
+                contributionCalendar
+            });
 
-            for (const goal of userGoals) {
-                let newCurrent = goal.current;
-
-                if (goal.type === 'streak') {
-                    newCurrent = currentStreak;
-                } else if (goal.type === 'commits' && goal.title.toLowerCase().includes('weekly')) {
-                    newCurrent = weeklyCommits;
-                } else if (goal.type === 'days') {
-                    newCurrent = activeDays;
-                } else if (goal.type === 'projects') {
-                    newCurrent = totalProjects;
-                } else {
-                    continue;
-                }
-
-                const newCompleted = newCurrent >= goal.target;
-
-                if (newCurrent !== goal.current || newCompleted !== goal.completed) {
-                    await db.update(schema.goals)
-                        .set({ current: newCurrent, completed: newCompleted, updatedAt: new Date() })
-                        .where(eq(schema.goals.id, goal.id));
-                }
-            }
-
-            return { success: true, username: ghUser.login, streak: currentStreak, totalCommits, todayCommits, yesterdayCommits, weeklyCommits, contributionData: contributionCalendar };
+            return { success: true, username: ghUser.login, streak: currentStreak, totalCommits, todayCommits, yesterdayCommits, weeklyCommits, projectsData: projects, contributionData: contributionCalendar };
         } catch (error) {
             console.error(error);
             return reply.status(500).send({ message: "Failed to sync with GitHub" });

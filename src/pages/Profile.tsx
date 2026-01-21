@@ -41,6 +41,7 @@ export default function Profile() {
 
   const [isPublic, setIsPublic] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isGithubConnected, setIsGithubConnected] = useState(false); // New state
 
@@ -193,6 +194,7 @@ export default function Profile() {
 
   /* Save Profile Function */
   const handleSaveProfile = async () => {
+    setIsSaving(true);
     try {
       const baseUrl = getBaseURL(import.meta.env.VITE_API_URL || 'http://localhost:3000');
       const res = await fetch(`${baseUrl}/api/user/profile`, {
@@ -213,11 +215,10 @@ export default function Profile() {
       setProfile(editedProfile);
       setIsEditing(false);
       toast.success("Profile updated!");
-      // Force reload or re-fetch session to get latest data if needed, 
-      // but local state update is instant for UX.
-      // window.location.reload(); 
     } catch (e: any) {
       toast.error(e.message);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -472,6 +473,7 @@ export default function Profile() {
                 handleSaveProfile={handleSaveProfile}
                 handleCopyLink={handleCopyLink}
                 copied={copied}
+                isSaving={isSaving}
               />
               <Button variant="outline" className="w-full mt-2" onClick={() => setIsEditing(false)}>Cancel</Button>
             </div>
@@ -490,6 +492,7 @@ export default function Profile() {
               handleSaveProfile={handleSaveProfile}
               handleCopyLink={handleCopyLink}
               copied={copied}
+              isSaving={isSaving}
             />
           </SheetContent>
         </Sheet>

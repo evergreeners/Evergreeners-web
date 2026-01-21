@@ -24,6 +24,7 @@ export const users = mySchema.table('users', {
     weeklyCommits: integer('weekly_commits').default(0),
     activeDays: integer('active_days').default(0), // New: Days coded this week
     totalProjects: integer('total_projects').default(0), // New: Repos contributed to
+    projectsData: jsonb('projects_data'), // New: List of repos contributed to
     contributionData: jsonb('contribution_data'), // Store full calendar data
     isGithubConnected: boolean('is_github_connected').default(false),
 });
