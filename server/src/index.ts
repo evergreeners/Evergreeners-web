@@ -313,25 +313,83 @@ server.register(async (instance) => {
         const userId = session.session.userId;
 
         try {
-
-
             const allQuests = await db.select().from(schema.quests);
 
-            // Get user status
-            const userQuestStatus = await db.select().from(schema.userQuests).where(eq(schema.userQuests.userId, userId));
+            // Get all quest statuses (global) to check if taken
+            const allUserQuests = await db.select().from(schema.userQuests);
 
-            // Merge
-            const questsWithStatus = allQuests.map(q => {
-                const status = userQuestStatus.find(uq => uq.questId === q.id);
+            // Get all creators
+            const creators = await db.select({
+                id: schema.users.id,
+                name: schema.users.name,
+                username: schema.users.username,
+                anonymousName: schema.users.anonymousName,
+                isPublic: schema.users.isPublic
+            }).from(schema.users);
+
+            // Get all acceptors (users who took quests)
+            const acceptors = await db.select({
+                id: schema.users.id,
+                name: schema.users.name,
+                username: schema.users.username,
+                anonymousName: schema.users.anonymousName,
+                isPublic: schema.users.isPublic
+            }).from(schema.users);
+
+            const questsWithDetails = allQuests.map(q => {
+                // Find creator
+                const creator = creators.find(c => c.id === q.createdBy);
+
+                // Privacy logic
+                let creatorName = "Evergreener";
+                if (creator) {
+                    if (!creator.isPublic) {
+                        creatorName = creator.username || creator.anonymousName || "Evergreener";
+                    } else {
+                        creatorName = creator.name || creator.username || creator.anonymousName || "Evergreener";
+                    }
+                }
+
+                // Check global status
+                // Is this quest currently active for anyone?
+                const activeAssignment = allUserQuests.find(uq => uq.questId === q.id && (uq.status === 'active' || uq.status === 'completed'));
+
+                let acceptedBy = null;
+                let acceptedStatus = null;
+
+                if (activeAssignment) {
+                    const acceptor = acceptors.find(a => a.id === activeAssignment.userId);
+                    if (acceptor) {
+                        if (!acceptor.isPublic) {
+                            acceptedBy = acceptor.username || acceptor.anonymousName || "Evergreener";
+                        } else {
+                            acceptedBy = acceptor.name || acceptor.username || acceptor.anonymousName || "Evergreener";
+                        }
+                    } else {
+                        acceptedBy = "Evergreener";
+                    }
+                    acceptedStatus = activeAssignment.status;
+                }
+
+                // Status for CURRENT user
+                const myStatus = allUserQuests.find(uq => uq.questId === q.id && uq.userId === userId);
+
                 return {
                     ...q,
-                    status: status ? status.status : 'available',
-                    startedAt: status ? status.startedAt : null,
-                    completedAt: status ? status.completedAt : null
+                    creatorName,
+                    acceptedBy,
+                    acceptedStatus, // 'active' or 'completed'
+                    isTaken: !!activeAssignment && activeAssignment.userId !== userId, // Taken by someone else
+                    myStatus: myStatus ? myStatus.status : null, // 'active', 'completed', or null
+                    myProgress: myStatus ? {
+                        startedAt: myStatus.startedAt,
+                        completedAt: myStatus.completedAt,
+                        forkUrl: myStatus.forkUrl
+                    } : null
                 };
             });
 
-            return { quests: questsWithStatus };
+            return { quests: questsWithDetails };
 
         } catch (error) {
             console.error("Fetch quests error:", error);
@@ -355,19 +413,48 @@ server.register(async (instance) => {
 
         const userId = session.session.userId;
         const { id } = req.params as { id: string };
+        const questId = parseInt(id);
 
         try {
-            // Check if already active
-            const existing = await db.select().from(schema.userQuests)
-                .where(and(eq(schema.userQuests.userId, userId), eq(schema.userQuests.questId, parseInt(id))));
+            const quest = await db.select().from(schema.quests).where(eq(schema.quests.id, questId)).limit(1);
+            if (!quest.length) return reply.status(404).send({ message: "Quest not found" });
 
-            if (existing.length) {
-                return { success: true, status: existing[0].status };
+            // 1. Check if user is creator
+            if (quest[0].createdBy === userId) {
+                return reply.status(400).send({ message: "You cannot accept your own quest." });
             }
+
+            // 2. Check if already active for ANYONE
+            // We allow re-accepting if it was dropped (no active record), but if someone else has it 'active', block it.
+            const existingActive = await db.select().from(schema.userQuests)
+                .where(and(
+                    eq(schema.userQuests.questId, questId),
+                    eq(schema.userQuests.status, 'active')
+                ));
+
+            if (existingActive.length > 0) {
+                // Check if it's me (idempotent)
+                if (existingActive[0].userId === userId) {
+                    return { success: true, status: 'active' };
+                }
+                return reply.status(400).send({ message: "This quest is already taken by another adventurer." });
+            }
+
+            // Check if I completed it before? (Optional: allow re-run? assume no for now)
+            const myCompleted = await db.select().from(schema.userQuests)
+                .where(and(
+                    eq(schema.userQuests.questId, questId),
+                    eq(schema.userQuests.userId, userId),
+                    eq(schema.userQuests.status, 'completed')
+                ));
+            if (myCompleted.length > 0) {
+                return reply.status(400).send({ message: "You have already completed this quest!" });
+            }
+
 
             await db.insert(schema.userQuests).values({
                 userId,
-                questId: parseInt(id),
+                questId: questId,
                 status: 'active',
                 startedAt: new Date()
             });
@@ -376,6 +463,40 @@ server.register(async (instance) => {
         } catch (error) {
             console.error("Accept quest error:", error);
             return reply.status(500).send({ message: "Failed to accept quest" });
+        }
+    });
+
+    // POST /api/quests/:id/drop
+    instance.post('/api/quests/:id/drop', async (req, reply) => {
+        const headers = new Headers();
+        Object.entries(req.headers).forEach(([key, value]) => {
+            if (Array.isArray(value)) {
+                value.forEach(v => headers.append(key, v));
+            } else if (typeof value === 'string') {
+                headers.set(key, value);
+            }
+        });
+
+        const session = await auth.api.getSession({ headers });
+        if (!session) return reply.status(401).send({ message: "Unauthorized" });
+
+        const userId = session.session.userId;
+        const { id } = req.params as { id: string };
+        const questId = parseInt(id);
+
+        try {
+            // Delete the active record
+            await db.delete(schema.userQuests)
+                .where(and(
+                    eq(schema.userQuests.userId, userId),
+                    eq(schema.userQuests.questId, questId),
+                    eq(schema.userQuests.status, 'active')
+                ));
+
+            return { success: true, message: "Quest dropped" };
+        } catch (error) {
+            console.error("Drop quest error:", error);
+            return reply.status(500).send({ message: "Failed to drop quest" });
         }
     });
 
