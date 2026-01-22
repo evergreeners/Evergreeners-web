@@ -8,8 +8,10 @@ import { toNodeHandler } from 'better-auth/node';
 import { db } from './db/index.js';
 import * as schema from './db/schema.js';
 import { eq, and, desc, gt } from 'drizzle-orm';
-import { getGithubContributions } from './lib/github.js';
+import { getGithubContributions, checkQuestProgress } from './lib/github.js';
 import { setupCronJobs } from './cron.js';
+import { updateUserGoals } from './lib/goals.js';
+
 
 const server = fastify({
     logger: true,
@@ -115,7 +117,7 @@ server.register(async (instance) => {
             console.log("GitHub user found:", ghUser.login);
 
             // 3. Fetch Contributions (Streak & Total Commits)
-            const { totalCommits, currentStreak, todayCommits, yesterdayCommits, weeklyCommits, contributionCalendar } = await getGithubContributions(ghUser.login, account[0].accessToken);
+            const { totalCommits, currentStreak, todayCommits, yesterdayCommits, weeklyCommits, activeDays, totalProjects, projects, contributionCalendar } = await getGithubContributions(ghUser.login, account[0].accessToken);
 
             // 4. Update User Profile
             console.log("Updating DB with streak:", currentStreak, "commits:", totalCommits);
@@ -127,13 +129,25 @@ server.register(async (instance) => {
                     todayCommits: todayCommits,
                     yesterdayCommits: yesterdayCommits,
                     weeklyCommits: weeklyCommits,
+                    activeDays: activeDays,
+                    totalProjects: totalProjects,
+                    projectsData: projects,
                     contributionData: contributionCalendar,
                     isGithubConnected: true,
                     updatedAt: new Date()
                 })
                 .where(eq(schema.users.id, userId));
 
-            return { success: true, username: ghUser.login, streak: currentStreak, totalCommits, todayCommits, yesterdayCommits, weeklyCommits, contributionData: contributionCalendar };
+            // 5. Update User Goals based on new stats
+            await updateUserGoals(userId, {
+                currentStreak,
+                weeklyCommits,
+                activeDays,
+                totalProjects,
+                contributionCalendar
+            });
+
+            return { success: true, username: ghUser.login, streak: currentStreak, totalCommits, todayCommits, yesterdayCommits, weeklyCommits, projectsData: projects, contributionData: contributionCalendar };
         } catch (error) {
             console.error(error);
             return reply.status(500).send({ message: "Failed to sync with GitHub" });
@@ -288,6 +302,517 @@ server.register(async (instance) => {
             return reply.status(500).send({ message: "Failed to fetch leaderboard" });
         }
 
+    });
+    // Quests Endpoints
+    // GET /api/quests
+    instance.get('/api/quests', async (req, reply) => {
+        const headers = new Headers();
+        Object.entries(req.headers).forEach(([key, value]) => {
+            if (Array.isArray(value)) {
+                value.forEach(v => headers.append(key, v));
+            } else if (typeof value === 'string') {
+                headers.set(key, value);
+            }
+        });
+
+        const session = await auth.api.getSession({ headers });
+        if (!session) return reply.status(401).send({ message: "Unauthorized" });
+
+        const userId = session.session.userId;
+
+        try {
+            const allQuests = await db.select().from(schema.quests);
+
+            // Get all quest statuses (global) to check if taken
+            const allUserQuests = await db.select().from(schema.userQuests);
+
+            // Get all creators
+            const creators = await db.select({
+                id: schema.users.id,
+                name: schema.users.name,
+                username: schema.users.username,
+                anonymousName: schema.users.anonymousName,
+                isPublic: schema.users.isPublic
+            }).from(schema.users);
+
+            // Get all acceptors (users who took quests)
+            const acceptors = await db.select({
+                id: schema.users.id,
+                name: schema.users.name,
+                username: schema.users.username,
+                anonymousName: schema.users.anonymousName,
+                isPublic: schema.users.isPublic
+            }).from(schema.users);
+
+            const questsWithDetails = allQuests.map(q => {
+                // Find creator
+                const creator = creators.find(c => c.id === q.createdBy);
+
+                // Privacy logic
+                let creatorName = "Evergreener";
+                if (creator) {
+                    if (!creator.isPublic) {
+                        creatorName = creator.username || creator.anonymousName || "Evergreener";
+                    } else {
+                        creatorName = creator.name || creator.username || creator.anonymousName || "Evergreener";
+                    }
+                }
+
+                // Check global status
+                // Is this quest currently active for anyone?
+                const activeAssignment = allUserQuests.find(uq => uq.questId === q.id && (uq.status === 'active' || uq.status === 'completed'));
+
+                let acceptedBy = null;
+                let acceptedStatus = null;
+
+                if (activeAssignment) {
+                    const acceptor = acceptors.find(a => a.id === activeAssignment.userId);
+                    if (acceptor) {
+                        if (!acceptor.isPublic) {
+                            acceptedBy = acceptor.username || acceptor.anonymousName || "Evergreener";
+                        } else {
+                            acceptedBy = acceptor.name || acceptor.username || acceptor.anonymousName || "Evergreener";
+                        }
+                    } else {
+                        acceptedBy = "Evergreener";
+                    }
+                    acceptedStatus = activeAssignment.status;
+                }
+
+                // Status for CURRENT user
+                const myStatus = allUserQuests.find(uq => uq.questId === q.id && uq.userId === userId);
+
+                return {
+                    ...q,
+                    creatorName,
+                    acceptedBy,
+                    acceptedStatus, // 'active' or 'completed'
+                    isTaken: !!activeAssignment && activeAssignment.userId !== userId, // Taken by someone else
+                    myStatus: myStatus ? myStatus.status : null, // 'active', 'completed', or null
+                    myProgress: myStatus ? {
+                        startedAt: myStatus.startedAt,
+                        completedAt: myStatus.completedAt,
+                        forkUrl: myStatus.forkUrl
+                    } : null
+                };
+            });
+
+            return { quests: questsWithDetails };
+
+        } catch (error) {
+            console.error("Fetch quests error:", error);
+            return reply.status(500).send({ message: "Failed to fetch quests" });
+        }
+    });
+
+    // POST /api/quests/:id/accept
+    instance.post('/api/quests/:id/accept', async (req, reply) => {
+        const headers = new Headers();
+        Object.entries(req.headers).forEach(([key, value]) => {
+            if (Array.isArray(value)) {
+                value.forEach(v => headers.append(key, v));
+            } else if (typeof value === 'string') {
+                headers.set(key, value);
+            }
+        });
+
+        const session = await auth.api.getSession({ headers });
+        if (!session) return reply.status(401).send({ message: "Unauthorized" });
+
+        const userId = session.session.userId;
+        const { id } = req.params as { id: string };
+        const questId = parseInt(id);
+
+        try {
+            const quest = await db.select().from(schema.quests).where(eq(schema.quests.id, questId)).limit(1);
+            if (!quest.length) return reply.status(404).send({ message: "Quest not found" });
+
+            // 1. Check if user is creator
+            if (quest[0].createdBy === userId) {
+                return reply.status(400).send({ message: "You cannot accept your own quest." });
+            }
+
+            // 2. Check if already active for ANYONE
+            // We allow re-accepting if it was dropped (no active record), but if someone else has it 'active', block it.
+            const existingActive = await db.select().from(schema.userQuests)
+                .where(and(
+                    eq(schema.userQuests.questId, questId),
+                    eq(schema.userQuests.status, 'active')
+                ));
+
+            if (existingActive.length > 0) {
+                // Check if it's me (idempotent)
+                if (existingActive[0].userId === userId) {
+                    return { success: true, status: 'active' };
+                }
+                return reply.status(400).send({ message: "This quest is already taken by another adventurer." });
+            }
+
+            // Check if I completed it before? (Optional: allow re-run? assume no for now)
+            const myCompleted = await db.select().from(schema.userQuests)
+                .where(and(
+                    eq(schema.userQuests.questId, questId),
+                    eq(schema.userQuests.userId, userId),
+                    eq(schema.userQuests.status, 'completed')
+                ));
+            if (myCompleted.length > 0) {
+                return reply.status(400).send({ message: "You have already completed this quest!" });
+            }
+
+
+            await db.insert(schema.userQuests).values({
+                userId,
+                questId: questId,
+                status: 'active',
+                startedAt: new Date()
+            });
+
+            return { success: true, status: 'active' };
+        } catch (error) {
+            console.error("Accept quest error:", error);
+            return reply.status(500).send({ message: "Failed to accept quest" });
+        }
+    });
+
+    // POST /api/quests/:id/drop
+    instance.post('/api/quests/:id/drop', async (req, reply) => {
+        const headers = new Headers();
+        Object.entries(req.headers).forEach(([key, value]) => {
+            if (Array.isArray(value)) {
+                value.forEach(v => headers.append(key, v));
+            } else if (typeof value === 'string') {
+                headers.set(key, value);
+            }
+        });
+
+        const session = await auth.api.getSession({ headers });
+        if (!session) return reply.status(401).send({ message: "Unauthorized" });
+
+        const userId = session.session.userId;
+        const { id } = req.params as { id: string };
+        const questId = parseInt(id);
+
+        try {
+            // Delete the active record
+            await db.delete(schema.userQuests)
+                .where(and(
+                    eq(schema.userQuests.userId, userId),
+                    eq(schema.userQuests.questId, questId),
+                    eq(schema.userQuests.status, 'active')
+                ));
+
+            return { success: true, message: "Quest dropped" };
+        } catch (error) {
+            console.error("Drop quest error:", error);
+            return reply.status(500).send({ message: "Failed to drop quest" });
+        }
+    });
+
+    // POST /api/quests/:id/check
+    instance.post('/api/quests/:id/check', async (req, reply) => {
+        const headers = new Headers();
+        Object.entries(req.headers).forEach(([key, value]) => {
+            if (Array.isArray(value)) {
+                value.forEach(v => headers.append(key, v));
+            } else if (typeof value === 'string') {
+                headers.set(key, value);
+            }
+        });
+
+        const session = await auth.api.getSession({ headers });
+        if (!session) return reply.status(401).send({ message: "Unauthorized" });
+
+        const userId = session.session.userId;
+        const { id } = req.params as { id: string };
+
+        try {
+            // Get quest details
+            const quest = await db.select().from(schema.quests).where(eq(schema.quests.id, parseInt(id))).limit(1);
+            if (!quest.length) return reply.status(404).send({ message: "Quest not found" });
+
+            // Get user Github token
+            const account = await db.select().from(schema.accounts)
+                .where(and(
+                    eq(schema.accounts.userId, userId),
+                    eq(schema.accounts.providerId, 'github')
+                ))
+                .limit(1);
+
+            if (!account.length || !account[0].accessToken) {
+                return reply.status(400).send({ message: "GitHub not connected" });
+            }
+
+            // Get GitHub username from session or user profile (need to ensure we have it)
+            // Ideally we should store it in users table more reliably or fetch from account
+            // For now, let's fetch profile from GitHub if we don't trust local data, or use user.username
+
+            const user = await db.select().from(schema.users).where(eq(schema.users.id, userId)).limit(1);
+            let username = user[0].username; // This might be their app username, not GitHub.
+
+            // Should fallback to fetching from GitHub /user to be sure
+            const ghRes = await fetch("https://api.github.com/user", {
+                headers: { Authorization: `Bearer ${account[0].accessToken}`, "User-Agent": "Evergreeners-App" }
+            });
+            if (ghRes.ok) {
+                const ghData = await ghRes.json();
+                username = ghData.login;
+            }
+
+            if (!username) return reply.status(400).send({ message: "Could not determine GitHub username" });
+
+            const progress = await checkQuestProgress(username, account[0].accessToken, quest[0].repoUrl);
+
+            if (progress.status === 'completed') {
+                // Update DB
+                await db.update(schema.userQuests)
+                    .set({ status: 'completed', completedAt: new Date(), forkUrl: progress.forkUrl })
+                    .where(and(eq(schema.userQuests.userId, userId), eq(schema.userQuests.questId, parseInt(id))));
+
+                // Award points/streak? For now just mark complete.
+            } else if (progress.status !== 'error') {
+                // status could be 'in_progress', 'not_started'
+                // Update forkUrl at least
+                if (progress.forkUrl) {
+                    await db.update(schema.userQuests)
+                        .set({ forkUrl: progress.forkUrl })
+                        .where(and(eq(schema.userQuests.userId, userId), eq(schema.userQuests.questId, parseInt(id))));
+                }
+            }
+
+            return { success: true, progress };
+
+        } catch (error) {
+            console.error("Check quest error:", error);
+            return reply.status(500).send({ message: "Failed to check quest" });
+        }
+    });
+
+    // POST /api/quests (Create Quest)
+    instance.post('/api/quests', async (req, reply) => {
+        const headers = new Headers();
+        Object.entries(req.headers).forEach(([key, value]) => {
+            if (Array.isArray(value)) {
+                value.forEach(v => headers.append(key, v));
+            } else if (typeof value === 'string') {
+                headers.set(key, value);
+            }
+        });
+
+        const session = await auth.api.getSession({ headers });
+        if (!session) return reply.status(401).send({ message: "Unauthorized" });
+
+        const userId = session.session.userId;
+        const body = req.body as any;
+
+        // Basic validation
+        if (!body.title || !body.description || !body.repoUrl || !body.difficulty) {
+            return reply.status(400).send({ message: "Missing required fields" });
+        }
+
+        if (!body.repoUrl.startsWith("https://github.com/")) {
+            return reply.status(400).send({ message: "Invalid GitHub URL" });
+        }
+
+        try {
+            const newQuest = await db.insert(schema.quests).values({
+                title: body.title,
+                description: body.description,
+                repoUrl: body.repoUrl,
+                difficulty: body.difficulty,
+                tags: body.tags || [],
+                points: body.points || 10,
+                createdBy: userId,
+            }).returning();
+
+            return { quest: newQuest[0] };
+        } catch (error) {
+            console.error("Create quest error:", error);
+            return reply.status(500).send({ message: "Failed to create quest" });
+        }
+    });
+
+
+    instance.get('/api/goals', async (req, reply) => {
+        const headers = new Headers();
+        Object.entries(req.headers).forEach(([key, value]) => {
+            if (Array.isArray(value)) {
+                value.forEach(v => headers.append(key, v));
+            } else if (typeof value === 'string') {
+                headers.set(key, value);
+            }
+        });
+
+        const session = await auth.api.getSession({ headers });
+        if (!session) return reply.status(401).send({ message: "Unauthorized" });
+
+        const userId = session.session.userId;
+
+        try {
+            const userGoals = await db.select().from(schema.goals)
+                .where(eq(schema.goals.userId, userId))
+                .orderBy(desc(schema.goals.createdAt));
+            return { goals: userGoals };
+        } catch (error) {
+            console.error("Fetch goals error:", error);
+            return reply.status(500).send({ message: "Failed to fetch goals" });
+        }
+    });
+
+    // POST /api/goals
+    instance.post('/api/goals', async (req, reply) => {
+        const headers = new Headers();
+        Object.entries(req.headers).forEach(([key, value]) => {
+            if (Array.isArray(value)) {
+                value.forEach(v => headers.append(key, v));
+            } else if (typeof value === 'string') {
+                headers.set(key, value);
+            }
+        });
+
+        const session = await auth.api.getSession({ headers });
+        if (!session) return reply.status(401).send({ message: "Unauthorized" });
+
+        const userId = session.session.userId;
+        const body = req.body as any;
+
+        try {
+            // Fetch user stats to initialize goal progress
+            const user = await db.select().from(schema.users).where(eq(schema.users.id, userId)).limit(1);
+            let current = body.current || 0;
+            const target = parseInt(body.target);
+
+            if (user.length) {
+                if (body.type === 'streak') {
+                    current = user[0].streak || 0;
+                } else if (body.type === 'commits') {
+                    // Default to weekly commits logic if title mentions it, or just 0 if generic
+                    if (body.title.toLowerCase().includes('weekly') || body.title.toLowerCase().includes('week')) {
+                        current = user[0].weeklyCommits || 0;
+                    } else {
+                        // Could be total commits or daily
+                        current = user[0].totalCommits || 0;
+                    }
+                } else if (body.type === 'days') {
+                    current = user[0].activeDays || 0;
+                } else if (body.type === 'projects') {
+                    current = user[0].totalProjects || 0;
+                }
+            }
+
+            const completed = current >= target;
+
+            console.log(`Creating goal: ${body.title}, Type: ${body.type}, Current: ${current}, Target: ${target}, Completed: ${completed}`);
+
+            const newGoal = await db.insert(schema.goals).values({
+                userId,
+                title: body.title,
+                type: body.type,
+                target: target,
+                current: current,
+                dueDate: body.dueDate,
+                completed: completed,
+            }).returning();
+
+            return { goal: newGoal[0] };
+        } catch (error) {
+            console.error("Create goal error:", error);
+            return reply.status(500).send({ message: "Failed to create goal" });
+        }
+    });
+
+    // PUT /api/goals/:id
+    instance.put('/api/goals/:id', async (req, reply: any) => {
+        const headers = new Headers();
+        Object.entries(req.headers).forEach(([key, value]) => {
+            if (Array.isArray(value)) {
+                value.forEach(v => headers.append(key, v));
+            } else if (typeof value === 'string') {
+                headers.set(key, value);
+            }
+        });
+
+        const session = await auth.api.getSession({ headers });
+        if (!session) return reply.status(401).send({ message: "Unauthorized" });
+
+        const userId = session.session.userId;
+        const { id } = req.params as { id: string };
+        const body = req.body as any;
+
+        try {
+            // Verify ownership
+            const existingGoal = await db.select().from(schema.goals)
+                .where(and(eq(schema.goals.id, parseInt(id)), eq(schema.goals.userId, userId)))
+                .limit(1);
+
+            if (!existingGoal.length) return reply.status(404).send({ message: "Goal not found" });
+            const goal = existingGoal[0];
+
+            const updateData: any = { updatedAt: new Date() };
+            if (body.title !== undefined) updateData.title = body.title;
+            if (body.dueDate !== undefined) updateData.dueDate = body.dueDate;
+
+            let newCurrent = goal.current;
+            let newTarget = goal.target;
+
+            if (body.current !== undefined) {
+                updateData.current = body.current;
+                newCurrent = body.current;
+            }
+            if (body.target !== undefined) {
+                updateData.target = body.target;
+                newTarget = body.target;
+            }
+
+            // Recalculate completed status
+            const completed = newCurrent >= newTarget;
+            updateData.completed = completed;
+
+            if (body.completed !== undefined) {
+                // If explicitly setting completed (e.g. manual checking?), respect it, but usually auto-calc is better for stats
+                updateData.completed = body.completed;
+            }
+
+            const updatedGoal = await db.update(schema.goals)
+                .set(updateData)
+                .where(eq(schema.goals.id, parseInt(id)))
+                .returning();
+
+            return { goal: updatedGoal[0] };
+        } catch (error) {
+            console.error("Update goal error:", error);
+            return reply.status(500).send({ message: "Failed to update goal" });
+        }
+    });
+
+    // DELETE /api/goals/:id
+    instance.delete('/api/goals/:id', async (req, reply: any) => {
+        const headers = new Headers();
+        Object.entries(req.headers).forEach(([key, value]) => {
+            if (Array.isArray(value)) {
+                value.forEach(v => headers.append(key, v));
+            } else if (typeof value === 'string') {
+                headers.set(key, value);
+            }
+        });
+
+        const session = await auth.api.getSession({ headers });
+        if (!session) return reply.status(401).send({ message: "Unauthorized" });
+
+        const userId = session.session.userId;
+        const { id } = req.params as { id: string };
+
+        try {
+            const deleted = await db.delete(schema.goals)
+                .where(and(eq(schema.goals.id, parseInt(id)), eq(schema.goals.userId, userId)))
+                .returning();
+
+            if (!deleted.length) return reply.status(404).send({ message: "Goal not found" });
+
+            return { success: true };
+        } catch (error) {
+            console.error("Delete goal error:", error);
+            return reply.status(500).send({ message: "Failed to delete goal" });
+        }
     });
 });
 

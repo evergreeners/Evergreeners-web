@@ -1,0 +1,1 @@
+ALTER TABLE "evergreeners"."quests" ADD COLUMN "created_by" text;

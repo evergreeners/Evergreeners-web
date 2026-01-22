@@ -1,4 +1,4 @@
-import { Settings, Bell, Menu, Home, BarChart3, Flame, Target, Trophy, LogOut } from "lucide-react";
+import { Settings, Bell, Menu, Home, BarChart3, Compass, Target, Trophy, LogOut } from "lucide-react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Logo } from "@/components/Logo";
 import { useState } from "react";
@@ -20,7 +20,7 @@ import {
 const navItems = [
   { icon: Home, label: "Home", href: "/dashboard" },
   { icon: BarChart3, label: "Analytics", href: "/analytics" },
-  { icon: Flame, label: "Streaks", href: "/streaks" },
+  { icon: Compass, label: "Quests", href: "/quests" },
   { icon: Target, label: "Goals", href: "/goals" },
   { icon: Trophy, label: "Ranks", href: "/leaderboard" },
 ];

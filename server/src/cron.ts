@@ -12,6 +12,7 @@ import { eq } from 'drizzle-orm';
 // Actually, safely refactoring `getGithubContributions` to a separate file is the best engineering practice.
 
 import { getGithubContributions } from './lib/github.js';
+import { updateUserGoals } from './lib/goals.js';
 
 export function setupCronJobs() {
     console.log("Setting up cron jobs...");
@@ -38,7 +39,7 @@ export function setupCronJobs() {
 
                 try {
                     // console.log(`Syncing user: ${user.username}`);
-                    const { totalCommits, currentStreak, todayCommits, yesterdayCommits, weeklyCommits, contributionCalendar } = await getGithubContributions(user.username || "", account.accessToken);
+                    const { totalCommits, currentStreak, todayCommits, yesterdayCommits, weeklyCommits, activeDays, totalProjects, contributionCalendar } = await getGithubContributions(user.username || "", account.accessToken);
 
                     await db.update(users)
                         .set({
@@ -47,10 +48,21 @@ export function setupCronJobs() {
                             todayCommits: todayCommits,
                             yesterdayCommits: yesterdayCommits,
                             weeklyCommits: weeklyCommits,
+                            activeDays: activeDays,
+                            totalProjects: totalProjects,
                             contributionData: contributionCalendar,
                             updatedAt: new Date()
                         })
                         .where(eq(users.id, user.id));
+
+                    // Update User Goals based on new stats
+                    await updateUserGoals(user.id, {
+                        currentStreak,
+                        weeklyCommits,
+                        activeDays,
+                        totalProjects,
+                        contributionCalendar
+                    });
 
                 } catch (err) {
                     console.error(`Failed to sync user ${user.username}:`, err);
