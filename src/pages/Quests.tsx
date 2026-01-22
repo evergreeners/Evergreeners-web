@@ -1,7 +1,7 @@
 import { Header } from "@/components/Header";
 import { FloatingNav } from "@/components/FloatingNav";
 import { Section } from "@/components/Section";
-import { Compass, Scroll, Zap, Star, Shield, Trophy, GitFork, ExternalLink, RefreshCw, CheckCircle, Plus } from "lucide-react";
+import { Compass, Scroll, Zap, Star, Shield, Trophy, GitFork, ExternalLink, RefreshCw, CheckCircle, Plus, User, XCircle, GitCommit, PlayCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { authClient } from "@/lib/auth-client";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const API_URL = import.meta.env.VITE_API_URL || "";
 
@@ -39,8 +50,21 @@ interface Quest {
     tags: string[];
     difficulty: "Easy" | "Medium" | "Hard";
     points: number;
-    status: "available" | "active" | "completed";
+    status: "available" | "active" | "completed"; // Legacy field from backend map, but we use myStatus now
     forkUrl?: string;
+
+    // New fields
+    createdBy: string;
+    creatorName: string;
+    acceptedBy?: string | null;
+    acceptedStatus?: 'active' | 'completed' | null;
+    isTaken: boolean;
+    myStatus?: 'active' | 'completed' | null;
+    myProgress?: {
+        startedAt: string;
+        completedAt?: string;
+        forkUrl?: string;
+    } | null;
 }
 
 export default function Quests() {
@@ -88,9 +112,6 @@ export default function Quests() {
             return;
         }
 
-        // Optimistic update
-        const previousQuests = [...quests];
-        setQuests(quests.map(q => q.id === id ? { ...q, status: "active" } : q));
         toast.info("Accepting quest...");
 
         try {
@@ -99,14 +120,33 @@ export default function Quests() {
                 credentials: "include"
             });
 
-            if (!res.ok) throw new Error("Failed to accept quest");
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.message || "Failed to accept quest");
+            }
 
-            toast.success("Quest accepted! Time to fork and code.");
-            fetchQuests(); // Refresh to be sure
-        } catch (error) {
+            toast.success("Quest accepted!");
+            fetchQuests();
+        } catch (error: any) {
             console.error(error);
-            toast.error("Failed to accept quest");
-            setQuests(previousQuests); // Revert
+            toast.error(error.message);
+        }
+    };
+
+    const handleDropQuest = async (id: number) => {
+        try {
+            const res = await fetch(`${API_URL}/api/quests/${id}/drop`, {
+                method: "POST",
+                credentials: "include"
+            });
+            if (res.ok) {
+                toast.success("Quest dropped.");
+                fetchQuests();
+            } else {
+                throw new Error("Failed to drop");
+            }
+        } catch (e) {
+            toast.error("Failed to drop quest.");
         }
     };
 
@@ -126,16 +166,16 @@ export default function Quests() {
             }
 
             const data = await res.json();
+            const status = data.progress.status;
 
-            if (data.progress.status === 'completed') {
-                toast.success("Congratulations! Quest Completed!");
-                // Celebration effect could go here
-            } else if (data.progress.status === 'in_progress') {
-                toast.info("Fork detected, but no new commits found yet.");
-            } else if (data.progress.status === 'not_started') {
-                toast.warning("Could not find your fork. Make sure you forked the repo!");
+            if (status === 'completed') {
+                toast.success("Congratulations! Quest Completed & Verified!");
+            } else if (status === 'in_progress') {
+                toast.info("Step 1 Complete: Fork detected. Now push your commits!");
+            } else if (status === 'not_started') {
+                toast.warning("Could not find your fork. Did you fork the repo?");
             } else {
-                toast.info(`Status: ${data.progress.status}`);
+                toast.info(`Status: ${status}`);
             }
 
             fetchQuests(); // Refresh data
@@ -197,6 +237,20 @@ export default function Quests() {
             default: return "bg-secondary text-muted-foreground";
         }
     };
+
+    // Filter Logic
+    const myActiveQuests = quests.filter(q => q.myStatus === 'active');
+
+    // Active for others (excluding mine) and status is ACTIVE
+    const othersActive = quests.filter(q => q.isTaken && q.acceptedStatus === 'active' && q.myStatus !== 'active' && q.myStatus !== 'completed');
+
+    // All completed (mine + others)
+    const allCompleted = quests.filter(q => q.acceptedStatus === 'completed' || q.myStatus === 'completed');
+
+    // Available (neither taken by me active, nor taken by others active/completed)
+    // Note: If I completed it, it shouldn't show in Available for me.
+    // If someone else completed it, it shouldn't show in Available.
+    const availableQuests = quests.filter(q => !q.isTaken && !q.myStatus);
 
     return (
         <div className="min-h-screen bg-background custom-scrollbar">
@@ -305,14 +359,14 @@ export default function Quests() {
                                 <div className="text-center py-10 text-muted-foreground">Loading quests...</div>
                             ) : (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    {quests.filter(q => q.status === "available").length === 0 && !isLoading && (
+                                    {availableQuests.length === 0 && !isLoading && (
                                         <div className="col-span-2 text-center py-10 border border-dashed border-border rounded-xl">
                                             <p className="text-muted-foreground mb-4">No available quests at the moment.</p>
                                             <Button variant="outline" onClick={() => setIsCreateOpen(true)}>Be the first to add one!</Button>
                                         </div>
                                     )}
-                                    {quests.filter(q => q.status === "available").map((quest) => (
-                                        <Card key={quest.id} className="bg-card/30 backdrop-blur-sm border-border hover:border-primary/50 transition-all duration-300 flex flex-col group">
+                                    {availableQuests.map((quest) => (
+                                        <Card key={quest.id} className="bg-card/30 backdrop-blur-sm border-border hover:border-primary/50 transition-all duration-300 flex flex-col group relative">
                                             <CardHeader>
                                                 <div className="flex justify-between items-start">
                                                     <Badge variant="outline" className={cn("mb-2", getDifficultyColor(quest.difficulty))}>
@@ -327,6 +381,12 @@ export default function Quests() {
                                                 <CardDescription className="line-clamp-2">
                                                     {quest.description}
                                                 </CardDescription>
+                                                <div className="text-xs text-muted-foreground flex items-center gap-1 pt-1">
+                                                    <User className="w-3 h-3" /> Posted by {quest.creatorName}
+                                                    {quest.createdBy === session?.user?.id && (
+                                                        <Badge variant="secondary" className="ml-2 bg-primary/10 text-primary border-primary/20">My Quest</Badge>
+                                                    )}
+                                                </div>
                                             </CardHeader>
                                             <CardContent className="flex-grow">
                                                 <div className="flex flex-wrap gap-2">
@@ -346,9 +406,16 @@ export default function Quests() {
                                                 >
                                                     <GitFork className="w-4 h-4" /> Repo
                                                 </a>
-                                                <Button onClick={() => handleStartQuest(quest.id)} className="w-full sm:w-auto">
-                                                    Accept Quest
-                                                </Button>
+
+                                                {quest.createdBy === session?.user?.id ? (
+                                                    <Button disabled variant="secondary" className="w-full sm:w-auto opacity-50 cursor-not-allowed">
+                                                        My Quest
+                                                    </Button>
+                                                ) : (
+                                                    <Button onClick={() => handleStartQuest(quest.id)} className="w-full sm:w-auto">
+                                                        Accept Quest
+                                                    </Button>
+                                                )}
                                             </CardFooter>
                                         </Card>
                                     ))}
@@ -356,18 +423,50 @@ export default function Quests() {
                             )}
                         </Section>
 
-                        {/* Completed Quests Section */}
-                        {quests.some(q => q.status === 'completed') && (
+                        {/* Accepted by Others Section (Active Only) */}
+                        {othersActive.length > 0 && (
+                            <Section title="Quests in Progress" className="animate-fade-up" style={{ animationDelay: "0.2s" }}>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 opacity-70">
+                                    {othersActive.map(quest => (
+                                        <Card key={quest.id} className="bg-secondary/10 border-border flex flex-col">
+                                            <CardHeader>
+                                                <div className="flex justify-between items-start">
+                                                    <Badge variant="outline" className={cn("mb-2 opacity-50", getDifficultyColor(quest.difficulty))}>
+                                                        {quest.difficulty}
+                                                    </Badge>
+                                                    <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-500 border-none">
+                                                        Taken
+                                                    </Badge>
+                                                </div>
+                                                <CardTitle className="text-lg opacity-80">{quest.title}</CardTitle>
+                                            </CardHeader>
+                                            <CardFooter className="mt-auto">
+                                                <div className="text-sm text-muted-foreground flex items-center gap-2">
+                                                    <User className="w-4 h-4" />
+                                                    Evergreener: <span className="text-foreground font-medium">{quest.acceptedBy}</span>
+                                                </div>
+                                            </CardFooter>
+                                        </Card>
+                                    ))}
+                                </div>
+                            </Section>
+                        )}
+
+
+                        {/* Completed Quests Section (All Completed) */}
+                        {allCompleted.length > 0 && (
                             <Section title="Completed Quests" className="opacity-80">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    {quests.filter(q => q.status === 'completed').map(quest => (
+                                    {allCompleted.map(quest => (
                                         <div key={quest.id} className="p-4 rounded-xl border border-green-500/30 bg-green-500/10 flex items-center gap-4">
                                             <div className="p-2 rounded-full bg-green-500/20 text-green-500">
                                                 <CheckCircle className="w-6 h-6" />
                                             </div>
                                             <div>
                                                 <h3 className="font-bold text-lg">{quest.title}</h3>
-                                                <p className="text-sm text-green-500/80">Completed! +{quest.points} XP</p>
+                                                <p className="text-sm text-green-500/80">
+                                                    Completed by {quest.myStatus === 'completed' ? "You" : quest.acceptedBy}! (+{quest.points} XP)
+                                                </p>
                                             </div>
                                         </div>
                                     ))}
@@ -378,35 +477,73 @@ export default function Quests() {
 
                     {/* Sidebar Column */}
                     <div className="lg:col-span-4 space-y-8">
-                        {/* Active Quests */}
+                        {/* My Active Quests */}
                         <Section title="Your Active Quests" className="animate-fade-up" style={{ animationDelay: "0.1s" }}>
                             <div className="space-y-4">
-                                {quests.filter(q => q.status === "active").length === 0 ? (
+                                {myActiveQuests.length === 0 ? (
                                     <div className="p-6 rounded-2xl border border-dashed border-border bg-card/30 text-center">
                                         <Scroll className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
                                         <p className="text-muted-foreground">No active quests. Pick one to start!</p>
                                     </div>
                                 ) : (
-                                    quests.filter(q => q.status === "active").map(quest => (
+                                    myActiveQuests.map(quest => (
                                         <div key={quest.id} className="p-5 rounded-2xl border border-primary/50 bg-primary/5 relative overflow-hidden group">
                                             <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
                                                 <Compass className="w-24 h-24 rotate-45" />
                                             </div>
                                             <div className="relative z-10">
-                                                <h3 className="font-bold text-lg mb-1">{quest.title}</h3>
-                                                <p className="text-sm text-muted-foreground mb-4">{quest.description}</p>
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <h3 className="font-bold text-lg leading-tight">{quest.title}</h3>
+                                                    <AlertDialog>
+                                                        <AlertDialogTrigger asChild>
+                                                            <button className="text-muted-foreground hover:text-destructive transition-colors">
+                                                                <XCircle className="w-5 h-5" />
+                                                            </button>
+                                                        </AlertDialogTrigger>
+                                                        <AlertDialogContent>
+                                                            <AlertDialogHeader>
+                                                                <AlertDialogTitle>Abandon Quest?</AlertDialogTitle>
+                                                                <AlertDialogDescription>
+                                                                    Are you sure you want to drop this quest? It will become available for others to take.
+                                                                </AlertDialogDescription>
+                                                            </AlertDialogHeader>
+                                                            <AlertDialogFooter>
+                                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                                <AlertDialogAction onClick={() => handleDropQuest(quest.id)} className="bg-destructive hover:bg-destructive/90">
+                                                                    Abandon
+                                                                </AlertDialogAction>
+                                                            </AlertDialogFooter>
+                                                        </AlertDialogContent>
+                                                    </AlertDialog>
+                                                </div>
+
+                                                <div className="space-y-3 mb-4">
+                                                    {/* Progress Steps */}
+                                                    <div className="flex items-center gap-3 text-sm">
+                                                        <div className={cn("w-6 h-6 rounded-full flex items-center justify-center border", quest.myProgress?.forkUrl ? "bg-green-500 border-green-500 text-white" : "border-muted-foreground text-muted-foreground")}>
+                                                            {quest.myProgress?.forkUrl ? <CheckCircle className="w-4 h-4" /> : "1"}
+                                                        </div>
+                                                        <span className={cn(quest.myProgress?.forkUrl ? "text-foreground" : "text-muted-foreground")}>Fork Repo</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-3 text-sm">
+                                                        <div className={cn("w-6 h-6 rounded-full flex items-center justify-center border", quest.myStatus === 'completed' ? "bg-green-500 border-green-500 text-white" : "border-muted-foreground text-muted-foreground")}>
+                                                            {quest.myStatus === 'completed' ? <CheckCircle className="w-4 h-4" /> : "2"}
+                                                        </div>
+                                                        <span className={cn(quest.myStatus === 'completed' ? "text-foreground" : "text-muted-foreground")}>Push Commit / PR</span>
+                                                    </div>
+                                                </div>
 
                                                 <div className="flex flex-col gap-2">
                                                     <div className="flex gap-2">
                                                         <Button size="sm" variant="secondary" asChild className="flex-1">
                                                             <a href={quest.repoUrl} target="_blank" rel="noreferrer">
-                                                                <ExternalLink className="w-4 h-4 mr-2" /> Open Repo
+                                                                <ExternalLink className="w-4 h-4 mr-2" /> Repo
                                                             </a>
                                                         </Button>
-                                                        {quest.forkUrl && (
+                                                        {quest.myProgress?.forkUrl && (
                                                             <Button size="sm" variant="secondary" asChild className="flex-1 bg-secondary/80">
-                                                                <a href={quest.forkUrl} target="_blank" rel="noreferrer">
-                                                                    <GitFork className="w-4 h-4 mr-2" /> My Fork
+                                                                <a href={quest.myProgress.forkUrl} target="_blank" rel="noreferrer">
+                                                                    <GitFork className="w-4 h-4 mr-2" /> Fork
                                                                 </a>
                                                             </Button>
                                                         )}
@@ -417,6 +554,7 @@ export default function Quests() {
                                                         variant="default"
                                                         onClick={() => handleCheckProgress(quest.id)}
                                                         disabled={checkingId === quest.id}
+                                                        className="w-full"
                                                     >
                                                         {checkingId === quest.id ? (
                                                             <>Checking <RefreshCw className="w-4 h-4 ml-2 animate-spin" /></>
@@ -435,19 +573,19 @@ export default function Quests() {
                             <div className="p-5 rounded-2xl border border-border bg-card/50 backdrop-blur-sm space-y-4">
                                 <div className="flex gap-3">
                                     <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center shrink-0 font-bold">1</div>
-                                    <p className="text-sm text-muted-foreground pt-1">Accept a quest from the available list.</p>
+                                    <p className="text-sm text-muted-foreground pt-1">Accept a quest. Only one person can take it at a time!</p>
                                 </div>
                                 <div className="flex gap-3">
                                     <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center shrink-0 font-bold">2</div>
-                                    <p className="text-sm text-muted-foreground pt-1">Fork the repository and implement the changes.</p>
+                                    <p className="text-sm text-muted-foreground pt-1">Fork the repository and make your changes.</p>
                                 </div>
                                 <div className="flex gap-3">
                                     <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center shrink-0 font-bold">3</div>
-                                    <p className="text-sm text-muted-foreground pt-1">Check progress. We'll verify your commits on the fork.</p>
+                                    <p className="text-sm text-muted-foreground pt-1">Check progress. We verify your commits.</p>
                                 </div>
                                 <div className="flex gap-3">
                                     <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center shrink-0 font-bold">4</div>
-                                    <p className="text-sm text-muted-foreground pt-1">Earn XP and keep your daily streak alive.</p>
+                                    <p className="text-sm text-muted-foreground pt-1">Earn XP. If you get stuck, drop the quest for someone else.</p>
                                 </div>
                             </div>
                         </Section>
