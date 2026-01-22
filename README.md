@@ -1,4 +1,6 @@
-<img width="200" height="200" alt="contribution_logo (1)" src="https://github.com/user-attachments/assets/263c80c4-998d-4be9-90f3-2aeac3ae19e8" /># 🌲 Evergreeners
+<img width="200" height="200" alt="contribution_logo (1)" src="https://github.com/user-attachments/assets/263c80c4-998d-4be9-90f3-2aeac3ae19e8" />
+
+# 🌲 Evergreeners
 
 **Track your consistency. Grow your legacy.**
 
