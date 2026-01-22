@@ -1,5 +1,3 @@
-<<<<<<< HEAD
-=======
 {
   "version": "7",
   "dialect": "postgresql",
@@ -83,4 +81,3 @@
     }
   ]
 }
->>>>>>> 9b9ba8de551d35c0db828a478388ac455960594b
