@@ -1,7 +1,8 @@
 import { Header } from "@/components/Header";
 import { FloatingNav } from "@/components/FloatingNav";
 import { Section } from "@/components/Section";
-import { Trophy, Medal, Flame, Crown, TrendingUp, TrendingDown, Minus, Loader2, GitCommit } from "lucide-react";
+import { Trophy, Medal, Flame, Crown, TrendingUp, TrendingDown, Minus, GitCommit } from "lucide-react";
+import { Loader } from "@/components/ui/loader";
 import { cn, triggerHaptic } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
@@ -128,8 +129,9 @@ export default function Leaderboard() {
         </section>
 
         {isLoading ? (
-          <div className="flex justify-center py-20">
-            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <div className="flex flex-col items-center justify-center py-20 gap-4">
+            <Loader />
+            <p className="text-muted-foreground animate-pulse">Loading leaderboard...</p>
           </div>
         ) : (
           <>
