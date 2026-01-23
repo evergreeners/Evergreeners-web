@@ -1,3 +1,4 @@
+
 import { Header } from "@/components/Header";
 import { FloatingNav } from "@/components/FloatingNav";
 import { StreakDisplay } from "@/components/StreakDisplay";
@@ -8,31 +9,103 @@ import { GoalProgress } from "@/components/GoalProgress";
 import { InsightCard } from "@/components/InsightCard";
 import { StatItem } from "@/components/StatItem";
 import { Section } from "@/components/Section";
-
-// Mock data
-const weeklyData = [
-  { day: "Mon", value: 8 },
-  { day: "Tue", value: 12 },
-  { day: "Wed", value: 5 },
-  { day: "Thu", value: 15 },
-  { day: "Fri", value: 9 },
-  { day: "Sat", value: 3 },
-  { day: "Sun", value: 7 },
-];
-
-// Generate random activity data for contribution grid (12 weeks)
-const activityData = Array.from({ length: 84 }, () =>
-  Math.random() > 0.3 ? Math.floor(Math.random() * 5) : 0
-);
-
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { toast } from "sonner";
 import { useSession } from "@/lib/auth-client";
+import { getApiUrl } from "@/lib/api-config";
+import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
+
+interface Goal {
+  id: number;
+  title: string;
+  type: string;
+  current: number;
+  target: number;
+  completed: boolean;
+  dueDate?: string;
+}
+
+interface UserProfile {
+  streak: number;
+  longestStreak: number;
+  todayCommits: number;
+  weeklyCommits: number;
+  activeDays: number;
+  totalProjects: number;
+  contributionData: any[];
+  yesterdayCommits: number; // For TodayStatus fallback logic compatibility
+  [key: string]: any;
+}
 
 export default function Index() {
   const { data: session } = useSession();
-  const user = session?.user as any;
+  const sessionUser = session?.user as any;
 
+  // Local state to store the full, fresh profile data
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [isLoadingGoals, setIsLoadingGoals] = useState(true);
+
+  // Initialize profile from session first (fast), then fetch fresh
+  useEffect(() => {
+    if (sessionUser) {
+      // 1. Optimistic set from session
+      setProfile({
+        streak: sessionUser.streak || 0,
+        longestStreak: sessionUser.longestStreak || 0,
+        todayCommits: sessionUser.todayCommits || 0,
+        weeklyCommits: sessionUser.weeklyCommits || 0,
+        activeDays: sessionUser.activeDays || 0,
+        totalProjects: sessionUser.totalProjects || 0,
+        contributionData: sessionUser.contributionData || [],
+        yesterdayCommits: sessionUser.yesterdayCommits || 0,
+      });
+
+      // 2. Fetch fresh data from API to ensure we have heavy objects like contributionData
+      const fetchFreshProfile = async () => {
+        try {
+          const url = getApiUrl('/api/user/profile');
+          const res = await fetch(url, { credentials: "include" });
+          if (res.ok) {
+            const { user: freshUser } = await res.json();
+            setProfile(prev => ({
+              ...prev, // keep existing values if freshUser is missing something (though it shouldn't be)
+              ...freshUser,
+              // Ensure contributionData is at least an array
+              contributionData: freshUser.contributionData || []
+            }));
+          }
+        } catch (e) {
+          console.error("Failed to fetch fresh profile for dashboard", e);
+        }
+      };
+
+      fetchFreshProfile();
+
+      // Also fetch goals
+      const fetchGoals = async () => {
+        try {
+          const res = await fetch(getApiUrl("/api/goals"), {
+            credentials: "include"
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setGoals(data.goals || []);
+          }
+        } catch (e) {
+          console.error("Failed to fetch goals", e);
+        } finally {
+          setIsLoadingGoals(false);
+        }
+      };
+
+      fetchGoals();
+    }
+  }, [sessionUser]); // Depend on sessionUser to re-trigger if session refreshes
+
+  // Handle welcome toasts
   useEffect(() => {
     if (localStorage.getItem("login_success") === "true") {
       toast.success("Welcome back!", {
@@ -46,6 +119,75 @@ export default function Index() {
       localStorage.removeItem("signup_success");
     }
   }, []);
+
+  // Parse contribution data for weekly chart
+  const weeklyChartData = useMemo(() => {
+    // We strictly need the profile to be loaded
+    if (!profile?.contributionData || !Array.isArray(profile.contributionData) || profile.contributionData.length === 0) {
+      // Fallback: Return empty/zeros with correct labels
+      const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      const today = new Date().getDay(); // 0 = Sun
+      // We want last 7 days ending today
+      const result = [];
+      for (let i = 6; i >= 0; i--) {
+        const d = (today - i + 7) % 7;
+        result.push({ day: days[d], value: 0 });
+      }
+      return result;
+    }
+
+    // user.contributionData is ordered [Today, Yesterday, ...] (Desceding Date)
+    // We want the chart to show [6 days ago, ..., Today] (Ascending Date)
+    // So we take the first 7 items (which are the most recent 7 days) and REVERSE them.
+    const last7Days = profile.contributionData.slice(0, 7).reverse();
+
+    return last7Days.map((d: any) => {
+      // If d.date is "YYYY-MM-DD", new Date(d.date) might be UTC or local depending on parsing.
+      // Usually strings like "2024-01-23" are parsed as UTC midnight.
+      // To get the day name correctly, we should trust the date string more than timezone offset if possible,
+      // but standard Date parsing usually works fine for "Day of week" unless we are on the edge.
+      const date = new Date(d.date);
+      const dayName = date.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' }); // Force UTC to avoid timezone shifting date
+      return {
+        day: dayName,
+        value: d.contributionCount
+      };
+    });
+  }, [profile?.contributionData]);
+
+  const activeDaysCount = profile?.activeDays || 0;
+  const currentGoal = goals.find(g => !g.completed);
+
+  // Generate dynamic insights
+  const insights = useMemo(() => {
+    if (!profile) return [];
+
+    const arr = [];
+    if (profile.streak > 5) {
+      arr.push(`You're on a ${profile.streak}-day streak! Consistency is key.`);
+    }
+    if (profile.weeklyCommits > 10) {
+      arr.push(`You've made ${profile.weeklyCommits} commits this week. Great work!`);
+    } else if (profile.weeklyCommits === 0) {
+      arr.push("No commits this week yet. Ready to start?");
+    }
+
+    if (currentGoal) {
+      const percent = Math.round((currentGoal.current / currentGoal.target) * 100);
+      if (percent >= 50) {
+        arr.push(`You're halfway through your '${currentGoal.title}' goal!`);
+      }
+    }
+
+    // Fallback insight
+    if (arr.length === 0) {
+      arr.push("Connect GitHub to see personalized insights about your coding habits.");
+      arr.push("Start a new goal to track your progress.");
+    }
+
+    return arr.slice(0, 2); // Return top 2
+  }, [profile, currentGoal]);
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -53,7 +195,7 @@ export default function Index() {
       <main className="container-fluid px-4 md:px-8 pt-24 pb-32 md:pb-12 space-y-8">
         {/* Hero Streak Section */}
         <section className="animate-fade-in">
-          <StreakDisplay current={user?.streak || 0} longest={user?.longestStreak || 0} />
+          <StreakDisplay current={profile?.streak || 0} longest={profile?.longestStreak || 0} />
         </section>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:items-start">
@@ -65,16 +207,16 @@ export default function Index() {
               className="animate-fade-up"
               style={{ animationDelay: "0.2s" }}
             >
-              <WeeklyChart data={weeklyData} />
+              <WeeklyChart data={weeklyChartData} />
             </Section>
 
             {/* Contribution Grid */}
             <Section
-              title="Last 12 Weeks"
+              title="Activity History"
               className="animate-fade-up"
               style={{ animationDelay: "0.25s" }}
             >
-              <ActivityGrid data={activityData} />
+              <ActivityGrid data={profile?.contributionData} loading={!profile} />
               <div className="flex items-center justify-end gap-2 mt-3">
                 <span className="text-xs text-muted-foreground">Less</span>
                 <div className="flex gap-1">
@@ -100,18 +242,18 @@ export default function Index() {
             {/* Today's Status */}
             <Section className="animate-fade-up" style={{ animationDelay: "0.1s" }}>
               <TodayStatus
-                active={user?.yesterdayCommits > 0}
-                commits={user?.yesterdayCommits || 0}
-                lastActivity="2 hours ago"
+                active={(profile?.todayCommits || 0) > 0}
+                commits={profile?.todayCommits || 0}
+                lastActivity="Recently"
               />
             </Section>
 
             {/* Stats Row */}
             <Section className="animate-fade-up" style={{ animationDelay: "0.15s" }}>
               <div className="grid grid-cols-3 gap-4">
-                <StatItem label="This Week" value={user?.weeklyCommits || 0} subtext="commits" />
-                <StatItem label="Active Days" value="5/7" subtext="this week" />
-                <StatItem label="Repos" value="3" subtext="touched" />
+                <StatItem label="This Week" value={profile?.weeklyCommits || 0} subtext="commits" />
+                <StatItem label="Active Days" value={`${activeDaysCount}/7`} subtext="this week" />
+                <StatItem label="Repos" value={profile?.totalProjects || 0} subtext="touched" />
               </div>
             </Section>
 
@@ -121,11 +263,25 @@ export default function Index() {
               className="animate-fade-up"
               style={{ animationDelay: "0.3s" }}
             >
-              <GoalProgress
-                title="Maintain 30-day streak"
-                current={47}
-                target={30}
-              />
+              {currentGoal ? (
+                <div onClick={() => window.location.href = '/goals'} className="cursor-pointer hover:opacity-80 transition-opacity">
+                  <GoalProgress
+                    title={currentGoal.title}
+                    current={currentGoal.current}
+                    target={currentGoal.target}
+                  />
+                  <p className="text-xs text-muted-foreground mt-2 text-right">View all goals &rarr;</p>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center p-6 text-center text-muted-foreground border border-dashed border-border rounded-xl">
+                  <p className="mb-3 text-sm">No active goals</p>
+                  <Link to="/goals">
+                    <Button size="sm" variant="outline" className="gap-2">
+                      <Plus className="w-4 h-4" /> Set a Goal
+                    </Button>
+                  </Link>
+                </div>
+              )}
             </Section>
 
             {/* Insights */}
@@ -134,8 +290,9 @@ export default function Index() {
               className="animate-fade-up space-y-3"
               style={{ animationDelay: "0.35s" }}
             >
-              <InsightCard text="You code most consistently on Thursdays. Your productivity peaks mid-week." />
-              <InsightCard text="You're 23% more active this month compared to last month. Keep it up!" />
+              {insights.map((text, i) => (
+                <InsightCard key={i} text={text} type={i === 0 ? "trend" : "achievement"} />
+              ))}
             </Section>
           </div>
         </div>
