@@ -408,7 +408,7 @@ export default function Profile() {
 
         {/* Activity Grid */}
         <Section title="Recent Activity" className="animate-fade-up" style={{ animationDelay: "0.25s" }}>
-          <ActivityGrid data={profile.contributionData} />
+          <ActivityGrid data={profile.contributionData} weeks={52} />
 
         </Section>
 

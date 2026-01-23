@@ -381,7 +381,7 @@ export default function Analytics() {
 
         {/* Year in Code */}
         <Section title="Year in Code" className="animate-fade-up" style={{ animationDelay: "0.35s" }}>
-          <ActivityGrid data={activityData} />
+          <ActivityGrid data={activityData} weeks={52} />
         </Section>
       </main>
 

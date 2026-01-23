@@ -189,18 +189,18 @@ export default function Index() {
   }, [profile, currentGoal]);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background overflow-x-hidden custom-scrollbar">
       <Header />
 
-      <main className="container-fluid px-4 md:px-8 pt-24 pb-32 md:pb-12 space-y-8">
+      <main className="w-full max-w-[1600px] mx-auto px-4 md:px-8 pt-24 pb-32 md:pb-12 space-y-8">
         {/* Hero Streak Section */}
         <section className="animate-fade-in">
-          <StreakDisplay current={profile?.streak || 0} longest={profile?.longestStreak || 0} />
+          <StreakDisplay current={profile?.streak || 0} longest={Math.max(profile?.streak || 0, profile?.longestStreak || 0)} />
         </section>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:items-start">
-          {/* Main Content Column */}
-          <div className="md:col-span-2 space-y-8">
+        <div className="flex flex-col md:grid md:grid-cols-3 gap-8 md:items-start">
+          {/* Main Content Column - Charts & History */}
+          <div className="md:col-span-2 space-y-8 order-2 md:order-1">
             {/* Weekly Activity Chart */}
             <Section
               title="This Week"
@@ -216,7 +216,7 @@ export default function Index() {
               className="animate-fade-up"
               style={{ animationDelay: "0.25s" }}
             >
-              <ActivityGrid data={profile?.contributionData} loading={!profile} />
+              <ActivityGrid data={profile?.contributionData} loading={!profile} weeks={46} />
               <div className="flex items-center justify-end gap-2 mt-3">
                 <span className="text-xs text-muted-foreground">Less</span>
                 <div className="flex gap-1">
@@ -237,8 +237,8 @@ export default function Index() {
             </Section>
           </div>
 
-          {/* Sidebar Column */}
-          <div className="space-y-8 md:sticky md:top-24 text-left">
+          {/* Sidebar Column - Stats & Goals */}
+          <div className="space-y-8 md:sticky md:top-24 text-left order-1 md:order-2">
             {/* Today's Status */}
             <Section className="animate-fade-up" style={{ animationDelay: "0.1s" }}>
               <TodayStatus
@@ -251,9 +251,24 @@ export default function Index() {
             {/* Stats Row */}
             <Section className="animate-fade-up" style={{ animationDelay: "0.15s" }}>
               <div className="grid grid-cols-3 gap-4">
-                <StatItem label="This Week" value={profile?.weeklyCommits || 0} subtext="commits" />
-                <StatItem label="Active Days" value={`${activeDaysCount}/7`} subtext="this week" />
-                <StatItem label="Repos" value={profile?.totalProjects || 0} subtext="touched" />
+                <StatItem
+                  label="This Week"
+                  value={profile?.weeklyCommits || 0}
+                  subtext="commits"
+                  className="items-center text-center md:items-start md:text-left"
+                />
+                <StatItem
+                  label="Active Days"
+                  value={`${activeDaysCount}/7`}
+                  subtext="this week"
+                  className="items-center text-center md:items-start md:text-left"
+                />
+                <StatItem
+                  label="Repos"
+                  value={profile?.totalProjects || 0}
+                  subtext="touched"
+                  className="items-center text-center md:items-start md:text-left"
+                />
               </div>
             </Section>
 

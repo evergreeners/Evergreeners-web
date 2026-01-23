@@ -18,9 +18,14 @@ interface ContributionWeek {
 interface ActivityGridProps {
   data?: ContributionDay[] | number[]; // Handle both flattened array (current) and potential future structures
   loading?: boolean;
+  weeks?: number;
 }
 
-export function ActivityGrid({ data, loading }: ActivityGridProps) {
+import { useIsMobile } from "@/hooks/use-mobile";
+
+export function ActivityGrid({ data, loading, weeks: weekCount }: ActivityGridProps) {
+  const isMobile = useIsMobile();
+
   // Generate random fallback data if no real data is provided
   // Generate empty fallback data (0 contributions) if no real data is provided
   const getFallbackData = () => {
@@ -72,8 +77,9 @@ export function ActivityGrid({ data, loading }: ActivityGridProps) {
     }
   });
 
-  // Ensure we display reasonably recent history (e.g., last 52 weeks / 1 year)
-  const displayWeeks = weeks.slice(-52);
+  // Responsive week count: Always force 16 on mobile. On desktop, use prop if provided, else default to 28.
+  const countToUse = isMobile ? 16 : (weekCount || 28);
+  const displayWeeks = weeks.slice(-countToUse);
 
   const getIntensityClass = (count: number) => {
     if (count === 0) return "bg-zinc-800/50 hover:bg-zinc-700/50";
