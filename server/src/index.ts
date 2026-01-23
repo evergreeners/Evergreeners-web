@@ -117,7 +117,7 @@ server.register(async (instance) => {
             console.log("GitHub user found:", ghUser.login);
 
             // 3. Fetch Contributions (Streak & Total Commits)
-            const { totalCommits, currentStreak, todayCommits, yesterdayCommits, weeklyCommits, activeDays, totalProjects, projects, contributionCalendar } = await getGithubContributions(ghUser.login, account[0].accessToken);
+            const { totalCommits, currentStreak, todayCommits, yesterdayCommits, weeklyCommits, activeDays, totalProjects, projects, contributionCalendar, totalPullRequests, languages } = await getGithubContributions(ghUser.login, account[0].accessToken);
 
             // 4. Update User Profile
             console.log("Updating DB with streak:", currentStreak, "commits:", totalCommits);
@@ -132,6 +132,8 @@ server.register(async (instance) => {
                     activeDays: activeDays,
                     totalProjects: totalProjects,
                     projectsData: projects,
+                    languages: languages, // New field
+                    totalPullRequests: totalPullRequests, // New field, assuming it's returned by getGithubContributions
                     contributionData: contributionCalendar,
                     isGithubConnected: true,
                     updatedAt: new Date()

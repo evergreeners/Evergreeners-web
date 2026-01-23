@@ -4,12 +4,27 @@ export async function getGithubContributions(username: string, token: string) {
     const query = `
         query($username: String!) {
             user(login: $username) {
+                pullRequests(first: 0) {
+                    totalCount
+                }
+                issues(first: 0) {
+                    totalCount
+                }
                 repositoriesContributedTo(first: 100, contributionTypes: [COMMIT, ISSUE, PULL_REQUEST, REPOSITORY], orderBy: {field: UPDATED_AT, direction: DESC}) {
                     totalCount
                     nodes {
                         nameWithOwner
                         url
                         updatedAt
+                        languages(first: 3, orderBy: {field: SIZE, direction: DESC}) {
+                            edges {
+                                size
+                                node {
+                                    name
+                                    color
+                                }
+                            }
+                        }
                     }
                 }
                 contributionsCollection {
@@ -50,6 +65,7 @@ export async function getGithubContributions(username: string, token: string) {
     const calendar = user.contributionsCollection.contributionCalendar;
     const totalCommits = calendar.totalContributions;
     const totalProjects = user.repositoriesContributedTo.totalCount;
+    const totalPullRequests = user.pullRequests.totalCount;
 
     const allDays = calendar.weeks
         .flatMap((w: any) => w.contributionDays)
@@ -114,7 +130,42 @@ export async function getGithubContributions(username: string, token: string) {
 
     const projects = user.repositoriesContributedTo.nodes;
 
-    return { totalCommits, currentStreak, todayCommits, yesterdayCommits, weeklyCommits, activeDays, totalProjects, projects, contributionCalendar: allDays };
+    // Aggregate languages
+    const languageMap = new Map<string, { size: number, color: string }>();
+    projects.forEach((repo: any) => {
+        if (repo.languages && repo.languages.edges) {
+            repo.languages.edges.forEach((edge: any) => {
+                const { name, color } = edge.node;
+                const size = edge.size;
+                if (languageMap.has(name)) {
+                    const existing = languageMap.get(name)!;
+                    languageMap.set(name, { size: existing.size + size, color });
+                } else {
+                    languageMap.set(name, { size, color });
+                }
+            });
+        }
+    });
+
+    // Convert map to array and sort by size
+    const languages = Array.from(languageMap.entries())
+        .map(([name, { size, color }]) => ({ name, value: size, color }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 5); // Top 5
+
+    return {
+        totalCommits,
+        currentStreak,
+        todayCommits,
+        yesterdayCommits,
+        weeklyCommits,
+        activeDays,
+        totalProjects,
+        projects,
+        contributionCalendar: allDays,
+        totalPullRequests,
+        languages
+    };
 }
 
 export async function checkQuestProgress(username: string, token: string, questRepoUrl: string) {
