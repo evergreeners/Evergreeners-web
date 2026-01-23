@@ -3,6 +3,7 @@ import { FloatingNav } from "@/components/FloatingNav";
 import { Section } from "@/components/Section";
 import { ActivityGrid } from "@/components/ActivityGrid";
 import { InsightCard } from "@/components/InsightCard";
+import { Loader } from "@/components/ui/loader";
 import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area
@@ -193,8 +194,9 @@ export default function Analytics() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <p className="text-muted-foreground">Loading analytics...</p>
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
+        <Loader />
+        <p className="text-muted-foreground animate-pulse">Loading analytics...</p>
       </div>
     );
   }
