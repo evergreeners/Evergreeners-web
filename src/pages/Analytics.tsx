@@ -19,6 +19,7 @@ type TimeRange = "week" | "month" | "year";
 export default function Analytics() {
   const [timeRange, setTimeRange] = useState<TimeRange>("month");
   const [loading, setLoading] = useState(true);
+  const [userData, setUserData] = useState<any>(null);
 
   // ... (stats, state definitions)
 
@@ -32,9 +33,10 @@ export default function Analytics() {
   const [monthlyData, setMonthlyData] = useState<any[]>([]);
   const [weeklyCommits, setWeeklyCommits] = useState<any[]>([]);
   const [languageData, setLanguageData] = useState<any[]>([]);
-  const [activityData, setActivityData] = useState<number[]>(Array(365).fill(0));
+  const [activityData, setActivityData] = useState<any[]>([]);
   const [insights, setInsights] = useState<string[]>([]);
 
+  // 1. Fetch Data Effect
   useEffect(() => {
     async function fetchData() {
       try {
@@ -46,110 +48,13 @@ export default function Analytics() {
           headers: {
             Authorization: `Bearer ${session.data.session.token}`
           },
-          credentials: "include" // Ensure cookies are sent if needed by backend configuration
+          credentials: "include"
         });
 
         if (!res.ok) throw new Error("Failed to fetch profile");
 
         const { user } = await res.json();
-
-        // 1. Process Stats
-        const totalCommits = user.totalCommits || 0;
-        const totalPRs = user.totalPullRequests || user.total_prs || 0;
-        const activeDays = user.activeDays || 0;
-        // Simple avg daily: total commits / 365 (cap at reasonable start date if needed)
-        const avgDaily = (totalCommits / 365).toFixed(1);
-
-        setStats([
-          { label: "Total Commits", value: totalCommits.toLocaleString(), change: "+", trend: "up", icon: GitCommit },
-          { label: "Pull Requests", value: totalPRs.toLocaleString(), change: "+", trend: "up", icon: GitPullRequest },
-          { label: "Active Days", value: activeDays.toString(), change: "", trend: "up", icon: Calendar },
-          { label: "Avg. Daily", value: avgDaily, change: "", trend: "up", icon: Clock },
-        ]);
-
-        // 2. Process Languages
-        // languages_data is stored as array of objects {name, value, color} based on our lib/github.ts
-        if (user.languages || user.languages_data) {
-          const langs = (user.languages || user.languages_data).map((l: any) => ({
-            name: l.name,
-            value: l.value || l.size, // Handle different formats if any
-            color: l.color
-          }));
-          setLanguageData(langs);
-        }
-
-        // 3. Process Contribution Data (Calendar)
-        if (user.contributionData) {
-          const calendar = user.contributionData; // Array of { date, contributionCount }
-
-          // Activity Grid (map to 0-4 levels)
-          // Assuming simplified levels: 0=0, 1=1-3, 2=4-6, 3=7-9, 4=10+
-          const levels = calendar.map((d: any) => {
-            const c = d.contributionCount;
-            if (c === 0) return 0;
-            if (c <= 3) return 1;
-            if (c <= 6) return 2;
-            if (c <= 9) return 3;
-            return 4;
-          });
-          // Ensure 365 days
-          setActivityData(levels.slice(-365));
-
-          // Monthly Trend (Last 6 months)
-          const monthly: Record<string, number> = {};
-          const last6Months = Array.from({ length: 6 }, (_, i) => format(subMonths(new Date(), 5 - i), "MMM"));
-
-          calendar.forEach((d: any) => {
-            const date = parseISO(d.date);
-            const monthStr = format(date, "MMM");
-            if (last6Months.includes(monthStr)) {
-              monthly[monthStr] = (monthly[monthStr] || 0) + d.contributionCount;
-            }
-          });
-
-          const monthChartData = last6Months.map(m => ({
-            month: m,
-            commits: monthly[m] || 0
-          }));
-          setMonthlyData(monthChartData);
-
-          // Weekly Distribution (Aggregate by Day of Week over the last 3 months to normalize?)
-          // Or just last 7 days? The user prompt implies "Deep dive", so aggregation is better.
-          // Let's aggregate ALL recent activity (e.g. last 90 days) by weekday.
-          const weekdayCounts = [0, 0, 0, 0, 0, 0, 0]; // Sun to Sat
-          const weekdayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-          const recentDays = calendar.slice(-90);
-
-          recentDays.forEach((d: any) => {
-            const date = parseISO(d.date);
-            const dayIndex = getDay(date);
-            weekdayCounts[dayIndex] += d.contributionCount;
-          });
-
-          // Reorder to Mon-Sun
-          const weekChartData = [
-            { day: "Mon", commits: weekdayCounts[1] },
-            { day: "Tue", commits: weekdayCounts[2] },
-            { day: "Wed", commits: weekdayCounts[3] },
-            { day: "Thu", commits: weekdayCounts[4] },
-            { day: "Fri", commits: weekdayCounts[5] },
-            { day: "Sat", commits: weekdayCounts[6] },
-            { day: "Sun", commits: weekdayCounts[0] },
-          ];
-          setWeeklyCommits(weekChartData);
-
-          // Insights
-          const maxDayIndex = weekdayCounts.indexOf(Math.max(...weekdayCounts));
-          const bestDay = weekdayNames[maxDayIndex];
-
-          const newInsights = [
-            `Your most productive day is ${bestDay}.`,
-            `You have maintained code activity on ${activeDays} days recently.`,
-            totalPRs > 10 ? "Great job on your pull request contributions!" : "Try contributing to more open source projects via PRs."
-          ];
-          setInsights(newInsights);
-        }
-
+        setUserData(user);
       } catch (e) {
         console.error("Fetch error", e);
       } finally {
@@ -159,6 +64,104 @@ export default function Analytics() {
 
     fetchData();
   }, []);
+
+  // 2. Process Data Effect (depends on userData & timeRange)
+  useEffect(() => {
+    if (!userData) return;
+
+    // A. Contribution Data Filtering
+    const calendar = userData.contributionData || [];
+    const sortedCalendar = [...calendar].sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    // Determine Start Date based on Range
+    const now = new Date();
+    let startDate = subMonths(now, 12);
+    if (timeRange === 'week') startDate = new Date(now.setDate(now.getDate() - 7));
+    if (timeRange === 'month') startDate = subMonths(new Date(), 1);
+
+    // Filtered data for stats/charts
+    const filteredData = sortedCalendar.filter((d: any) => new Date(d.date) >= startDate);
+
+    // B. Calculate Stats
+    const totalCommitsInRange = filteredData.reduce((acc: number, d: any) => acc + d.contributionCount, 0);
+    const activeDaysInRange = filteredData.filter((d: any) => d.contributionCount > 0).length;
+    const totalPRs = userData.totalPullRequests || userData.total_prs || 0;
+
+    const daysCount = filteredData.length || 1;
+    const avgDaily = (totalCommitsInRange / daysCount).toFixed(1);
+
+    setStats([
+      { label: "Commits", value: totalCommitsInRange.toLocaleString(), change: "", trend: "up", icon: GitCommit },
+      { label: "Pull Requests", value: totalPRs.toLocaleString(), change: "", trend: "up", icon: GitPullRequest },
+      { label: "Active Days", value: activeDaysInRange.toString(), change: "", trend: "up", icon: Calendar },
+      { label: "Avg. Daily", value: avgDaily, change: "", trend: "up", icon: Clock },
+    ]);
+
+    // C. Charts Data
+    if (timeRange === 'week' || timeRange === 'month') {
+      const dailyTrend = filteredData.map((d: any) => ({
+        month: format(parseISO(d.date), "MMM d"),
+        commits: d.contributionCount
+      }));
+      setMonthlyData(dailyTrend);
+    } else {
+      const monthly: Record<string, number> = {};
+      const monthsInOrder: string[] = [];
+      filteredData.forEach((d: any) => {
+        const date = parseISO(d.date);
+        const monthStr = format(date, "MMM");
+        if (!monthsInOrder.includes(monthStr)) monthsInOrder.push(monthStr);
+        monthly[monthStr] = (monthly[monthStr] || 0) + d.contributionCount;
+      });
+      const trendData = monthsInOrder.map(m => ({
+        month: m,
+        commits: monthly[m]
+      }));
+      setMonthlyData(trendData);
+    }
+
+    const weekdayCounts = [0, 0, 0, 0, 0, 0, 0];
+    filteredData.forEach((d: any) => {
+      const date = parseISO(d.date);
+      weekdayCounts[getDay(date)] += d.contributionCount;
+    });
+
+    setWeeklyCommits([
+      { day: "Mon", commits: weekdayCounts[1] },
+      { day: "Tue", commits: weekdayCounts[2] },
+      { day: "Wed", commits: weekdayCounts[3] },
+      { day: "Thu", commits: weekdayCounts[4] },
+      { day: "Fri", commits: weekdayCounts[5] },
+      { day: "Sat", commits: weekdayCounts[6] },
+      { day: "Sun", commits: weekdayCounts[0] },
+    ]);
+
+    // Languages
+    if (userData.languages || userData.languages_data) {
+      const langs = (userData.languages || userData.languages_data).map((l: any) => ({
+        name: l.name,
+        value: l.value || l.size,
+        color: l.color
+      }));
+      setLanguageData(langs);
+    }
+
+    // Activity Grid: Always show full year context
+    // ActivityGrid expects Newest -> Oldest to render Left -> Right properly (it internally reverses to Oldest->Newest)
+    setActivityData([...sortedCalendar].reverse());
+
+    // Insights
+    const weekdayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const maxDayIndex = weekdayCounts.indexOf(Math.max(...weekdayCounts));
+    const bestDay = weekdayNames[maxDayIndex];
+
+    setInsights([
+      `Your most productive day in this period is ${bestDay}.`,
+      `You were active on ${activeDaysInRange} days.`,
+      `Averaging ${avgDaily} commits per day.`
+    ]);
+
+  }, [userData, timeRange]);
 
   if (loading) {
     return (
