@@ -111,16 +111,7 @@ export function ActivityGrid({ data, loading }: ActivityGridProps) {
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-2 text-[10px] text-muted-foreground px-2">
-          <span>Less</span>
-          <div className="flex gap-1">
-            <div className="w-3 h-3 rounded-sm bg-zinc-800/50 border border-white/5" />
-            <div className="w-3 h-3 rounded-sm bg-primary/30 border border-white/5" />
-            <div className="w-3 h-3 rounded-sm bg-primary/70 border border-white/5" />
-            <div className="w-3 h-3 rounded-sm bg-primary border border-white/5" />
-          </div>
-          <span>More</span>
-        </div>
+
       </div>
     </div>
   );

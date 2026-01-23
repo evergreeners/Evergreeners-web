@@ -7,70 +7,64 @@ import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area
 } from "recharts";
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
-import { TrendingUp, TrendingDown, Calendar, GitCommit, GitPullRequest, Clock } from "lucide-react";
+import { TrendingUp, TrendingDown, Calendar, GitCommit, GitPullRequest, Clock, Info } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { format, subMonths, startOfMonth, parseISO, getDay } from "date-fns";
 import { getApiUrl } from "@/lib/api-config";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 type TimeRange = "week" | "month" | "year";
 
 export default function Analytics() {
   const [timeRange, setTimeRange] = useState<TimeRange>("month");
-  const [loading, setLoading] = useState(true);
-  const [userData, setUserData] = useState<any>(null);
 
-  // ... (stats, state definitions)
+  // Fetch User Profile using React Query
+  const { data: user, isLoading } = useQuery({
+    queryKey: ['userProfile'],
+    queryFn: async () => {
+      const session = await authClient.getSession();
+      if (!session.data?.session) throw new Error("No session");
+      const url = getApiUrl("/api/user/profile");
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${session.data.session.token}` },
+        credentials: "include"
+      });
+      if (!res.ok) throw new Error("Failed to fetch profile");
+      const data = await res.json();
+      return data.user;
+    },
+    staleTime: 1000 * 60 * 5, // 5 minutes fresh
+    refetchOnWindowFocus: true,
+  });
 
-  const [stats, setStats] = useState([
-    { label: "Total Commits", value: "0", change: "0%", trend: "up", icon: GitCommit },
-    { label: "Pull Requests", value: "0", change: "0%", trend: "up", icon: GitPullRequest },
-    { label: "Active Days", value: "0", change: "0%", trend: "down", icon: Calendar },
-    { label: "Avg. Daily", value: "0", change: "0%", trend: "up", icon: Clock },
-  ]);
-
-  const [monthlyData, setMonthlyData] = useState<any[]>([]);
-  const [weeklyCommits, setWeeklyCommits] = useState<any[]>([]);
-  const [languageData, setLanguageData] = useState<any[]>([]);
-  const [activityData, setActivityData] = useState<any[]>([]);
-  const [insights, setInsights] = useState<string[]>([]);
-
-  // 1. Fetch Data Effect
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        const session = await authClient.getSession();
-        if (!session.data?.session) return;
-
-        const url = getApiUrl("/api/user/profile");
-        const res = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${session.data.session.token}`
-          },
-          credentials: "include"
-        });
-
-        if (!res.ok) throw new Error("Failed to fetch profile");
-
-        const { user } = await res.json();
-        setUserData(user);
-      } catch (e) {
-        console.error("Fetch error", e);
-      } finally {
-        setLoading(false);
-      }
+  // Process Data with useMemo
+  const { stats, monthlyData, weeklyCommits, languageData, activityData, insights } = useMemo(() => {
+    if (!user) {
+      return {
+        stats: [
+          { label: "Commits", value: "0", change: "0%", trend: "up", icon: GitCommit, description: "" },
+          { label: "Pull Requests", value: "0", change: "0%", trend: "up", icon: GitPullRequest, description: "" },
+          { label: "Active Days", value: "0", change: "0%", trend: "down", icon: Calendar, description: "" },
+          { label: "Avg. Daily", value: "0", change: "0%", trend: "up", icon: Clock, description: "" },
+        ],
+        monthlyData: [],
+        weeklyCommits: [],
+        languageData: [],
+        activityData: [],
+        insights: []
+      };
     }
 
-    fetchData();
-  }, []);
-
-  // 2. Process Data Effect (depends on userData & timeRange)
-  useEffect(() => {
-    if (!userData) return;
-
-    // A. Contribution Data Filtering
-    const calendar = userData.contributionData || [];
+    const calendar = user.contributionData || [];
+    // Ensure chronological order for processing
     const sortedCalendar = [...calendar].sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     // Determine Start Date based on Range
@@ -82,28 +76,56 @@ export default function Analytics() {
     // Filtered data for stats/charts
     const filteredData = sortedCalendar.filter((d: any) => new Date(d.date) >= startDate);
 
-    // B. Calculate Stats
+    // Calculate Stats
     const totalCommitsInRange = filteredData.reduce((acc: number, d: any) => acc + d.contributionCount, 0);
     const activeDaysInRange = filteredData.filter((d: any) => d.contributionCount > 0).length;
-    const totalPRs = userData.totalPullRequests || userData.total_prs || 0;
+    const totalPRs = user.totalPullRequests || user.total_prs || 0;
 
     const daysCount = filteredData.length || 1;
     const avgDaily = (totalCommitsInRange / daysCount).toFixed(1);
 
-    setStats([
-      { label: "Commits", value: totalCommitsInRange.toLocaleString(), change: "", trend: "up", icon: GitCommit },
-      { label: "Pull Requests", value: totalPRs.toLocaleString(), change: "", trend: "up", icon: GitPullRequest },
-      { label: "Active Days", value: activeDaysInRange.toString(), change: "", trend: "up", icon: Calendar },
-      { label: "Avg. Daily", value: avgDaily, change: "", trend: "up", icon: Clock },
-    ]);
+    const newStats = [
+      {
+        label: "Commits",
+        value: totalCommitsInRange.toLocaleString(),
+        change: "",
+        trend: "up",
+        icon: GitCommit,
+        description: "Total commits pushed to GitHub in this period."
+      },
+      {
+        label: "Pull Requests",
+        value: totalPRs.toLocaleString(),
+        change: "",
+        trend: "up",
+        icon: GitPullRequest,
+        description: "Total Pull Requests opened (All time)."
+      },
+      {
+        label: "Active Days",
+        value: activeDaysInRange.toString(),
+        change: "",
+        trend: "up",
+        icon: Calendar,
+        description: "Days with at least one contribution in this period."
+      },
+      {
+        label: "Avg. Daily",
+        value: avgDaily,
+        change: "",
+        trend: "up",
+        icon: Clock,
+        description: "Average commits per day in this period."
+      },
+    ];
 
-    // C. Charts Data
+    // Charts Data
+    let newMonthlyData: any[] = [];
     if (timeRange === 'week' || timeRange === 'month') {
-      const dailyTrend = filteredData.map((d: any) => ({
+      newMonthlyData = filteredData.map((d: any) => ({
         month: format(parseISO(d.date), "MMM d"),
         commits: d.contributionCount
       }));
-      setMonthlyData(dailyTrend);
     } else {
       const monthly: Record<string, number> = {};
       const monthsInOrder: string[] = [];
@@ -113,11 +135,10 @@ export default function Analytics() {
         if (!monthsInOrder.includes(monthStr)) monthsInOrder.push(monthStr);
         monthly[monthStr] = (monthly[monthStr] || 0) + d.contributionCount;
       });
-      const trendData = monthsInOrder.map(m => ({
+      newMonthlyData = monthsInOrder.map(m => ({
         month: m,
         commits: monthly[m]
       }));
-      setMonthlyData(trendData);
     }
 
     const weekdayCounts = [0, 0, 0, 0, 0, 0, 0];
@@ -126,7 +147,7 @@ export default function Analytics() {
       weekdayCounts[getDay(date)] += d.contributionCount;
     });
 
-    setWeeklyCommits([
+    const newWeeklyCommits = [
       { day: "Mon", commits: weekdayCounts[1] },
       { day: "Tue", commits: weekdayCounts[2] },
       { day: "Wed", commits: weekdayCounts[3] },
@@ -134,36 +155,43 @@ export default function Analytics() {
       { day: "Fri", commits: weekdayCounts[5] },
       { day: "Sat", commits: weekdayCounts[6] },
       { day: "Sun", commits: weekdayCounts[0] },
-    ]);
+    ];
 
     // Languages
-    if (userData.languages || userData.languages_data) {
-      const langs = (userData.languages || userData.languages_data).map((l: any) => ({
+    let newLanguageData: any[] = [];
+    if (user.languages || user.languages_data) {
+      newLanguageData = (user.languages || user.languages_data).map((l: any) => ({
         name: l.name,
         value: l.value || l.size,
         color: l.color
       }));
-      setLanguageData(langs);
     }
 
     // Activity Grid: Always show full year context
-    // ActivityGrid expects Newest -> Oldest to render Left -> Right properly (it internally reverses to Oldest->Newest)
-    setActivityData([...sortedCalendar].reverse());
+    const newActivityData = [...sortedCalendar].reverse();
 
     // Insights
     const weekdayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const maxDayIndex = weekdayCounts.indexOf(Math.max(...weekdayCounts));
     const bestDay = weekdayNames[maxDayIndex];
 
-    setInsights([
+    const newInsights = [
       `Your most productive day in this period is ${bestDay}.`,
       `You were active on ${activeDaysInRange} days.`,
       `Averaging ${avgDaily} commits per day.`
-    ]);
+    ];
 
-  }, [userData, timeRange]);
+    return {
+      stats: newStats,
+      monthlyData: newMonthlyData,
+      weeklyCommits: newWeeklyCommits,
+      languageData: newLanguageData,
+      activityData: newActivityData,
+      insights: newInsights
+    };
+  }, [user, timeRange]);
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <p className="text-muted-foreground">Loading analytics...</p>
@@ -202,29 +230,42 @@ export default function Analytics() {
 
         {/* Stats Grid */}
         <Section className="animate-fade-up" style={{ animationDelay: "0.1s" }}>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {stats.map((stat, index) => (
-              <div
-                key={stat.label}
-                className="p-4 rounded-xl border border-border bg-secondary/30 hover:bg-secondary/50 transition-all duration-300 group"
-              >
-                <div className="flex items-center gap-2 mb-2">
-                  <stat.icon className="w-4 h-4 text-primary" />
-                  <span className="text-xs text-muted-foreground">{stat.label}</span>
+          <TooltipProvider>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {stats.map((stat, index) => (
+                <div
+                  key={stat.label}
+                  className="p-4 rounded-xl border border-border bg-secondary/30 hover:bg-secondary/50 transition-all duration-300 group relative"
+                >
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button className="absolute top-2 right-2 p-1 rounded-full hover:bg-background/50 text-muted-foreground transition-colors">
+                        <Info className="w-3 h-3" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      <p>{(stat as any).description}</p>
+                    </TooltipContent>
+                  </Tooltip>
+
+                  <div className="flex items-center gap-2 mb-2">
+                    <stat.icon className="w-4 h-4 text-primary" />
+                    <span className="text-xs text-muted-foreground">{stat.label}</span>
+                  </div>
+                  <div className="flex items-end justify-between">
+                    <span className="text-2xl font-bold">{stat.value}</span>
+                    <span className={cn(
+                      "text-xs flex items-center gap-1",
+                      stat.trend === "up" ? "text-primary" : "text-destructive"
+                    )}>
+                      {stat.trend === "up" ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                      {stat.change}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-end justify-between">
-                  <span className="text-2xl font-bold">{stat.value}</span>
-                  <span className={cn(
-                    "text-xs flex items-center gap-1",
-                    stat.trend === "up" ? "text-primary" : "text-destructive"
-                  )}>
-                    {stat.trend === "up" ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                    {stat.change}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          </TooltipProvider>
         </Section>
 
         {/* Monthly Trend */}
@@ -253,7 +294,7 @@ export default function Analytics() {
                   type="monotone"
                   dataKey="commits"
                   stroke="hsl(142, 71%, 45%)"
-                  strokeWidth={2}
+                  fillOpacity={1}
                   fill="url(#colorCommits)"
                 />
               </AreaChart>
@@ -262,8 +303,8 @@ export default function Analytics() {
         </Section>
 
         {/* Weekly Distribution */}
-        <Section title="Activity by Day (Last 90 Days)" className="animate-fade-up" style={{ animationDelay: "0.2s" }}>
-          <div className="h-48">
+        <Section title="Activity by Day" className="animate-fade-up" style={{ animationDelay: "0.2s" }}>
+          <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={weeklyCommits}>
                 <XAxis
@@ -282,11 +323,10 @@ export default function Analytics() {
           </div>
         </Section>
 
-        {/* Two Column Charts */}
+        {/* Two Column Charts: Languages & Insights */}
         <div className="grid md:grid-cols-2 gap-6">
-
           {/* Languages */}
-          <Section title="Languages" className="animate-fade-up" style={{ animationDelay: "0.3s" }}>
+          <Section title="Languages" className="animate-fade-up" style={{ animationDelay: "0.25s" }}>
             {languageData.length > 0 ? (
               <>
                 <div className="h-48 flex items-center justify-center">
@@ -300,14 +340,14 @@ export default function Analytics() {
                         dataKey="value"
                       >
                         {languageData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
+                          <Cell key={`cell-${index}`} fill={entry.color || 'hsl(142, 71%, 45%)'} />
                         ))}
                       </Pie>
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
                 <div className="flex flex-wrap gap-3 justify-center mt-2">
-                  {languageData.map((lang) => (
+                  {languageData.map((lang: any) => (
                     <div key={lang.name} className="flex items-center gap-2 text-xs">
                       <div className="w-2 h-2 rounded-full" style={{ backgroundColor: lang.color }} />
                       <span className="text-muted-foreground">{lang.name}</span>
@@ -322,39 +362,25 @@ export default function Analytics() {
             )}
           </Section>
 
-          {/* Insights */}
-          <Section title="AI Insights" className="animate-fade-up space-y-3" style={{ animationDelay: "0.4s" }}>
-            {insights.length > 0 ? (
-              insights.map((text, i) => <InsightCard key={i} text={text} />)
-            ) : (
-              <InsightCard text="Keep coding to generate insights!" />
-            )}
-          </Section>
-
-        </div>
-
-        {/* Contribution Heatmap */}
-        <Section title="Year in Code" className="animate-fade-up" style={{ animationDelay: "0.35s" }}>
-          <ActivityGrid data={activityData} />
-          <div className="flex items-center justify-end gap-2 mt-3">
-            <span className="text-xs text-muted-foreground">Less</span>
-            <div className="flex gap-1">
-              {[0, 1, 2, 3, 4].map((level) => (
-                <div
-                  key={level}
-                  className={`w-3 h-3 rounded-sm ${level === 0 ? "bg-secondary" :
-                    level === 1 ? "bg-primary/25" :
-                      level === 2 ? "bg-primary/50" :
-                        level === 3 ? "bg-primary/75" :
-                          "bg-primary"
-                    }`}
+          {/* AI Insights */}
+          <Section title="AI Insights" className="animate-fade-up space-y-3" style={{ animationDelay: "0.3s" }}>
+            <div className="grid gap-4">
+              {insights.map((insight, i) => (
+                <InsightCard
+                  key={i}
+                  title="Pattern Detected"
+                  description={insight}
+                  type="trend"
                 />
               ))}
             </div>
-            <span className="text-xs text-muted-foreground">More</span>
-          </div>
-        </Section>
+          </Section>
+        </div>
 
+        {/* Year in Code */}
+        <Section title="Year in Code" className="animate-fade-up" style={{ animationDelay: "0.35s" }}>
+          <ActivityGrid data={activityData} />
+        </Section>
       </main>
 
       <FloatingNav />

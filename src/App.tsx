@@ -18,10 +18,24 @@ import NotFound from "./pages/NotFound";
 import ScrollToTop from "./components/ScrollToTop";
 import ProtectedRoute from "./components/ProtectedRoute";
 
+import { useEffect } from "react";
+import { getApiUrl } from "@/lib/api-config";
+
 const queryClient = new QueryClient();
 
 const AppContents = () => {
   const { data: session } = useSession();
+
+  useEffect(() => {
+    if (session?.session?.token) {
+      fetch(getApiUrl("/api/user/sync-github"), {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.session.token}`
+        }
+      }).catch(err => console.error("Background sync failed", err));
+    }
+  }, [session?.session?.token]);
 
   return (
     <BrowserRouter>
