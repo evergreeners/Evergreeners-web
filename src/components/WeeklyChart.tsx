@@ -14,7 +14,7 @@ export function WeeklyChart({ data }: WeeklyChartProps) {
           <div className="w-full flex items-end justify-center h-16">
             <div
               className={cn(
-                "w-full max-w-8 rounded-t-md transition-all duration-300",
+                "w-full max-w-16 rounded-t-md transition-all duration-300",
                 item.value > 0 ? "bg-primary" : "bg-secondary"
               )}
               style={{

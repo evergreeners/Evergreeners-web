@@ -253,20 +253,20 @@ export default function Quests() {
     const availableQuests = quests.filter(q => !q.isTaken && !q.myStatus);
 
     return (
-        <div className="min-h-screen bg-background custom-scrollbar">
+        <div className="min-h-screen bg-background custom-scrollbar overflow-x-hidden">
             <Header />
 
             <main className="w-full max-w-[1600px] mx-auto px-4 pt-24 pb-32 md:px-8 md:pb-12 space-y-8">
                 {/* Hero Section */}
-                <section className="animate-fade-in text-center py-8">
+                <section className="animate-fade-in text-center py-8 relative overflow-hidden">
                     <div className="relative inline-block">
                         <div className="absolute inset-0 blur-3xl bg-primary/30 rounded-full scale-150 animate-pulse-slow" />
                         <div className="relative">
                             <div className="flex items-center justify-center gap-4">
                                 <Compass className="w-16 h-16 text-primary animate-pulse-slow" />
-                                <span className="text-5xl md:text-7xl font-bold text-gradient">Quests</span>
+                                <span className="text-4xl md:text-7xl font-bold text-gradient">Quests</span>
                             </div>
-                            <p className="text-xl text-muted-foreground mt-4 max-w-2xl mx-auto">
+                            <p className="text-lg md:text-xl text-muted-foreground mt-4 max-w-2xl mx-auto">
                                 Discover meaningful work, contribute to open source, and advance your career.
                             </p>
                         </div>
@@ -276,11 +276,11 @@ export default function Quests() {
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                     {/* Main Content Column */}
                     <div className="lg:col-span-8 space-y-8">
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                             <h2 className="text-2xl font-bold">Available Quests</h2>
                             <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                                 <DialogTrigger asChild>
-                                    <Button className="gap-2">
+                                    <Button className="gap-2 w-full sm:w-auto">
                                         <Plus className="w-4 h-4" /> Submit Quest
                                     </Button>
                                 </DialogTrigger>

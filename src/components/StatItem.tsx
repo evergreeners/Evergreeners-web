@@ -1,12 +1,15 @@
+import { cn } from "@/lib/utils";
+
 interface StatItemProps {
   label: string;
   value: string | number;
   subtext?: string;
+  className?: string;
 }
 
-export function StatItem({ label, value, subtext }: StatItemProps) {
+export function StatItem({ label, value, subtext, className }: StatItemProps) {
   return (
-    <div className="flex flex-col">
+    <div className={cn("flex flex-col", className)}>
       <span className="text-xs text-muted-foreground uppercase tracking-wider">
         {label}
       </span>
