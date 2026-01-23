@@ -99,8 +99,9 @@ export default function Profile() {
         // Actually, the issue was user edits disappearing.
         // We fetching /api/user/profile ensures we display what is in the DB, not what is in the stale session cookie.
         try {
-          const baseUrl = getBaseURL(import.meta.env.VITE_API_URL || 'http://localhost:3000');
-          const res = await fetch(`${baseUrl}/api/user/profile`, { credentials: "include" });
+          // Use getApiUrl helper instead of manually constructing
+          const url = getApiUrl('/api/user/profile');
+          const res = await fetch(url, { credentials: "include" });
           if (res.ok) {
             const { user: freshUser } = await res.json();
             setProfile(prev => ({
@@ -190,14 +191,14 @@ export default function Profile() {
   const handleSaveProfile = async () => {
     setIsSaving(true);
     try {
-      const baseUrl = getBaseURL(import.meta.env.VITE_API_URL || 'http://localhost:3000');
-      const res = await fetch(`${baseUrl}/api/user/profile`, {
+      const url = getApiUrl('/api/user/profile');
+      const res = await fetch(url, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include", // Important for sending cookies!
         body: JSON.stringify({
           ...editedProfile,
-          isPublic // send current public state too, though separate toggle exists
+          ...({ isPublic } as any) // send current public state too, though separate toggle exists
         })
       });
 
@@ -223,8 +224,8 @@ export default function Profile() {
     setIsPublic(newStatus);
 
     try {
-      const baseUrl = getBaseURL(import.meta.env.VITE_API_URL || 'http://localhost:3000');
-      const res = await fetch(`${baseUrl}/api/user/profile`, {
+      const url = getApiUrl('/api/user/profile');
+      const res = await fetch(url, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include", // Important for sending cookies!

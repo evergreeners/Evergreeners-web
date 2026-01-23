@@ -5,64 +5,168 @@ import { ActivityGrid } from "@/components/ActivityGrid";
 import { InsightCard } from "@/components/InsightCard";
 import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer,
-  LineChart, Line, PieChart, Pie, Cell, AreaChart, Area
+  PieChart, Pie, Cell, AreaChart, Area
 } from "recharts";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { TrendingUp, TrendingDown, Calendar, GitCommit, GitPullRequest, Clock } from "lucide-react";
-
-// Mock data
-const monthlyData = [
-  { month: "Jan", commits: 87 },
-  { month: "Feb", commits: 125 },
-  { month: "Mar", commits: 98 },
-  { month: "Apr", commits: 156 },
-  { month: "May", commits: 178 },
-  { month: "Jun", commits: 145 },
-];
-
-const weeklyCommits = [
-  { day: "Mon", commits: 12 },
-  { day: "Tue", commits: 18 },
-  { day: "Wed", commits: 8 },
-  { day: "Thu", commits: 22 },
-  { day: "Fri", commits: 15 },
-  { day: "Sat", commits: 5 },
-  { day: "Sun", commits: 9 },
-];
-
-const hourlyActivity = [
-  { hour: "6am", activity: 5 },
-  { hour: "9am", activity: 45 },
-  { hour: "12pm", activity: 30 },
-  { hour: "3pm", activity: 55 },
-  { hour: "6pm", activity: 40 },
-  { hour: "9pm", activity: 25 },
-  { hour: "12am", activity: 10 },
-];
-
-const languageData = [
-  { name: "TypeScript", value: 45, color: "hsl(142, 71%, 45%)" },
-  { name: "JavaScript", value: 25, color: "hsl(142, 71%, 35%)" },
-  { name: "Python", value: 15, color: "hsl(142, 71%, 55%)" },
-  { name: "Other", value: 15, color: "hsl(142, 71%, 25%)" },
-];
-
-const activityData = Array.from({ length: 365 }, () =>
-  Math.random() > 0.25 ? Math.floor(Math.random() * 5) : 0
-);
+import { authClient } from "@/lib/auth-client";
+import { format, subMonths, startOfMonth, parseISO, getDay } from "date-fns";
+import { getApiUrl } from "@/lib/api-config";
 
 type TimeRange = "week" | "month" | "year";
 
 export default function Analytics() {
   const [timeRange, setTimeRange] = useState<TimeRange>("month");
+  const [loading, setLoading] = useState(true);
 
-  const stats = [
-    { label: "Total Commits", value: "2,847", change: "+12%", trend: "up", icon: GitCommit },
-    { label: "Pull Requests", value: "156", change: "+8%", trend: "up", icon: GitPullRequest },
-    { label: "Active Days", value: "284", change: "-3%", trend: "down", icon: Calendar },
-    { label: "Avg. Daily", value: "8.2", change: "+5%", trend: "up", icon: Clock },
-  ];
+  // ... (stats, state definitions)
+
+  const [stats, setStats] = useState([
+    { label: "Total Commits", value: "0", change: "0%", trend: "up", icon: GitCommit },
+    { label: "Pull Requests", value: "0", change: "0%", trend: "up", icon: GitPullRequest },
+    { label: "Active Days", value: "0", change: "0%", trend: "down", icon: Calendar },
+    { label: "Avg. Daily", value: "0", change: "0%", trend: "up", icon: Clock },
+  ]);
+
+  const [monthlyData, setMonthlyData] = useState<any[]>([]);
+  const [weeklyCommits, setWeeklyCommits] = useState<any[]>([]);
+  const [languageData, setLanguageData] = useState<any[]>([]);
+  const [activityData, setActivityData] = useState<number[]>(Array(365).fill(0));
+  const [insights, setInsights] = useState<string[]>([]);
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const session = await authClient.getSession();
+        if (!session.data?.session) return;
+
+        const url = getApiUrl("/api/user/profile");
+        const res = await fetch(url, {
+          headers: {
+            Authorization: `Bearer ${session.data.session.token}`
+          },
+          credentials: "include" // Ensure cookies are sent if needed by backend configuration
+        });
+
+        if (!res.ok) throw new Error("Failed to fetch profile");
+
+        const { user } = await res.json();
+
+        // 1. Process Stats
+        const totalCommits = user.totalCommits || 0;
+        const totalPRs = user.totalPullRequests || user.total_prs || 0;
+        const activeDays = user.activeDays || 0;
+        // Simple avg daily: total commits / 365 (cap at reasonable start date if needed)
+        const avgDaily = (totalCommits / 365).toFixed(1);
+
+        setStats([
+          { label: "Total Commits", value: totalCommits.toLocaleString(), change: "+", trend: "up", icon: GitCommit },
+          { label: "Pull Requests", value: totalPRs.toLocaleString(), change: "+", trend: "up", icon: GitPullRequest },
+          { label: "Active Days", value: activeDays.toString(), change: "", trend: "up", icon: Calendar },
+          { label: "Avg. Daily", value: avgDaily, change: "", trend: "up", icon: Clock },
+        ]);
+
+        // 2. Process Languages
+        // languages_data is stored as array of objects {name, value, color} based on our lib/github.ts
+        if (user.languages || user.languages_data) {
+          const langs = (user.languages || user.languages_data).map((l: any) => ({
+            name: l.name,
+            value: l.value || l.size, // Handle different formats if any
+            color: l.color
+          }));
+          setLanguageData(langs);
+        }
+
+        // 3. Process Contribution Data (Calendar)
+        if (user.contributionData) {
+          const calendar = user.contributionData; // Array of { date, contributionCount }
+
+          // Activity Grid (map to 0-4 levels)
+          // Assuming simplified levels: 0=0, 1=1-3, 2=4-6, 3=7-9, 4=10+
+          const levels = calendar.map((d: any) => {
+            const c = d.contributionCount;
+            if (c === 0) return 0;
+            if (c <= 3) return 1;
+            if (c <= 6) return 2;
+            if (c <= 9) return 3;
+            return 4;
+          });
+          // Ensure 365 days
+          setActivityData(levels.slice(-365));
+
+          // Monthly Trend (Last 6 months)
+          const monthly: Record<string, number> = {};
+          const last6Months = Array.from({ length: 6 }, (_, i) => format(subMonths(new Date(), 5 - i), "MMM"));
+
+          calendar.forEach((d: any) => {
+            const date = parseISO(d.date);
+            const monthStr = format(date, "MMM");
+            if (last6Months.includes(monthStr)) {
+              monthly[monthStr] = (monthly[monthStr] || 0) + d.contributionCount;
+            }
+          });
+
+          const monthChartData = last6Months.map(m => ({
+            month: m,
+            commits: monthly[m] || 0
+          }));
+          setMonthlyData(monthChartData);
+
+          // Weekly Distribution (Aggregate by Day of Week over the last 3 months to normalize?)
+          // Or just last 7 days? The user prompt implies "Deep dive", so aggregation is better.
+          // Let's aggregate ALL recent activity (e.g. last 90 days) by weekday.
+          const weekdayCounts = [0, 0, 0, 0, 0, 0, 0]; // Sun to Sat
+          const weekdayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+          const recentDays = calendar.slice(-90);
+
+          recentDays.forEach((d: any) => {
+            const date = parseISO(d.date);
+            const dayIndex = getDay(date);
+            weekdayCounts[dayIndex] += d.contributionCount;
+          });
+
+          // Reorder to Mon-Sun
+          const weekChartData = [
+            { day: "Mon", commits: weekdayCounts[1] },
+            { day: "Tue", commits: weekdayCounts[2] },
+            { day: "Wed", commits: weekdayCounts[3] },
+            { day: "Thu", commits: weekdayCounts[4] },
+            { day: "Fri", commits: weekdayCounts[5] },
+            { day: "Sat", commits: weekdayCounts[6] },
+            { day: "Sun", commits: weekdayCounts[0] },
+          ];
+          setWeeklyCommits(weekChartData);
+
+          // Insights
+          const maxDayIndex = weekdayCounts.indexOf(Math.max(...weekdayCounts));
+          const bestDay = weekdayNames[maxDayIndex];
+
+          const newInsights = [
+            `Your most productive day is ${bestDay}.`,
+            `You have maintained code activity on ${activeDays} days recently.`,
+            totalPRs > 10 ? "Great job on your pull request contributions!" : "Try contributing to more open source projects via PRs."
+          ];
+          setInsights(newInsights);
+        }
+
+      } catch (e) {
+        console.error("Fetch error", e);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-muted-foreground">Loading analytics...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background custom-scrollbar">
@@ -121,7 +225,7 @@ export default function Analytics() {
         </Section>
 
         {/* Monthly Trend */}
-        <Section title="Monthly Trend" className="animate-fade-up" style={{ animationDelay: "0.15s" }}>
+        <Section title="Monthly Trend (Commits)" className="animate-fade-up" style={{ animationDelay: "0.15s" }}>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={monthlyData}>
@@ -155,7 +259,7 @@ export default function Analytics() {
         </Section>
 
         {/* Weekly Distribution */}
-        <Section title="Weekly Distribution" className="animate-fade-up" style={{ animationDelay: "0.2s" }}>
+        <Section title="Activity by Day (Last 90 Days)" className="animate-fade-up" style={{ animationDelay: "0.2s" }}>
           <div className="h-48">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={weeklyCommits}>
@@ -177,57 +281,53 @@ export default function Analytics() {
 
         {/* Two Column Charts */}
         <div className="grid md:grid-cols-2 gap-6">
-          {/* Hourly Pattern */}
-          <Section title="Peak Hours" className="animate-fade-up" style={{ animationDelay: "0.25s" }}>
-            <div className="h-48">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={hourlyActivity}>
-                  <XAxis
-                    dataKey="hour"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: 'hsl(0, 0%, 55%)', fontSize: 10 }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="activity"
-                    stroke="hsl(142, 71%, 45%)"
-                    strokeWidth={2}
-                    dot={{ fill: 'hsl(142, 71%, 45%)', strokeWidth: 0, r: 4 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </Section>
 
           {/* Languages */}
           <Section title="Languages" className="animate-fade-up" style={{ animationDelay: "0.3s" }}>
-            <div className="h-48 flex items-center justify-center">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={languageData}
-                    innerRadius={50}
-                    outerRadius={70}
-                    paddingAngle={2}
-                    dataKey="value"
-                  >
-                    {languageData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="flex flex-wrap gap-3 justify-center mt-2">
-              {languageData.map((lang) => (
-                <div key={lang.name} className="flex items-center gap-2 text-xs">
-                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: lang.color }} />
-                  <span className="text-muted-foreground">{lang.name}</span>
+            {languageData.length > 0 ? (
+              <>
+                <div className="h-48 flex items-center justify-center">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={languageData}
+                        innerRadius={50}
+                        outerRadius={70}
+                        paddingAngle={2}
+                        dataKey="value"
+                      >
+                        {languageData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
                 </div>
-              ))}
-            </div>
+                <div className="flex flex-wrap gap-3 justify-center mt-2">
+                  {languageData.map((lang) => (
+                    <div key={lang.name} className="flex items-center gap-2 text-xs">
+                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: lang.color }} />
+                      <span className="text-muted-foreground">{lang.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">
+                No language data available
+              </div>
+            )}
           </Section>
+
+          {/* Insights */}
+          <Section title="AI Insights" className="animate-fade-up space-y-3" style={{ animationDelay: "0.4s" }}>
+            {insights.length > 0 ? (
+              insights.map((text, i) => <InsightCard key={i} text={text} />)
+            ) : (
+              <InsightCard text="Keep coding to generate insights!" />
+            )}
+          </Section>
+
         </div>
 
         {/* Contribution Heatmap */}
@@ -240,10 +340,10 @@ export default function Analytics() {
                 <div
                   key={level}
                   className={`w-3 h-3 rounded-sm ${level === 0 ? "bg-secondary" :
-                      level === 1 ? "bg-primary/25" :
-                        level === 2 ? "bg-primary/50" :
-                          level === 3 ? "bg-primary/75" :
-                            "bg-primary"
+                    level === 1 ? "bg-primary/25" :
+                      level === 2 ? "bg-primary/50" :
+                        level === 3 ? "bg-primary/75" :
+                          "bg-primary"
                     }`}
                 />
               ))}
@@ -252,12 +352,6 @@ export default function Analytics() {
           </div>
         </Section>
 
-        {/* Insights */}
-        <Section title="AI Insights" className="animate-fade-up space-y-3" style={{ animationDelay: "0.4s" }}>
-          <InsightCard text="Your most productive day is Thursday. Consider scheduling complex tasks then." />
-          <InsightCard text="You commit most frequently at 3 PM. Your afternoon focus sessions are working!" />
-          <InsightCard text="TypeScript usage increased 15% this month. Great progress on type safety!" />
-        </Section>
       </main>
 
       <FloatingNav />
