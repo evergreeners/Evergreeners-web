@@ -1,5 +1,5 @@
 import './env.js'; // Trigger restart
-import fastify from 'fastify';
+import fastify, { FastifyRequest } from 'fastify';
 import cors from '@fastify/cors';
 // dotenv is loaded first via ./env.js
 import { auth } from './auth.js';
@@ -11,6 +11,69 @@ import { eq, and, desc, gt } from 'drizzle-orm';
 import { getGithubContributions, checkQuestProgress } from './lib/github.js';
 import { setupCronJobs } from './cron.js';
 import { updateUserGoals } from './lib/goals.js';
+
+/**
+ * Helper function to get session from request.
+ * Tries multiple methods in order:
+ * 1. Better-auth cookie-based session (works locally and when cookies are sent properly)
+ * 2. Bearer token lookup in database (fallback for production cross-origin issues)
+ */
+async function getSessionFromRequest(req: FastifyRequest): Promise<{ session: { userId: string } } | null> {
+    // Build headers for better-auth
+    const headers = new Headers();
+    Object.entries(req.headers).forEach(([key, value]) => {
+        if (Array.isArray(value)) {
+            value.forEach(v => headers.append(key, v));
+        } else if (typeof value === 'string') {
+            headers.set(key, value);
+        }
+    });
+
+    // Try 1: Standard better-auth session via cookies
+    try {
+        const session = await auth.api.getSession({ headers });
+        if (session) {
+            console.log("Session found via cookies");
+            return session;
+        }
+    } catch (e) {
+        console.log("Cookie-based session lookup failed:", e);
+    }
+
+    // Try 2: Bearer token lookup in database
+    const authHeader = req.headers['authorization'];
+    if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.split(' ')[1];
+        console.log(`Attempting Bearer token lookup for token: ${token.substring(0, 10)}...`);
+
+        try {
+            // Look up the session directly in the database
+            const sessionRecord = await db.select()
+                .from(schema.sessions)
+                .where(eq(schema.sessions.token, token))
+                .limit(1);
+
+            if (sessionRecord.length > 0) {
+                const sess = sessionRecord[0];
+                // Check if session is expired
+                if (sess.expiresAt && new Date(sess.expiresAt) > new Date()) {
+                    console.log("Session found via Bearer token DB lookup");
+                    return { session: { userId: sess.userId } };
+                } else {
+                    console.log("Bearer token session found but expired");
+                }
+            } else {
+                console.log("No session found for Bearer token");
+            }
+        } catch (e) {
+            console.log("Bearer token DB lookup failed:", e);
+        }
+    }
+
+    // No valid session found
+    console.log("No valid session found by any method");
+    return null;
+}
 
 
 const server = fastify({
@@ -67,71 +130,14 @@ server.register(async (instance) => {
 server.register(async (instance) => {
     // Custom route to force-sync GitHub data
     instance.post('/api/user/sync-github', async (req, reply) => {
-        const fs = await import('fs');
-        const path = await import('path');
-        const log = (msg: string) => {
-            console.log(msg);
-        };
+        console.log(`Sync-Github called. Headers: ${JSON.stringify(req.headers)}`);
 
-        log(`Sync-Github called. Headers: ${JSON.stringify(req.headers)}`);
-
-        const headers = new Headers();
-        Object.entries(req.headers).forEach(([key, value]) => {
-            if (Array.isArray(value)) {
-                value.forEach(v => headers.append(key, v));
-            } else if (typeof value === 'string') {
-                headers.set(key, value);
-            }
-        });
-
-        // ---------------------------------------------------------
-        // FIX: Map Bearer token to Cookie for better-auth compatibility
-        // ---------------------------------------------------------
-        const authHeader = req.headers['authorization'];
-        if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
-            const token = authHeader.split(' ')[1];
-            console.log(`Found Bearer token, processing as cookie: ${token.substring(0, 5)}...`);
-
-            const cookieName = "better-auth.session_token";
-            const secureCookieName = "__Secure-better-auth.session_token";
-
-            const newCookiePart = `${cookieName}=${token}; ${secureCookieName}=${token}`;
-
-            let finalCookie = newCookiePart;
-            const existingCookie = headers.get("cookie");
-
-            if (existingCookie) {
-                // Remove existing tokens to prevent conflicts/duplicates
-                // This regex removes "name=value;" or "name=value" handling optional trailing semicolon and whitespace
-                let cleanCookie = existingCookie
-                    .replace(new RegExp(`${cookieName}=[^;]+;?\\s*`, 'g'), '')
-                    .replace(new RegExp(`${secureCookieName}=[^;]+;?\\s*`, 'g'), '');
-
-                finalCookie = `${finalCookie}; ${cleanCookie}`;
-            }
-
-            headers.set("cookie", finalCookie);
-        }
-        // ---------------------------------------------------------
-
-        const session = await auth.api.getSession({
-            headers
-        });
+        // Use the unified session helper that works with both cookies and Bearer tokens
+        const session = await getSessionFromRequest(req);
 
         console.log(`Sync-Github session result: ${session ? 'Success' : 'FAILURE'}`);
         if (!session) {
-            console.log("--- DEBUG 401 FAILURE ---");
-            const cookieDebug = headers.get("cookie");
-            console.log("Sent Headers (partial):", {
-                host: headers.get("host"),
-                origin: headers.get("origin"),
-                cookie: cookieDebug ? cookieDebug.substring(0, 50) + "..." : "missing"
-            });
-            console.log("Auth header used:", authHeader ? "Yes (Bearer ...)" : "No");
-            if (authHeader) console.log("Token sample:", authHeader.split(' ')[1].substring(0, 10));
-            console.log("-------------------------");
-
-            return reply.status(401).send({ message: "Unauthorized", debug: "Check server logs" });
+            return reply.status(401).send({ message: "Unauthorized", debug: "No valid session found" });
         }
 
         const userId = session.session.userId;
@@ -208,19 +214,7 @@ server.register(async (instance) => {
 
     // Update User Profile Route
     instance.put('/api/user/profile', async (req, reply: any) => {
-        const headers = new Headers();
-        Object.entries(req.headers).forEach(([key, value]) => {
-            if (Array.isArray(value)) {
-                value.forEach(v => headers.append(key, v));
-            } else if (typeof value === 'string') {
-                headers.set(key, value);
-            }
-        });
-
-        const session = await auth.api.getSession({
-            headers
-        });
-
+        const session = await getSessionFromRequest(req);
         if (!session) {
             return reply.status(401).send({ message: "Unauthorized" });
         }
@@ -272,19 +266,7 @@ server.register(async (instance) => {
 
     // GET User Profile Route
     instance.get('/api/user/profile', async (req, reply) => {
-        const headers = new Headers();
-        Object.entries(req.headers).forEach(([key, value]) => {
-            if (Array.isArray(value)) {
-                value.forEach(v => headers.append(key, v));
-            } else if (typeof value === 'string') {
-                headers.set(key, value);
-            }
-        });
-
-        const session = await auth.api.getSession({
-            headers
-        });
-
+        const session = await getSessionFromRequest(req);
         if (!session) {
             return reply.status(401).send({ message: "Unauthorized" });
         }
@@ -358,16 +340,7 @@ server.register(async (instance) => {
     // Quests Endpoints
     // GET /api/quests
     instance.get('/api/quests', async (req, reply) => {
-        const headers = new Headers();
-        Object.entries(req.headers).forEach(([key, value]) => {
-            if (Array.isArray(value)) {
-                value.forEach(v => headers.append(key, v));
-            } else if (typeof value === 'string') {
-                headers.set(key, value);
-            }
-        });
-
-        const session = await auth.api.getSession({ headers });
+        const session = await getSessionFromRequest(req);
         if (!session) return reply.status(401).send({ message: "Unauthorized" });
 
         const userId = session.session.userId;
@@ -459,16 +432,7 @@ server.register(async (instance) => {
 
     // POST /api/quests/:id/accept
     instance.post('/api/quests/:id/accept', async (req, reply) => {
-        const headers = new Headers();
-        Object.entries(req.headers).forEach(([key, value]) => {
-            if (Array.isArray(value)) {
-                value.forEach(v => headers.append(key, v));
-            } else if (typeof value === 'string') {
-                headers.set(key, value);
-            }
-        });
-
-        const session = await auth.api.getSession({ headers });
+        const session = await getSessionFromRequest(req);
         if (!session) return reply.status(401).send({ message: "Unauthorized" });
 
         const userId = session.session.userId;
@@ -528,16 +492,7 @@ server.register(async (instance) => {
 
     // POST /api/quests/:id/drop
     instance.post('/api/quests/:id/drop', async (req, reply) => {
-        const headers = new Headers();
-        Object.entries(req.headers).forEach(([key, value]) => {
-            if (Array.isArray(value)) {
-                value.forEach(v => headers.append(key, v));
-            } else if (typeof value === 'string') {
-                headers.set(key, value);
-            }
-        });
-
-        const session = await auth.api.getSession({ headers });
+        const session = await getSessionFromRequest(req);
         if (!session) return reply.status(401).send({ message: "Unauthorized" });
 
         const userId = session.session.userId;
@@ -562,16 +517,7 @@ server.register(async (instance) => {
 
     // POST /api/quests/:id/check
     instance.post('/api/quests/:id/check', async (req, reply) => {
-        const headers = new Headers();
-        Object.entries(req.headers).forEach(([key, value]) => {
-            if (Array.isArray(value)) {
-                value.forEach(v => headers.append(key, v));
-            } else if (typeof value === 'string') {
-                headers.set(key, value);
-            }
-        });
-
-        const session = await auth.api.getSession({ headers });
+        const session = await getSessionFromRequest(req);
         if (!session) return reply.status(401).send({ message: "Unauthorized" });
 
         const userId = session.session.userId;
@@ -641,16 +587,7 @@ server.register(async (instance) => {
 
     // POST /api/quests (Create Quest)
     instance.post('/api/quests', async (req, reply) => {
-        const headers = new Headers();
-        Object.entries(req.headers).forEach(([key, value]) => {
-            if (Array.isArray(value)) {
-                value.forEach(v => headers.append(key, v));
-            } else if (typeof value === 'string') {
-                headers.set(key, value);
-            }
-        });
-
-        const session = await auth.api.getSession({ headers });
+        const session = await getSessionFromRequest(req);
         if (!session) return reply.status(401).send({ message: "Unauthorized" });
 
         const userId = session.session.userId;
@@ -685,16 +622,7 @@ server.register(async (instance) => {
 
 
     instance.get('/api/goals', async (req, reply) => {
-        const headers = new Headers();
-        Object.entries(req.headers).forEach(([key, value]) => {
-            if (Array.isArray(value)) {
-                value.forEach(v => headers.append(key, v));
-            } else if (typeof value === 'string') {
-                headers.set(key, value);
-            }
-        });
-
-        const session = await auth.api.getSession({ headers });
+        const session = await getSessionFromRequest(req);
         if (!session) return reply.status(401).send({ message: "Unauthorized" });
 
         const userId = session.session.userId;
@@ -712,16 +640,7 @@ server.register(async (instance) => {
 
     // POST /api/goals
     instance.post('/api/goals', async (req, reply) => {
-        const headers = new Headers();
-        Object.entries(req.headers).forEach(([key, value]) => {
-            if (Array.isArray(value)) {
-                value.forEach(v => headers.append(key, v));
-            } else if (typeof value === 'string') {
-                headers.set(key, value);
-            }
-        });
-
-        const session = await auth.api.getSession({ headers });
+        const session = await getSessionFromRequest(req);
         if (!session) return reply.status(401).send({ message: "Unauthorized" });
 
         const userId = session.session.userId;
@@ -774,16 +693,7 @@ server.register(async (instance) => {
 
     // PUT /api/goals/:id
     instance.put('/api/goals/:id', async (req, reply: any) => {
-        const headers = new Headers();
-        Object.entries(req.headers).forEach(([key, value]) => {
-            if (Array.isArray(value)) {
-                value.forEach(v => headers.append(key, v));
-            } else if (typeof value === 'string') {
-                headers.set(key, value);
-            }
-        });
-
-        const session = await auth.api.getSession({ headers });
+        const session = await getSessionFromRequest(req);
         if (!session) return reply.status(401).send({ message: "Unauthorized" });
 
         const userId = session.session.userId;
@@ -838,16 +748,7 @@ server.register(async (instance) => {
 
     // DELETE /api/goals/:id
     instance.delete('/api/goals/:id', async (req, reply: any) => {
-        const headers = new Headers();
-        Object.entries(req.headers).forEach(([key, value]) => {
-            if (Array.isArray(value)) {
-                value.forEach(v => headers.append(key, v));
-            } else if (typeof value === 'string') {
-                headers.set(key, value);
-            }
-        });
-
-        const session = await auth.api.getSession({ headers });
+        const session = await getSessionFromRequest(req);
         if (!session) return reply.status(401).send({ message: "Unauthorized" });
 
         const userId = session.session.userId;
