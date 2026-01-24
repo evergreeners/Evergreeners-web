@@ -67,6 +67,14 @@ server.register(async (instance) => {
 server.register(async (instance) => {
     // Custom route to force-sync GitHub data
     instance.post('/api/user/sync-github', async (req, reply) => {
+        const fs = await import('fs');
+        const path = await import('path');
+        const log = (msg: string) => {
+            console.log(msg);
+        };
+
+        log(`Sync-Github called. Headers: ${JSON.stringify(req.headers)}`);
+
         const headers = new Headers();
         Object.entries(req.headers).forEach(([key, value]) => {
             if (Array.isArray(value)) {
@@ -76,9 +84,41 @@ server.register(async (instance) => {
             }
         });
 
+        // ---------------------------------------------------------
+        // FIX: Map Bearer token to Cookie for better-auth compatibility
+        // ---------------------------------------------------------
+        const authHeader = req.headers['authorization'];
+        if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+            const token = authHeader.split(' ')[1];
+            console.log(`Found Bearer token, processing as cookie: ${token.substring(0, 5)}...`);
+
+            const cookieName = "better-auth.session_token";
+            const secureCookieName = "__Secure-better-auth.session_token";
+
+            const newCookiePart = `${cookieName}=${token}; ${secureCookieName}=${token}`;
+
+            let finalCookie = newCookiePart;
+            const existingCookie = headers.get("cookie");
+
+            if (existingCookie) {
+                // Remove existing tokens to prevent conflicts/duplicates
+                // This regex removes "name=value;" or "name=value" handling optional trailing semicolon and whitespace
+                let cleanCookie = existingCookie
+                    .replace(new RegExp(`${cookieName}=[^;]+;?\\s*`, 'g'), '')
+                    .replace(new RegExp(`${secureCookieName}=[^;]+;?\\s*`, 'g'), '');
+
+                finalCookie = `${finalCookie}; ${cleanCookie}`;
+            }
+
+            headers.set("cookie", finalCookie);
+        }
+        // ---------------------------------------------------------
+
         const session = await auth.api.getSession({
             headers
         });
+
+        console.log(`Sync-Github session result: ${session ? 'Success' : 'Null'}`);
 
         if (!session) {
             return reply.status(401).send({ message: "Unauthorized" });

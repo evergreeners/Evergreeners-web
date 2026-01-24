@@ -28,8 +28,10 @@ const AppContents = () => {
 
   useEffect(() => {
     if (session?.session?.token) {
+      console.log("Starting GitHub sync... (Try 3 - Cookie Fix)");
       fetch(getApiUrl("/api/user/sync-github"), {
         method: "POST",
+        credentials: "include",
         headers: {
           Authorization: `Bearer ${session.session.token}`
         }
