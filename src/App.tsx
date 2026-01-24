@@ -26,16 +26,34 @@ const queryClient = new QueryClient();
 const AppContents = () => {
   const { data: session } = useSession();
 
+  // Background sync effect - runs silently after login without blocking UI
   useEffect(() => {
     if (session?.session?.token) {
-      console.log("Starting GitHub sync... (Try 3 - Cookie Fix)");
-      fetch(getApiUrl("/api/user/sync-github"), {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          Authorization: `Bearer ${session.session.token}`
+      // Run sync in background - does NOT block UI rendering
+      const syncGithub = async () => {
+        try {
+          console.log("Starting background GitHub sync...");
+          const res = await fetch(getApiUrl("/api/user/sync-github"), {
+            method: "POST",
+            credentials: "include",
+            headers: {
+              Authorization: `Bearer ${session.session.token}`
+            }
+          });
+
+          if (res.ok) {
+            console.log("Background GitHub sync completed successfully");
+          } else {
+            const errorData = await res.json().catch(() => ({}));
+            console.warn("Background sync returned non-OK status:", res.status, errorData);
+          }
+        } catch (err) {
+          console.error("Background sync failed:", err);
         }
-      }).catch(err => console.error("Background sync failed", err));
+      };
+
+      // Fire and forget - don't await, let UI render immediately
+      syncGithub();
     }
   }, [session?.session?.token]);
 
