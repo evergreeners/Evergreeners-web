@@ -118,10 +118,20 @@ server.register(async (instance) => {
             headers
         });
 
-        console.log(`Sync-Github session result: ${session ? 'Success' : 'Null'}`);
-
+        console.log(`Sync-Github session result: ${session ? 'Success' : 'FAILURE'}`);
         if (!session) {
-            return reply.status(401).send({ message: "Unauthorized" });
+            console.log("--- DEBUG 401 FAILURE ---");
+            const cookieDebug = headers.get("cookie");
+            console.log("Sent Headers (partial):", {
+                host: headers.get("host"),
+                origin: headers.get("origin"),
+                cookie: cookieDebug ? cookieDebug.substring(0, 50) + "..." : "missing"
+            });
+            console.log("Auth header used:", authHeader ? "Yes (Bearer ...)" : "No");
+            if (authHeader) console.log("Token sample:", authHeader.split(' ')[1].substring(0, 10));
+            console.log("-------------------------");
+
+            return reply.status(401).send({ message: "Unauthorized", debug: "Check server logs" });
         }
 
         const userId = session.session.userId;
