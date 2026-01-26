@@ -59,8 +59,7 @@ export default function Settings() {
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const baseUrl = getBaseURL(import.meta.env.VITE_API_URL || 'http://localhost:3000');
-        const res = await fetch(`${baseUrl}/api/user/profile`, {
+        const res = await fetch(getApiUrl("/api/user/profile"), {
           credentials: "include"
         });
         if (res.ok) {
@@ -140,10 +139,29 @@ export default function Settings() {
     setShowDisconnectInfo(true);
   };
 
-  const handleDeleteAccount = () => {
-    if (deleteConfirmation === "DELETE") {
-      toast.success("Account deletion initiated");
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmation !== "DELETE") return;
+
+    try {
+      const res = await fetch(getApiUrl("/api/user/account"), {
+        method: "DELETE",
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Failed to delete account");
+      }
+
+      toast.success("Account deleted successfully. Goodbye! 👋");
       setShowDeleteDialog(false);
+
+      // Sign out and redirect to home
+      await signOut();
+      window.location.href = "/";
+    } catch (error: any) {
+      console.error("Delete account error:", error);
+      toast.error(error.message || "Failed to delete account");
     }
   };
 
