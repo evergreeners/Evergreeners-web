@@ -56,8 +56,15 @@ export const auth = betterAuth({
             clientId: process.env.GITHUB_CLIENT_ID!,
             clientSecret: process.env.GITHUB_CLIENT_SECRET!,
             mapProfileToUser: (profile) => {
+                // This only runs for NEW user signups - existing users are not affected
+                // Users can manually update their profile anytime via Settings
                 return {
-                    username: profile.login,
+                    name: profile.name || profile.login, // Full name, fallback to username
+                    username: profile.login,             // GitHub username
+                    image: profile.avatar_url,           // Profile picture
+                    bio: profile.bio || null,            // GitHub bio
+                    location: profile.location || null,  // Location
+                    website: profile.blog || null,       // Website/blog URL
                     isGithubConnected: true
                 }
             }

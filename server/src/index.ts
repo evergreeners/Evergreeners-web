@@ -278,6 +278,46 @@ server.register(async (instance) => {
 
         return { user: user[0] };
     });
+
+    // DELETE User Account Route
+    instance.delete('/api/user/account', async (req, reply) => {
+        const session = await getSessionFromRequest(req);
+        if (!session) {
+            return reply.status(401).send({ message: "Unauthorized" });
+        }
+
+        const userId = session.session.userId;
+
+        try {
+            console.log(`Deleting account for user: ${userId}`);
+
+            // Delete in order to respect foreign key constraints
+            // 1. Delete user's quest progress
+            await db.delete(schema.userQuests).where(eq(schema.userQuests.userId, userId));
+            console.log("Deleted user quests");
+
+            // 2. Delete user's goals
+            await db.delete(schema.goals).where(eq(schema.goals.userId, userId));
+            console.log("Deleted user goals");
+
+            // 3. Delete user's sessions (this will log them out)
+            await db.delete(schema.sessions).where(eq(schema.sessions.userId, userId));
+            console.log("Deleted user sessions");
+
+            // 4. Delete user's linked accounts (GitHub, etc.)
+            await db.delete(schema.accounts).where(eq(schema.accounts.userId, userId));
+            console.log("Deleted user accounts");
+
+            // 5. Finally, delete the user record
+            await db.delete(schema.users).where(eq(schema.users.id, userId));
+            console.log("Deleted user record");
+
+            return { success: true, message: "Account deleted successfully" };
+        } catch (error) {
+            console.error("Account deletion error:", error);
+            return reply.status(500).send({ message: "Failed to delete account", error: String(error) });
+        }
+    });
     // Leaderboard Endpoint
     instance.get('/api/leaderboard', async (req, reply) => {
         try {
