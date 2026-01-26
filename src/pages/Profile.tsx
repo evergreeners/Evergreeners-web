@@ -57,15 +57,16 @@ export default function Profile() {
     anonymousName: "",
     streak: 0,
     totalCommits: 0,
-    todayCommits: 0, // New field
-    contributionData: [] as any[] // New field
+    todayCommits: 0,
+    bestRank: null as number | null, // Best leaderboard rank
+    contributionData: [] as any[]
   });
 
   const stats = [
     { label: "Current Streak", value: profile.streak?.toString() || "0", icon: Flame },
     { label: "Commits Today", value: (profile.todayCommits || 0).toString(), icon: GitCommit },
     { label: "Total Commits", value: (profile.totalCommits || 0).toLocaleString(), icon: Trophy },
-    { label: "Best Rank", value: "#24", icon: Target },
+    { label: "Best Rank", value: profile.bestRank ? `#${profile.bestRank}` : "—", icon: Target },
   ];
 
   const [editedProfile, setEditedProfile] = useState(profile);
@@ -116,6 +117,7 @@ export default function Profile() {
               streak: freshUser.streak,
               totalCommits: freshUser.totalCommits,
               todayCommits: freshUser.todayCommits,
+              bestRank: freshUser.bestRank || prev.bestRank,
               contributionData: freshUser.contributionData || prev.contributionData
             }));
             // Also update the edit form state so it doesn't revert if they open it
@@ -160,6 +162,7 @@ export default function Profile() {
           streak: data.streak,
           totalCommits: data.totalCommits,
           todayCommits: data.todayCommits,
+          bestRank: data.bestRank || prev.bestRank,
           contributionData: data.contributionData || []
         }));
         if (!silent) toast.success("GitHub data synced!");
