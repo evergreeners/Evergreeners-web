@@ -48,7 +48,8 @@ export const auth = betterAuth({
             streak: { type: "number" },
             totalCommits: { type: "number" },
             todayCommits: { type: "number" }, // Field for daily stats
-            isGithubConnected: { type: "boolean" }
+            isGithubConnected: { type: "boolean" },
+            bestRank: { type: "number" }
         }
     },
     socialProviders: {

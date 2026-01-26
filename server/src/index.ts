@@ -205,7 +205,49 @@ server.register(async (instance) => {
                 contributionCalendar
             });
 
-            return { success: true, username: ghUser.login, streak: currentStreak, totalCommits, todayCommits, yesterdayCommits, weeklyCommits, projectsData: projects, contributionData: contributionCalendar };
+            // 6. Calculate and update user's rank
+            let currentRank: number | null = null;
+            let bestRank: number | null = null;
+
+            if (currentStreak > 0) {
+                // Count how many users have a higher streak (they rank above this user)
+                const higherStreakCount = await db.select({ count: schema.users.id })
+                    .from(schema.users)
+                    .where(gt(schema.users.streak, currentStreak));
+
+                currentRank = higherStreakCount.length + 1;
+
+                // Get user's current best rank
+                const currentUser = await db.select({ bestRank: schema.users.bestRank })
+                    .from(schema.users)
+                    .where(eq(schema.users.id, userId))
+                    .limit(1);
+
+                bestRank = currentUser[0]?.bestRank || null;
+
+                // Update best rank if current is better (lower number = better)
+                if (!bestRank || currentRank < bestRank) {
+                    await db.update(schema.users)
+                        .set({ bestRank: currentRank })
+                        .where(eq(schema.users.id, userId));
+                    bestRank = currentRank;
+                    console.log(`Updated best rank for ${ghUser.login}: ${currentRank}`);
+                }
+            }
+
+            return {
+                success: true,
+                username: ghUser.login,
+                streak: currentStreak,
+                totalCommits,
+                todayCommits,
+                yesterdayCommits,
+                weeklyCommits,
+                projectsData: projects,
+                contributionData: contributionCalendar,
+                currentRank,
+                bestRank
+            };
         } catch (error) {
             console.error(error);
             return reply.status(500).send({ message: "Failed to sync with GitHub" });
@@ -332,6 +374,7 @@ server.register(async (instance) => {
                 yesterdayCommits: schema.users.yesterdayCommits,
                 isPublic: schema.users.isPublic,
                 anonymousName: schema.users.anonymousName,
+                bestRank: schema.users.bestRank,
             })
                 .from(schema.users)
                 .where(gt(schema.users.streak, 0))
@@ -340,6 +383,20 @@ server.register(async (instance) => {
 
             console.log(`Fetching leaderboard. Found ${topUsers.length} users with streak > 0`);
 
+            // Update best ranks asynchronously (don't block the response)
+            (async () => {
+                for (let i = 0; i < topUsers.length; i++) {
+                    const user = topUsers[i];
+                    const currentRank = i + 1;
+                    // Update if this is their first rank or if current rank is better (lower number = better)
+                    if (!user.bestRank || currentRank < user.bestRank) {
+                        await db.update(schema.users)
+                            .set({ bestRank: currentRank })
+                            .where(eq(schema.users.id, user.id));
+                        console.log(`Updated best rank for ${user.username}: ${user.bestRank || 'none'} -> ${currentRank}`);
+                    }
+                }
+            })().catch(err => console.error("Error updating best ranks:", err));
 
             const leaderboard = topUsers.map((user, index) => {
                 const isAnonymous = !user.isPublic;
@@ -364,6 +421,7 @@ server.register(async (instance) => {
                     totalCommits: user.totalCommits || 0,
                     yesterdayCommits: user.yesterdayCommits || 0,
                     weeklyCommits: user.weeklyCommits || 0,
+                    bestRank: user.bestRank || index + 1, // Include best rank in response
                     // We don't determine isCurrentUser here, frontend will do it by comparing username/id
                     originalUsername: user.username // Helper for frontend to identify current user if needed, though matching by string might be tricky if anonymous.
                     // Better to send ID or handle 'isCurrentUser' if we have session.

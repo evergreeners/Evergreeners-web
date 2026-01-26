@@ -30,6 +30,7 @@ export const users = mySchema.table('users', {
 
     contributionData: jsonb('contribution_data'), // Store full calendar data
     isGithubConnected: boolean('is_github_connected').default(false),
+    bestRank: integer('best_rank'), // Best leaderboard rank ever achieved
 });
 
 export const sessions = mySchema.table('sessions', {
