@@ -1,16 +1,12 @@
 import { useSession } from "@/lib/auth-client";
-import { Loader } from "@/components/ui/loader";
 import { Navigate, Outlet } from "react-router-dom";
 
 export default function ProtectedRoute() {
-    const { data: session, isPending, error } = useSession();
+    const { data: session, isPending } = useSession();
 
+    // Return null to keep the branded initial loader visible until session resolves
     if (isPending) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-black/50 backdrop-blur-sm z-50">
-                <Loader />
-            </div>
-        );
+        return null;
     }
 
     if (!session) {

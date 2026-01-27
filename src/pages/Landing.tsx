@@ -94,8 +94,9 @@ export default function Landing() {
     }, [text, isDeleting, loopNum]);
 
     // Early return AFTER all hooks call
+    // Return null to keep the initial HTML loader visible until session resolves
     if (isPending) {
-        return <div className="min-h-screen bg-black" />;
+        return null;
     }
 
     return (
