@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Bell, CheckCheck, ExternalLink } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, triggerHaptic } from "@/lib/utils";
 import {
     Popover,
     PopoverContent,
@@ -143,6 +143,7 @@ export function NotificationCenter() {
                 <button
                     className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-all duration-200 relative"
                     aria-label="Notifications"
+                    onClick={() => triggerHaptic()}
                 >
                     <Bell className="w-4 h-4" />
                     {unreadCount > 0 && (

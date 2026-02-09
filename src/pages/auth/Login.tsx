@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Github, Command } from "lucide-react";
+import { ArrowLeft, Github } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { useState } from "react";
 import { signIn } from "@/lib/auth-client";
@@ -75,7 +75,7 @@ export default function Login() {
                 <div className="w-full max-w-md mx-auto space-y-8">
                     <div className="space-y-2 text-center">
                         <div className="flex justify-center mb-6">
-                            <Logo className="w-12 h-12" />
+                            <img src={logo} alt="Evergreeners Logo" className="w-16 h-16" />
                         </div>
                         <h1 className="text-3xl font-bold tracking-tight">Welcome back</h1>
                         <p className="text-muted-foreground">
@@ -171,8 +171,8 @@ export default function Login() {
                 </div>
 
                 <div className="relative z-10 mt-auto">
-                    <div className="w-12 h-12 bg-white/5 backdrop-blur-md rounded-xl flex items-center justify-center mb-6 border border-white/10 shadow-xl">
-                        <Command className="w-6 h-6 text-emerald-400" />
+                    <div className="w-16 h-16 bg-white/5 backdrop-blur-md rounded-xl flex items-center justify-center mb-6 border border-white/10 shadow-xl overflow-hidden">
+                        <img src={logo} alt="Evergreeners" className="w-10 h-10" />
                     </div>
                     <blockquote className="space-y-2">
                         <p className="text-lg font-medium leading-relaxed tracking-wide text-zinc-100">

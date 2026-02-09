@@ -3,9 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Check, Github, GitBranch } from "lucide-react";
+import { ArrowLeft, Check, Github } from "lucide-react";
 import logo from "@/assets/logo.png";
-import authBg from "@/assets/auth-bg.png";
 import { useState } from "react";
 import { signUp, signIn } from "@/lib/auth-client";
 import { Loader } from "@/components/ui/loader";
@@ -78,7 +77,7 @@ export default function Signup() {
                 <div className="w-full max-w-md mx-auto space-y-8 py-20 lg:py-0">
                     <div className="space-y-2 text-center">
                         <div className="flex justify-center mb-6">
-                            <Logo className="w-12 h-12" />
+                            <img src={logo} alt="Evergreeners Logo" className="w-16 h-16" />
                         </div>
                         <h1 className="text-3xl font-bold tracking-tight">Create an account</h1>
                         <p className="text-muted-foreground">
@@ -180,7 +179,6 @@ export default function Signup() {
             {/* Right: Decorative Section */}
             <div
                 className="hidden lg:flex flex-col justify-between bg-black border-l border-zinc-900 p-12 text-white relative overflow-hidden order-2"
-                style={{ backgroundImage: `url(${authBg})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
             >
                 {/* Terminal Animation */}
                 <div className="absolute inset-0 z-10 flex items-start justify-center p-4 lg:p-12 pt-20 lg:pt-32">
@@ -191,8 +189,8 @@ export default function Signup() {
                 <div className="absolute inset-x-0 bottom-0 h-3/4 bg-gradient-to-t from-black/90 via-black/40 to-transparent z-0 pointer-events-none" />
 
                 <div className="relative z-20 mt-auto">
-                    <div className="w-12 h-12 bg-white/5 backdrop-blur-md rounded-xl flex items-center justify-center mb-6 border border-white/10 shadow-xl">
-                        <GitBranch className="w-6 h-6 text-green-400" />
+                    <div className="w-16 h-16 bg-white/5 backdrop-blur-md rounded-xl flex items-center justify-center mb-6 border border-white/10 shadow-xl overflow-hidden">
+                        <img src={logo} alt="Evergreeners" className="w-10 h-10" />
                     </div>
                     <blockquote className="space-y-2">
                         <p className="text-lg font-medium leading-relaxed tracking-wide text-zinc-100">
