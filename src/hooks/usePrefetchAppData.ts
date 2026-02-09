@@ -93,6 +93,20 @@ export function usePrefetchAppData(token: string | undefined) {
                     staleTime: 5 * 60 * 1000,
                 });
 
+                // Prefetch notifications for instant badge count
+                await queryClient.prefetchQuery({
+                    queryKey: ['notifications'],
+                    queryFn: async () => {
+                        const res = await fetch(getApiUrl('/api/notifications'), {
+                            credentials: "include",
+                        });
+                        if (!res.ok) throw new Error('Failed to fetch notifications');
+                        const data = await res.json();
+                        return data.notifications;
+                    },
+                    staleTime: 1 * 60 * 1000, // 1 minute (notifications change frequently)
+                });
+
                 console.log('✅ App data prefetched successfully');
             } catch (error) {
                 // Silent fail - prefetching is an optimization, not critical

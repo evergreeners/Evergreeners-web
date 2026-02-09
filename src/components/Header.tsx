@@ -1,6 +1,7 @@
-import { Settings, Bell, Menu, Home, BarChart3, Compass, Target, Trophy, LogOut } from "lucide-react";
+import { Settings, Menu, Home, BarChart3, Compass, Target, Trophy, LogOut } from "lucide-react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Logo } from "@/components/Logo";
+import { NotificationCenter } from "@/components/NotificationCenter";
 import { useState } from "react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { cn, triggerHaptic } from "@/lib/utils";
@@ -29,7 +30,6 @@ export function Header() {
   const navigate = useNavigate();
   const location = useLocation();
   const currentPath = location.pathname;
-  const [notifications] = useState(3);
   const { data: session } = useSession();
 
   return (
@@ -68,20 +68,7 @@ export function Header() {
 
           <div className="flex items-center gap-2">
             {/* Notifications */}
-            <button
-              className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-all duration-200 relative"
-              onClick={() => {
-                navigate('/profile');
-                triggerHaptic();
-              }}
-            >
-              <Bell className="w-4 h-4" />
-              {notifications > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-primary text-primary-foreground text-[10px] font-bold rounded-full flex items-center justify-center animate-pulse-slow">
-                  {notifications}
-                </span>
-              )}
-            </button>
+            <NotificationCenter />
 
             {/* Settings - desktop */}
             <button
