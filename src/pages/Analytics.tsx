@@ -3,7 +3,7 @@ import { FloatingNav } from "@/components/FloatingNav";
 import { Section } from "@/components/Section";
 import { ActivityGrid } from "@/components/ActivityGrid";
 import { InsightCard } from "@/components/InsightCard";
-import { Loader } from "@/components/ui/loader";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area
@@ -42,9 +42,12 @@ export default function Analytics() {
       const data = await res.json();
       return data.user;
     },
-    staleTime: 1000 * 60 * 5, // 5 minutes fresh
+    staleTime: 5 * 60 * 1000, // 5 minutes
     refetchOnWindowFocus: true,
   });
+
+  // Only show fullscreen loader if no data at all (first visit before prefetch)
+  const shouldShowLoader = isLoading && !user;
 
   // Process Data with useMemo
   const { stats, monthlyData, weeklyCommits, languageData, activityData, insights } = useMemo(() => {
@@ -192,11 +195,63 @@ export default function Analytics() {
     };
   }, [user, timeRange]);
 
-  if (isLoading) {
+  if (shouldShowLoader) {
     return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
-        <Loader />
-        <p className="text-muted-foreground animate-pulse">Loading analytics...</p>
+      <div className="min-h-screen bg-background custom-scrollbar">
+        <Header />
+        <main className="container pt-24 pb-32 md:pb-12 space-y-8">
+          {/* Page Header Skeleton */}
+          <section className="animate-fade-in">
+            <Skeleton className="h-10 w-48 mb-2" />
+            <Skeleton className="h-4 w-64" />
+          </section>
+
+          {/* Time Range Skeleton */}
+          <div className="flex gap-2 animate-fade-up" style={{ animationDelay: "0.05s" }}>
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-10 w-20" />
+            ))}
+          </div>
+
+          {/* Stats Grid Skeleton */}
+          <Section className="animate-fade-up" style={{ animationDelay: "0.1s" }}>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {[1, 2, 3, 4].map((i) => (
+                <Skeleton key={i} className="h-24 w-full" />
+              ))}
+            </div>
+          </Section>
+
+          {/* Monthly Trend Skeleton */}
+          <Section title="Monthly Trend (Commits)" className="animate-fade-up" style={{ animationDelay: "0.15s" }}>
+            <Skeleton className="h-64 w-full" />
+          </Section>
+
+          {/* Weekly Distribution Skeleton */}
+          <Section title="Activity by Day" className="animate-fade-up" style={{ animationDelay: "0.2s" }}>
+            <Skeleton className="h-64 w-full" />
+          </Section>
+
+          {/* Two Column Charts Skeleton */}
+          <div className="grid md:grid-cols-2 gap-6">
+            <Section title="Languages" className="animate-fade-up" style={{ animationDelay: "0.25s" }}>
+              <Skeleton className="h-48 w-full" />
+            </Section>
+            <Section title="AI Insights" className="animate-fade-up" style={{ animationDelay: "0.3s" }}>
+              <div className="space-y-4">
+                {[1, 2].map((i) => (
+                  <Skeleton key={i} className="h-20 w-full" />
+                ))}
+              </div>
+            </Section>
+          </div>
+
+          {/* Year in Code Skeleton */}
+          <Section title="Year in Code" className="animate-fade-up" style={{ animationDelay: "0.35s" }}>
+            <Skeleton className="h-32 w-full" />
+          </Section>
+        </main>
+        <FloatingNav />
       </div>
     );
   }

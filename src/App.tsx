@@ -20,11 +20,29 @@ import ProtectedRoute from "./components/ProtectedRoute";
 
 import { useEffect } from "react";
 import { getApiUrl } from "@/lib/api-config";
+import { usePrefetchAppData } from "@/hooks/usePrefetchAppData";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Keep data fresh for 5 minutes
+      staleTime: 5 * 60 * 1000,
+      // Cache data for 10 minutes  
+      gcTime: 10 * 60 * 1000,
+      // Retry failed requests
+      retry: 1,
+      // Prefetch on window focus
+      refetchOnWindowFocus: true,
+    },
+  },
+});
 
 const AppContents = () => {
   const { data: session } = useSession();
+
+  // Prefetch all app data immediately when user logs in
+  usePrefetchAppData(session?.session?.token);
+
 
   // Background sync effect - runs silently after login without blocking UI
   useEffect(() => {
@@ -32,7 +50,6 @@ const AppContents = () => {
       // Run sync in background - does NOT block UI rendering
       const syncGithub = async () => {
         try {
-          console.log("Starting background GitHub sync...");
           const res = await fetch(getApiUrl("/api/user/sync-github"), {
             method: "POST",
             credentials: "include",
@@ -43,12 +60,10 @@ const AppContents = () => {
 
           if (res.ok) {
             console.log("Background GitHub sync completed successfully");
-          } else {
-            const errorData = await res.json().catch(() => ({}));
-            console.warn("Background sync returned non-OK status:", res.status, errorData);
           }
         } catch (err) {
-          console.error("Background sync failed:", err);
+          // Silent fail - sync is not critical for page load
+          console.debug("Background sync skipped:", err);
         }
       };
 

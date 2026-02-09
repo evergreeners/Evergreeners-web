@@ -26,8 +26,6 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { useSession } from "@/lib/auth-client";
-import dashboardMockup from "@/assets/dashboard-mockup.png";
-import zenModeGraphic from "@/assets/zen-mode-graphic.png";
 import { ScrewToggle } from "@/components/ui/screw-toggle";
 import { CosmicButton } from "@/components/ui/cosmic-button";
 import { TerminalSection } from "@/components/TerminalSection";
@@ -40,6 +38,16 @@ export default function Landing() {
     const [typingSpeed, setTypingSpeed] = useState(150);
     const navigate = useNavigate();
     const { data: session, isPending } = useSession();
+
+    // Lazy load images to prevent blocking initial render
+    const [dashboardMockup, setDashboardMockup] = useState('');
+    const [zenModeGraphic, setZenModeGraphic] = useState('');
+
+    useEffect(() => {
+        // Load images asynchronously after component mounts
+        import('@/assets/dashboard-mockup.png').then(module => setDashboardMockup(module.default));
+        import('@/assets/zen-mode-graphic.png').then(module => setZenModeGraphic(module.default));
+    }, []);
 
     // Prevent flash of landing page if already logged in:
     // Move logic to final return to respect Rule of Hooks
@@ -93,11 +101,9 @@ export default function Landing() {
         return () => clearTimeout(timer);
     }, [text, isDeleting, loopNum]);
 
-    // Early return AFTER all hooks call
-    // Return null to keep the initial HTML loader visible until session resolves
-    if (isPending) {
-        return null;
-    }
+    // Don't wait for session check - render immediately
+    // If user is logged in, useEffect will redirect them
+    // This prevents blank screens on slow networks
 
     return (
         <div className="min-h-screen bg-black text-foreground font-sans selection:bg-primary/30 overflow-x-hidden">
@@ -162,6 +168,7 @@ export default function Landing() {
                                         <img
                                             src={dashboardMockup}
                                             alt="Dashboard Interface"
+                                            loading="lazy"
                                             className="w-full h-full object-cover opacity-90 shadow-lg"
                                         />
                                         {/* Overlay Gradient */}
@@ -240,6 +247,7 @@ export default function Landing() {
                                     <img
                                         src={zenModeGraphic}
                                         alt="Zen Mode Focus Visualization"
+                                        loading="lazy"
                                         className="relative z-10 w-full h-full object-contain drop-shadow-2xl animate-float-slow [mask-image:radial-gradient(closest-side,black_50%,transparent_100%)] scale-110"
                                     />
                                 </div>

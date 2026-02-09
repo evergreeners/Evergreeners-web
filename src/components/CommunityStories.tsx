@@ -1,7 +1,6 @@
 
-import React from 'react';
+import { useState, useEffect } from 'react';
 import './CommunityStories.css';
-import avatarSarah from '@/assets/avatar-sarah.png';
 
 interface StoryProps {
     name: string;
@@ -15,7 +14,8 @@ const stories: StoryProps[] = [
         name: "Sarah J.",
         role: "Senior Engineer",
         quote: "I used to code in bursts and burn out. Evergreeners helped me pace myself. Now I've coded for 300 days straight.",
-        image: avatarSarah,
+        // Will be loaded asynchronously
+        image: "",
     },
     {
         name: "Marcus Chen",
@@ -33,10 +33,15 @@ const stories: StoryProps[] = [
 
 function StoryCard({ name, role, quote, image }: StoryProps) {
     return (
-        <div
-            className="story-card group"
-            style={{ backgroundImage: `url(${image})` }}
-        >
+        <div className="story-card group">
+            {image && (
+                <img
+                    src={image}
+                    alt={`${name} avatar`}
+                    loading="lazy"
+                    className="story-card__bg-image"
+                />
+            )}
             <div className="story-card__content">
                 <p className="story-card__description mb-4">"{quote}"</p>
                 <div>
@@ -49,6 +54,17 @@ function StoryCard({ name, role, quote, image }: StoryProps) {
 }
 
 export function CommunityStories() {
+    const [storiesWithImages, setStoriesWithImages] = useState(stories);
+
+    useEffect(() => {
+        // Load Sarah's avatar asynchronously
+        import('@/assets/avatar-sarah.png').then(module => {
+            setStoriesWithImages(prev => prev.map((story, idx) =>
+                idx === 0 ? { ...story, image: module.default } : story
+            ));
+        });
+    }, []);
+
     return (
         <section className="pt-32 pb-0 bg-[#050505] relative overflow-hidden">
             <div className="cyber-pattern" />
@@ -63,18 +79,18 @@ export function CommunityStories() {
                 <div className="marquee-container">
                     <div className="marquee-track">
                         {/* First set of stories */}
-                        {stories.map((story, index) => (
+                        {storiesWithImages.map((story, index) => (
                             <StoryCard key={`original-${index}`} {...story} />
                         ))}
-                        {stories.map((story, index) => (
+                        {storiesWithImages.map((story, index) => (
                             <StoryCard key={`dup1-${index}`} {...story} />
                         ))}
 
                         {/* Second set of stories (Duplicate for seamless loop) */}
-                        {stories.map((story, index) => (
+                        {storiesWithImages.map((story, index) => (
                             <StoryCard key={`loop-original-${index}`} {...story} />
                         ))}
-                        {stories.map((story, index) => (
+                        {storiesWithImages.map((story, index) => (
                             <StoryCard key={`loop-dup1-${index}`} {...story} />
                         ))}
                     </div>

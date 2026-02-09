@@ -19,8 +19,9 @@ const waitForContent = () => {
 
     // Check if root has meaningful content
     const checkContent = () => {
-        // If root has child elements with actual content, hide loader
-        if (root.children.length > 0 && root.innerHTML.length > 50) {
+        // If root has child elements, hide loader immediately
+        // We're now confident React has rendered something
+        if (root.children.length > 0) {
             hideInitialLoader();
             return true;
         }
@@ -39,15 +40,15 @@ const waitForContent = () => {
 
     observer.observe(root, {
         childList: true,
-        subtree: true,
-        characterData: true,
+        subtree: false, // Only watch direct children for faster detection
     });
 
-    // Fallback: hide after 3 seconds max to prevent infinite loading
+    // Shorter fallback: hide after 1.5 seconds max
+    // This prevents indefinite loading on very slow/offline networks
     setTimeout(() => {
         observer.disconnect();
         hideInitialLoader();
-    }, 3000);
+    }, 1500);
 };
 
 const rootElement = document.getElementById("root")!;

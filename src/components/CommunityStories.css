@@ -11,9 +11,6 @@
     justify-content: center;
     overflow: hidden;
     transition: all 0.4s ease-out;
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
 
     /* Constant green border as requested in the image */
@@ -22,6 +19,18 @@
     /* Default Green Glow */
     box-shadow: 0 10px 30px rgba(0, 255, 65, 0.15);
 }
+
+.story-card__bg-image {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    z-index: 0;
+}
+
 
 .story-card:hover {
     transform: translateY(-5px) scale(1.02);
@@ -38,6 +47,7 @@
     height: 100%;
     padding: 32px 24px;
     box-sizing: border-box;
+    z-index: 1;
 
     /* Persistent Gradient Overlay - stronger at bottom for text readability */
     background: linear-gradient(to bottom,

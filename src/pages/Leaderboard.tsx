@@ -2,7 +2,7 @@ import { Header } from "@/components/Header";
 import { FloatingNav } from "@/components/FloatingNav";
 import { Section } from "@/components/Section";
 import { Trophy, Medal, Flame, Crown, TrendingUp, TrendingDown, Minus, GitCommit } from "lucide-react";
-import { Loader } from "@/components/ui/loader";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn, triggerHaptic } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
@@ -44,7 +44,7 @@ export default function Leaderboard() {
   const { data: session } = useSession();
   const user = session?.user as unknown as AuthUser;
 
-  const { data: leaderboardData, isLoading } = useQuery({
+  const { data: leaderboardData, isLoading, isFetching } = useQuery({
     queryKey: ["leaderboard"],
     queryFn: async () => {
       const res = await fetch(getApiUrl("/api/leaderboard"));
@@ -52,13 +52,18 @@ export default function Leaderboard() {
       const data = await res.json();
       return data.leaderboard.map((entry: any) => ({
         ...entry,
-        // Mock previous rank for now as we don't track history yet
         previousRank: entry.rank,
-        // Ensure avatar fallback if null is handled in UI, or set default here
         avatar: entry.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(entry.username)}&background=random`
       })) as LeaderboardEntry[];
-    }
+    },
+    // Data is prefetched on login, so it should be available immediately
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
+
+  // Only show loading if we don't have any data at all (first load before prefetch)
+  // If we have cached data, show it while refetching in background
+  const shouldShowLoader = isLoading && !leaderboardData;
+
 
   // Determine current user from the fetched leaderboard or session
   const currentUserEntry = leaderboardData?.find(e =>
@@ -120,19 +125,45 @@ export default function Leaderboard() {
       <Header />
 
       <main className="container pt-24 pb-32 md:pb-12 space-y-8">
-        {/* Page Header */}
-        <section className="animate-fade-in">
-          <h1 className="text-3xl font-bold text-gradient flex items-center gap-3">
-            <Trophy className="w-8 h-8" /> Leaderboard
-          </h1>
-          <p className="text-muted-foreground mt-1">Top developers by consistency</p>
-        </section>
+        {shouldShowLoader ? (
+          <>
+            {/* Skeleton for Your Position */}
+            <div className="animate-fade-up" style={{ animationDelay: "0.05s" }}>
+              <Section>
+                <Skeleton className="h-24 w-full" />
+              </Section>
+            </div>
 
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-20 gap-4">
-            <Loader />
-            <p className="text-muted-foreground animate-pulse">Loading leaderboard...</p>
-          </div>
+            {/* Skeleton for Filter Tabs */}
+            <div className="flex gap-2 animate-fade-up" style={{ animationDelay: "0.1s" }}>
+              {[1, 2, 3, 4].map((i) => (
+                <Skeleton key={i} className="h-10 w-24" />
+              ))}
+            </div>
+
+            {/* Skeleton for Top 3 Podium */}
+            <Section className="animate-fade-up" style={{ animationDelay: "0.15s" }}>
+              <div className="flex items-end justify-center gap-2 md:gap-4 h-80">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex flex-col items-center">
+                    <Skeleton className="w-16 h-16 rounded-full mb-2" />
+                    <Skeleton className="h-4 w-20 mb-1" />
+                    <Skeleton className="h-3 w-16 mb-2" />
+                    <Skeleton className={`w-20 rounded-t-xl ${i === 2 ? 'h-32' : 'h-24'}`} />
+                  </div>
+                ))}
+              </div>
+            </Section>
+
+            {/* Skeleton for Leaderboard List */}
+            <Section title="Rankings" className="animate-fade-up" style={{ animationDelay: "0.2s" }}>
+              <div className="space-y-2">
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                  <Skeleton key={i} className="h-16 w-full" />
+                ))}
+              </div>
+            </Section>
+          </>
         ) : (
           <>
             {/* Your Position */}
