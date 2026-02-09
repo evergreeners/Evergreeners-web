@@ -153,10 +153,14 @@ export function NotificationCenter() {
                 </button>
             </PopoverTrigger>
             <PopoverContent
-                className="w-80 p-0 bg-background/30 backdrop-blur-2xl border-primary/10 shadow-2xl"
+                className="w-80 p-0 bg-background/30 backdrop-blur-2xl border border-green-500/10 shadow-2xl mt-2 relative rounded-2xl"
                 align="end"
+                sideOffset={16}
             >
-                <div className="flex items-center justify-between p-4 border-b border-primary/5 bg-gradient-to-r from-primary/3 to-transparent backdrop-blur-sm">
+                {/* Arrow pointer to bell icon */}
+                <div className="absolute -top-[18px] right-4 w-5 h-5 rotate-45 bg-black border-l-2 border-t-2 border-green-500/40" />
+
+                <div className="flex items-center justify-between p-4 border-b border-primary/5 bg-gradient-to-r from-primary/3 to-transparent backdrop-blur-sm relative">
                     <h3 className="font-semibold">Notifications</h3>
                     {unreadCount > 0 && (
                         <Button
