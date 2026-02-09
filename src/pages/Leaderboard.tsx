@@ -2,7 +2,7 @@ import { Header } from "@/components/Header";
 import { FloatingNav } from "@/components/FloatingNav";
 import { Section } from "@/components/Section";
 import { Trophy, Medal, Flame, Crown, TrendingUp, TrendingDown, Minus, GitCommit } from "lucide-react";
-import { Loader } from "@/components/ui/loader";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn, triggerHaptic } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
@@ -125,19 +125,45 @@ export default function Leaderboard() {
       <Header />
 
       <main className="container pt-24 pb-32 md:pb-12 space-y-8">
-        {/* Page Header */}
-        <section className="animate-fade-in">
-          <h1 className="text-3xl font-bold text-gradient flex items-center gap-3">
-            <Trophy className="w-8 h-8" /> Leaderboard
-          </h1>
-          <p className="text-muted-foreground mt-1">Top developers by consistency</p>
-        </section>
-
         {shouldShowLoader ? (
-          <div className="flex flex-col items-center justify-center py-20 gap-4">
-            <Loader />
-            <p className="text-muted-foreground animate-pulse">Loading leaderboard...</p>
-          </div>
+          <>
+            {/* Skeleton for Your Position */}
+            <div className="animate-fade-up" style={{ animationDelay: "0.05s" }}>
+              <Section>
+                <Skeleton className="h-24 w-full" />
+              </Section>
+            </div>
+
+            {/* Skeleton for Filter Tabs */}
+            <div className="flex gap-2 animate-fade-up" style={{ animationDelay: "0.1s" }}>
+              {[1, 2, 3, 4].map((i) => (
+                <Skeleton key={i} className="h-10 w-24" />
+              ))}
+            </div>
+
+            {/* Skeleton for Top 3 Podium */}
+            <Section className="animate-fade-up" style={{ animationDelay: "0.15s" }}>
+              <div className="flex items-end justify-center gap-2 md:gap-4 h-80">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex flex-col items-center">
+                    <Skeleton className="w-16 h-16 rounded-full mb-2" />
+                    <Skeleton className="h-4 w-20 mb-1" />
+                    <Skeleton className="h-3 w-16 mb-2" />
+                    <Skeleton className={`w-20 rounded-t-xl ${i === 2 ? 'h-32' : 'h-24'}`} />
+                  </div>
+                ))}
+              </div>
+            </Section>
+
+            {/* Skeleton for Leaderboard List */}
+            <Section title="Rankings" className="animate-fade-up" style={{ animationDelay: "0.2s" }}>
+              <div className="space-y-2">
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                  <Skeleton key={i} className="h-16 w-full" />
+                ))}
+              </div>
+            </Section>
+          </>
         ) : (
           <>
             {/* Your Position */}

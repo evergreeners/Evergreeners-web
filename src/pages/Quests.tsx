@@ -4,6 +4,8 @@ import { Section } from "@/components/Section";
 import { Compass, Scroll, Zap, Star, Shield, Trophy, GitFork, ExternalLink, RefreshCw, CheckCircle, Plus, User, XCircle, GitCommit, PlayCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -68,8 +70,7 @@ interface Quest {
 }
 
 export default function Quests() {
-    const [quests, setQuests] = useState<Quest[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const queryClient = useQueryClient();
     const [checkingId, setCheckingId] = useState<number | null>(null);
     const { data: session } = authClient.useSession();
 
@@ -82,29 +83,43 @@ export default function Quests() {
     const [newQuestDiff, setNewQuestDiff] = useState<string>("Easy");
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const fetchQuests = async () => {
-        try {
+    // Use React Query for quests with caching
+    const { data: quests = [], isLoading } = useQuery({
+        queryKey: ['quests'],
+        queryFn: async () => {
             const res = await fetch(`${API_URL}/api/quests`, {
                 credentials: "include",
             });
-            if (res.ok) {
-                const data = await res.json();
-                setQuests(data.quests);
-            } else {
-                console.error("Failed to fetch quests");
-            }
-        } catch (error) {
-            console.error("Error fetching quests:", error);
-        } finally {
-            setIsLoading(false);
-        }
+            if (!res.ok) throw new Error('Failed to fetch quests');
+            const data = await res.json();
+            return data.quests as Quest[];
+        },
+        staleTime: 2 * 60 * 1000, // 2 minutes
+        refetchOnWindowFocus: true,
+        enabled: !!session,
+    });
+
+    // Only show skeleton if no cached data exists
+    const shouldShowSkeleton = isLoading && quests.length === 0;
+
+    // Supabase Realtime subscription for instant updates
+    useEffect(() => {
+        if (!session) return;
+
+        // Set up WebSocket or polling for realtime updates
+        // Since Supabase realtime is enabled on your tables, we can use refetch interval
+        const interval = setInterval(() => {
+            // Invalidate and refetch in background
+            queryClient.invalidateQueries({ queryKey: ['quests'] });
+        }, 30000); // Refetch every 30 seconds for realtime feel
+
+        return () => clearInterval(interval);
+    }, [session, queryClient]);
+
+    const refetchQuests = () => {
+        queryClient.invalidateQueries({ queryKey: ['quests'] });
     };
 
-    useEffect(() => {
-        if (session) {
-            fetchQuests();
-        }
-    }, [session]);
 
     const handleStartQuest = async (id: number) => {
         if (!session) {
@@ -126,7 +141,7 @@ export default function Quests() {
             }
 
             toast.success("Quest accepted!");
-            fetchQuests();
+            refetchQuests();
         } catch (error: any) {
             console.error(error);
             toast.error(error.message);
@@ -141,7 +156,7 @@ export default function Quests() {
             });
             if (res.ok) {
                 toast.success("Quest dropped.");
-                fetchQuests();
+                refetchQuests();
             } else {
                 throw new Error("Failed to drop");
             }
@@ -178,7 +193,8 @@ export default function Quests() {
                 toast.info(`Status: ${status}`);
             }
 
-            fetchQuests(); // Refresh data
+            refetchQuests(); // Refresh data
+
 
         } catch (error: any) {
             console.error(error);
@@ -220,7 +236,7 @@ export default function Quests() {
             setNewQuestDesc("");
             setNewQuestRepo("");
             setNewQuestTags("");
-            fetchQuests(); // Refresh list
+            refetchQuests(); // Refresh list
 
         } catch (error: any) {
             toast.error(error.message || "Failed to create quest");
@@ -355,8 +371,32 @@ export default function Quests() {
                         </div>
 
                         <Section className="animate-fade-up" style={{ animationDelay: "0.15s" }}>
-                            {isLoading && quests.length === 0 ? (
-                                <div className="text-center py-10 text-muted-foreground">Loading quests...</div>
+                            {shouldShowSkeleton ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {[1, 2, 3, 4].map((i) => (
+                                        <Card key={i} className="bg-card/30 backdrop-blur-sm border-border flex flex-col">
+                                            <CardHeader>
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <Skeleton className="h-6 w-16" />
+                                                    <Skeleton className="h-6 w-16" />
+                                                </div>
+                                                <Skeleton className="h-6 w-3/4 mb-2" />
+                                                <Skeleton className="h-4 w-full" />
+                                                <Skeleton className="h-3 w-32 mt-2" />
+                                            </CardHeader>
+                                            <CardContent className="flex-grow">
+                                                <div className="flex gap-2">
+                                                    <Skeleton className="h-6 w-16" />
+                                                    <Skeleton className="h-6 w-20" />
+                                                </div>
+                                            </CardContent>
+                                            <CardFooter className="flex justify-between items-center gap-4 mt-auto">
+                                                <Skeleton className="h-4 w-16" />
+                                                <Skeleton className="h-10 w-32" />
+                                            </CardFooter>
+                                        </Card>
+                                    ))}
+                                </div>
                             ) : (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     {availableQuests.length === 0 && !isLoading && (

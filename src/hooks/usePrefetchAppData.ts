@@ -64,6 +64,20 @@ export function usePrefetchAppData(token: string | undefined) {
                     staleTime: 5 * 60 * 1000,
                 });
 
+                // Prefetch quests data
+                await queryClient.prefetchQuery({
+                    queryKey: ['quests'],
+                    queryFn: async () => {
+                        const res = await fetch(getApiUrl('/api/quests'), {
+                            credentials: "include",
+                        });
+                        if (!res.ok) throw new Error('Failed to fetch quests');
+                        const data = await res.json();
+                        return data.quests;
+                    },
+                    staleTime: 2 * 60 * 1000, // 2 minutes (quests change more frequently)
+                });
+
                 // Prefetch analytics/stats data if you have it
                 await queryClient.prefetchQuery({
                     queryKey: ['userStats'],
