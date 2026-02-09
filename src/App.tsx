@@ -32,7 +32,6 @@ const AppContents = () => {
       // Run sync in background - does NOT block UI rendering
       const syncGithub = async () => {
         try {
-          console.log("Starting background GitHub sync...");
           const res = await fetch(getApiUrl("/api/user/sync-github"), {
             method: "POST",
             credentials: "include",
@@ -43,12 +42,10 @@ const AppContents = () => {
 
           if (res.ok) {
             console.log("Background GitHub sync completed successfully");
-          } else {
-            const errorData = await res.json().catch(() => ({}));
-            console.warn("Background sync returned non-OK status:", res.status, errorData);
           }
         } catch (err) {
-          console.error("Background sync failed:", err);
+          // Silent fail - sync is not critical for page load
+          console.debug("Background sync skipped:", err);
         }
       };
 
