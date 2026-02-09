@@ -30,7 +30,7 @@ export default defineConfig(({ mode }) => ({
         name: 'Forever Green - Evergreeners',
         short_name: 'Evergreeners',
         description: 'Track your GitHub activity, complete quests, and maintain your coding streak',
-        theme_color: '#10b981',
+        theme_color: '#000000',
         background_color: '#000000',
         display: 'standalone',
         orientation: 'portrait',
