@@ -56,24 +56,11 @@ export default defineConfig(({ mode }) => ({
             purpose: 'maskable'
           }
         ],
-        categories: ['productivity', 'developer tools', 'education'],
-        screenshots: [
-          {
-            src: '/screenshot-desktop.png',
-            sizes: '1920x1080',
-            type: 'image/png',
-            form_factor: 'wide'
-          },
-          {
-            src: '/screenshot-mobile.png',
-            sizes: '750x1334',
-            type: 'image/png',
-            form_factor: 'narrow'
-          }
-        ]
+        categories: ['productivity', 'developer tools', 'education']
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MB
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/api\.github\.com\/.*/i,
