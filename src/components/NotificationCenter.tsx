@@ -158,7 +158,7 @@ export function NotificationCenter() {
                 sideOffset={16}
             >
                 {/* Arrow pointer to bell icon */}
-                <div className="absolute -top-[18px] right-4 w-5 h-5 rotate-45 bg-black border-l-2 border-t-2 border-green-500/40" />
+                <div className="absolute -top-[18px] right-2 w-5 h-5 rotate-45 bg-black border-l-2 border-t-2 border-green-500/40" />
 
                 <div className="flex items-center justify-between p-4 border-b border-primary/5 bg-gradient-to-r from-primary/3 to-transparent backdrop-blur-sm relative">
                     <h3 className="font-semibold">Notifications</h3>
