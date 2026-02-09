@@ -42,9 +42,12 @@ export default function Analytics() {
       const data = await res.json();
       return data.user;
     },
-    staleTime: 1000 * 60 * 5, // 5 minutes fresh
+    staleTime: 5 * 60 * 1000, // 5 minutes
     refetchOnWindowFocus: true,
   });
+
+  // Only show fullscreen loader if no data at all (first visit before prefetch)
+  const shouldShowLoader = isLoading && !user;
 
   // Process Data with useMemo
   const { stats, monthlyData, weeklyCommits, languageData, activityData, insights } = useMemo(() => {
@@ -192,7 +195,7 @@ export default function Analytics() {
     };
   }, [user, timeRange]);
 
-  if (isLoading) {
+  if (shouldShowLoader) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
         <Loader />

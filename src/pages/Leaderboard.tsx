@@ -44,7 +44,7 @@ export default function Leaderboard() {
   const { data: session } = useSession();
   const user = session?.user as unknown as AuthUser;
 
-  const { data: leaderboardData, isLoading } = useQuery({
+  const { data: leaderboardData, isLoading, isFetching } = useQuery({
     queryKey: ["leaderboard"],
     queryFn: async () => {
       const res = await fetch(getApiUrl("/api/leaderboard"));
@@ -52,13 +52,18 @@ export default function Leaderboard() {
       const data = await res.json();
       return data.leaderboard.map((entry: any) => ({
         ...entry,
-        // Mock previous rank for now as we don't track history yet
         previousRank: entry.rank,
-        // Ensure avatar fallback if null is handled in UI, or set default here
         avatar: entry.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(entry.username)}&background=random`
       })) as LeaderboardEntry[];
-    }
+    },
+    // Data is prefetched on login, so it should be available immediately
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
+
+  // Only show loading if we don't have any data at all (first load before prefetch)
+  // If we have cached data, show it while refetching in background
+  const shouldShowLoader = isLoading && !leaderboardData;
+
 
   // Determine current user from the fetched leaderboard or session
   const currentUserEntry = leaderboardData?.find(e =>
@@ -128,7 +133,7 @@ export default function Leaderboard() {
           <p className="text-muted-foreground mt-1">Top developers by consistency</p>
         </section>
 
-        {isLoading ? (
+        {shouldShowLoader ? (
           <div className="flex flex-col items-center justify-center py-20 gap-4">
             <Loader />
             <p className="text-muted-foreground animate-pulse">Loading leaderboard...</p>

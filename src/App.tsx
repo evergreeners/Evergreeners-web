@@ -20,11 +20,29 @@ import ProtectedRoute from "./components/ProtectedRoute";
 
 import { useEffect } from "react";
 import { getApiUrl } from "@/lib/api-config";
+import { usePrefetchAppData } from "@/hooks/usePrefetchAppData";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Keep data fresh for 5 minutes
+      staleTime: 5 * 60 * 1000,
+      // Cache data for 10 minutes  
+      gcTime: 10 * 60 * 1000,
+      // Retry failed requests
+      retry: 1,
+      // Prefetch on window focus
+      refetchOnWindowFocus: true,
+    },
+  },
+});
 
 const AppContents = () => {
   const { data: session } = useSession();
+
+  // Prefetch all app data immediately when user logs in
+  usePrefetchAppData(session?.session?.token);
+
 
   // Background sync effect - runs silently after login without blocking UI
   useEffect(() => {
