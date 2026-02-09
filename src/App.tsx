@@ -17,6 +17,7 @@ import Leaderboard from "./pages/Leaderboard";
 import NotFound from "./pages/NotFound";
 import ScrollToTop from "./components/ScrollToTop";
 import ProtectedRoute from "./components/ProtectedRoute";
+import { PWAInstallPrompt } from "./components/PWAInstallPrompt";
 
 import { useEffect } from "react";
 import { getApiUrl } from "@/lib/api-config";
@@ -101,6 +102,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
+      <PWAInstallPrompt />
       <AppContents />
     </TooltipProvider>
   </QueryClientProvider>
