@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Bell, CheckCheck, X, ExternalLink } from "lucide-react";
+import { Bell, CheckCheck, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
     Popover,
@@ -152,14 +152,17 @@ export function NotificationCenter() {
                     )}
                 </button>
             </PopoverTrigger>
-            <PopoverContent className="w-80 p-0" align="end">
-                <div className="flex items-center justify-between p-4 border-b border-border">
+            <PopoverContent
+                className="w-80 p-0 bg-background/30 backdrop-blur-2xl border-primary/10 shadow-2xl"
+                align="end"
+            >
+                <div className="flex items-center justify-between p-4 border-b border-primary/5 bg-gradient-to-r from-primary/3 to-transparent backdrop-blur-sm">
                     <h3 className="font-semibold">Notifications</h3>
                     {unreadCount > 0 && (
                         <Button
                             variant="ghost"
                             size="sm"
-                            className="h-auto p-1 text-xs"
+                            className="h-auto p-1 text-xs hover:bg-primary/5"
                             onClick={() => markAllAsRead.mutate()}
                             disabled={markAllAsRead.isPending}
                         >
@@ -190,14 +193,14 @@ export function NotificationCenter() {
                             <p className="text-xs text-muted-foreground">You're all caught up!</p>
                         </div>
                     ) : (
-                        <div className="divide-y divide-border">
+                        <div className="divide-y divide-primary/5">
                             {notifications.map((notification) => (
                                 <button
                                     key={notification.id}
                                     onClick={() => handleNotificationClick(notification)}
                                     className={cn(
-                                        "w-full p-4 text-left transition-colors hover:bg-secondary/50",
-                                        !notification.read && "bg-primary/5"
+                                        "w-full p-4 text-left transition-all duration-200 hover:bg-primary/5 backdrop-blur-sm",
+                                        !notification.read && "bg-primary/3 border-l-2 border-primary/50"
                                     )}
                                 >
                                     <div className="flex gap-3">
@@ -213,7 +216,7 @@ export function NotificationCenter() {
                                                     {notification.title}
                                                 </p>
                                                 {!notification.read && (
-                                                    <span className="w-2 h-2 bg-primary rounded-full flex-shrink-0 mt-1" />
+                                                    <span className="w-2 h-2 bg-primary rounded-full flex-shrink-0 mt-1 animate-pulse-slow" />
                                                 )}
                                             </div>
                                             <p className="text-xs text-muted-foreground line-clamp-2 mb-1">
@@ -236,10 +239,10 @@ export function NotificationCenter() {
                 </ScrollArea>
 
                 {notifications.length > 0 && (
-                    <div className="p-2 border-t border-border">
+                    <div className="p-2 border-t border-primary/5 bg-gradient-to-r from-transparent to-primary/3 backdrop-blur-sm">
                         <Button
                             variant="ghost"
-                            className="w-full text-xs"
+                            className="w-full text-xs hover:bg-primary/5"
                             onClick={() => {
                                 setOpen(false);
                                 navigate('/profile#notifications');
