@@ -8,6 +8,7 @@
   <meta name="description" content="Turn your daily workflow into a visual legacy." />
   <meta name="author" content="Evergreeners" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <meta name="theme-color" content="#000000" />
 
   <meta property="og:title" content="Evergreeners" />
   <meta property="og:description" content="Turn your daily workflow into a visual legacy." />
@@ -24,14 +25,15 @@
       --primary-green: #22c55e;
       --bg-dark: #000000;
     }
-    
-    html, body {
+
+    html,
+    body {
       margin: 0;
       padding: 0;
       background-color: var(--bg-dark);
       min-height: 100vh;
     }
-    
+
     /* Initial loading screen shown before React hydrates */
     #initial-loader {
       position: fixed;
@@ -44,27 +46,27 @@
       z-index: 9999;
       transition: opacity 0.3s ease-out, visibility 0.3s ease-out;
     }
-    
+
     #initial-loader.hidden {
       opacity: 0;
       visibility: hidden;
       pointer-events: none;
     }
-    
+
     .initial-loader-content {
       display: flex;
       flex-direction: column;
       align-items: center;
       gap: 24px;
     }
-    
+
     /* Animated logo/brand mark */
     .loader-logo {
       width: 48px;
       height: 48px;
       position: relative;
     }
-    
+
     .loader-ring {
       position: absolute;
       inset: 0;
@@ -73,19 +75,19 @@
       border-radius: 50%;
       animation: spin 1s cubic-bezier(0.5, 0, 0.5, 1) infinite;
     }
-    
+
     .loader-ring:nth-child(2) {
       inset: 6px;
       animation-delay: -0.15s;
       border-top-color: rgba(34, 197, 94, 0.7);
     }
-    
+
     .loader-ring:nth-child(3) {
       inset: 12px;
       animation-delay: -0.3s;
       border-top-color: rgba(34, 197, 94, 0.4);
     }
-    
+
     /* Subtle pulsing dot in center */
     .loader-dot {
       position: absolute;
@@ -98,7 +100,7 @@
       border-radius: 50%;
       animation: pulse 1.5s ease-in-out infinite;
     }
-    
+
     /* Brand name */
     .loader-brand {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -108,15 +110,29 @@
       color: rgba(255, 255, 255, 0.6);
       text-transform: uppercase;
     }
-    
+
     @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
     }
-    
+
     @keyframes pulse {
-      0%, 100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-      50% { opacity: 0.5; transform: translate(-50%, -50%) scale(0.8); }
+
+      0%,
+      100% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+      }
+
+      50% {
+        opacity: 0.5;
+        transform: translate(-50%, -50%) scale(0.8);
+      }
     }
   </style>
 </head>
@@ -134,7 +150,7 @@
       <span class="loader-brand">Evergreeners</span>
     </div>
   </div>
-  
+
   <div id="root"></div>
   <script type="module" src="/src/main.tsx"></script>
 </body>

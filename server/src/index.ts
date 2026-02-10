@@ -865,6 +865,15 @@ server.register(async (instance) => {
             return reply.status(500).send({ message: "Failed to delete goal" });
         }
     });
+
+    // GET /api/notifications (Placeholder)
+    instance.get('/api/notifications', async (req, reply) => {
+        const session = await getSessionFromRequest(req);
+        if (!session) return reply.status(401).send({ message: "Unauthorized" });
+
+        // For now, return empty array to silence 404s
+        return { notifications: [] };
+    });
 });
 
 server.get('/', async (request, reply) => {
