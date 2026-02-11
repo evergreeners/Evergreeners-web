@@ -17,6 +17,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const navItems = [
   { icon: Home, label: "Home", href: "/dashboard" },
@@ -31,6 +39,7 @@ export function Header() {
   const location = useLocation();
   const currentPath = location.pathname;
   const { data: session } = useSession();
+  const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 px-4 md:px-0">
@@ -70,41 +79,65 @@ export function Header() {
             {/* Notifications */}
             <NotificationCenter />
 
-            {/* Settings - desktop */}
-            <button
-              className={cn(
-                "p-2 rounded-lg transition-all duration-200 hidden sm:flex",
-                currentPath === "/settings"
-                  ? "text-primary bg-secondary/50"
-                  : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-              )}
-              onClick={() => navigate('/settings')}
-            >
-              <Settings className={cn("w-4 h-4", currentPath === "/settings" && "stroke-[2.5px]")} />
-            </button>
-
-            {/* Profile Avatar */}
-            <Link
-              to="/profile"
-              onClick={() => triggerHaptic()}
-              className="ml-2 w-8 h-8 rounded-full bg-secondary border border-primary overflow-hidden hover:border-primary transition-colors"
-            >
-              <img
-                src={session?.user?.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(session?.user?.name || "User")}&background=random`}
-                alt="User"
-                className="w-full h-full object-cover"
-              />
-            </Link>
-
-            {/* Logout - desktop */}
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
+            {/* Profile Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
                 <button
-                  className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all duration-200 hidden sm:flex"
+                  onClick={() => triggerHaptic()}
+                  className="ml-2 w-8 h-8 rounded-full bg-secondary border border-primary overflow-hidden hover:border-primary transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50"
                 >
-                  <LogOut className="w-4 h-4" />
+                  <img
+                    src={session?.user?.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(session?.user?.name || "User")}&background=random`}
+                    alt="User"
+                    className="w-full h-full object-cover"
+                  />
                 </button>
-              </AlertDialogTrigger>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56 bg-background border-border">
+                <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => navigate('/profile')}>
+                  <span className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-secondary overflow-hidden">
+                      <img
+                        src={session?.user?.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(session?.user?.name || "User")}&background=random`}
+                        alt="User"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <span>Profile</span>
+                  </span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate('/settings')}>
+                  <Settings className="w-4 h-4 mr-2" />
+                  <span>Settings</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+
+                {/* Logout with Alert Dialog Trigger logic needs to be handled carefully inside Dropdown */}
+                {/* Since nesting Dialog trigger inside MenuItem can be tricky, we can use a state or handle it via a separate hidden trigger or just simpler confirm */}
+                {/* For better UX inside dropdown, standard logout is often direct or uses a state-driven dialog. 
+                    Let's use the AlertDialog separately controlled by state? 
+                    Actually, we can put the Trigger inside the Item with `asChild` but styling can be odd.
+                    Let's just toggle a state or use the existing AlertDialog but separate from the dropdown trigger.
+                */}
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                  onSelect={(e) => {
+                    e.preventDefault(); // Prevent dropdown from closing immediately if we were triggering a dialog, 
+                    // but here we want to trigger the alert dialog.
+                    // Simplest way: set open state for alert dialog.
+                    setLogoutDialogOpen(true);
+                  }}
+                >
+                  <LogOut className="w-4 h-4 mr-2" />
+                  <span>Log Out</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Hidden Logout Alert Dialog (Controlled) */}
+            <AlertDialog open={logoutDialogOpen} onOpenChange={setLogoutDialogOpen}>
               <AlertDialogContent className="bg-background border-border">
                 <AlertDialogHeader>
                   <AlertDialogTitle>Are you sure?</AlertDialogTitle>
