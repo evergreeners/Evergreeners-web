@@ -12,6 +12,17 @@ import { getApiUrl } from "@/lib/api-config";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { signOut, authClient, useSession } from "@/lib/auth-client";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 // ... (existing helper function/interface code)
 
@@ -247,6 +258,47 @@ export default function Settings() {
                   </div>
                   <ChevronRight className="w-5 h-5 text-muted-foreground" />
                 </button>
+
+                {/* Log Out */}
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <button
+                      className="w-full flex items-center justify-between p-4 bg-secondary/30 hover:bg-destructive/10 transition-colors group"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-secondary group-hover:bg-destructive/20 flex items-center justify-center transition-colors">
+                          <LogOut className="w-5 h-5 text-muted-foreground group-hover:text-destructive transition-colors" />
+                        </div>
+                        <div className="text-left">
+                          <p className="font-medium group-hover:text-destructive transition-colors">Log Out</p>
+                          <p className="text-sm text-muted-foreground group-hover:text-destructive/80 transition-colors">Sign out of your account</p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-destructive transition-colors" />
+                    </button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent className="bg-background border-border">
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Log Out</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to sign out? You will need to sign in again to access your account.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={async () => {
+                          await signOut();
+                          localStorage.setItem("logout_success", "true");
+                          window.location.href = "/";
+                        }}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Log Out
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             </Section>
 

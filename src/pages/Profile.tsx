@@ -263,7 +263,7 @@ export default function Profile() {
       <main className="container pt-24 pb-32 md:pb-12 space-y-8">
         {/* Profile Header */}
         <section className="animate-fade-in">
-          <div className="flex flex-col sm:flex-row items-start gap-6">
+          <div className="flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-6">
             {/* Avatar */}
             <div className="relative group">
               <div className="w-24 h-24 rounded-2xl bg-secondary border border-border overflow-hidden">
@@ -282,13 +282,14 @@ export default function Profile() {
             </div>
 
             {/* Info */}
-            <div className="flex-1">
-              <div className="flex items-start justify-between">
-                <div>
+            {/* Info */}
+            <div className="flex-1 w-full">
+              <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-4 sm:gap-0">
+                <div className="text-center sm:text-left">
                   <h1 className="text-2xl font-bold">{profile.name}</h1>
                   <p className="text-muted-foreground">{isPublic ? `@${profile.username}` : `(Private • Playing as ${profile.anonymousName || "..."})`}</p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-center gap-2">
                   <button
                     className="p-2 rounded-xl border border-border hover:bg-secondary transition-colors"
                     onClick={() => setIsEditing(true)}
@@ -304,9 +305,9 @@ export default function Profile() {
                 </div>
               </div>
 
-              <p className="text-sm text-muted-foreground mt-3 max-w-md">{profile.bio}</p>
+              <p className="text-sm text-muted-foreground mt-3 max-w-md text-center sm:text-left mx-auto sm:mx-0">{profile.bio}</p>
 
-              <div className="flex flex-wrap gap-4 mt-4 text-sm text-muted-foreground">
+              <div className="flex flex-wrap justify-center sm:justify-start gap-4 mt-4 text-sm text-muted-foreground">
                 <span className="flex items-center gap-1">
                   <MapPin className="w-4 h-4" /> {profile.location}
                 </span>
