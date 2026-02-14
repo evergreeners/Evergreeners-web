@@ -25,7 +25,7 @@ export default defineConfig(({ mode }) => ({
     mode === "development" && componentTagger(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'robots.txt', 'icon.png'],
+      includeAssets: ['favicon.png', 'favicon.ico', 'robots.txt', 'icon.png'],
       manifest: {
         name: 'Evergreeners',
         short_name: 'Evergreeners',
