@@ -12,7 +12,7 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { TrendingUp, TrendingDown, Calendar, GitCommit, GitPullRequest, Clock, Info } from "lucide-react";
-import { authClient } from "@/lib/auth-client";
+import { authClient, useSession } from "@/lib/auth-client";
 import { format, subMonths, startOfMonth, parseISO, getDay } from "date-fns";
 import { getApiUrl } from "@/lib/api-config";
 import {
@@ -27,15 +27,14 @@ type TimeRange = "week" | "month" | "year";
 export default function Analytics() {
   const [timeRange, setTimeRange] = useState<TimeRange>("month");
 
+  const { data: session, isPending: isSessionLoading } = useSession();
+
   // Fetch User Profile using React Query
   const { data: user, isLoading } = useQuery({
     queryKey: ['userProfile'],
     queryFn: async () => {
-      const session = await authClient.getSession();
-      if (!session.data?.session) throw new Error("No session");
       const url = getApiUrl("/api/user/profile");
       const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${session.data.session.token}` },
         credentials: "include"
       });
       if (!res.ok) throw new Error("Failed to fetch profile");
@@ -44,10 +43,11 @@ export default function Analytics() {
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
     refetchOnWindowFocus: true,
+    enabled: !!session?.session,
   });
 
   // Only show fullscreen loader if no data at all (first visit before prefetch)
-  const shouldShowLoader = isLoading && !user;
+  const shouldShowLoader = (isLoading || isSessionLoading) && !user;
 
   // Process Data with useMemo
   const { stats, monthlyData, weeklyCommits, languageData, activityData, insights } = useMemo(() => {
