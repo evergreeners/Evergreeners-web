@@ -41,7 +41,8 @@ export function usePrefetchAppData(token: string | undefined) {
                             }
                         });
                         if (!res.ok) throw new Error('Failed to fetch profile');
-                        return res.json();
+                        const data = await res.json();
+                        return data.user;
                     },
                     staleTime: 5 * 60 * 1000,
                 });
@@ -78,20 +79,7 @@ export function usePrefetchAppData(token: string | undefined) {
                     staleTime: 2 * 60 * 1000, // 2 minutes (quests change more frequently)
                 });
 
-                // Prefetch analytics/stats data if you have it
-                await queryClient.prefetchQuery({
-                    queryKey: ['userStats'],
-                    queryFn: async () => {
-                        const res = await fetch(getApiUrl('/api/user/stats'), {
-                            headers: {
-                                Authorization: `Bearer ${token}`
-                            }
-                        });
-                        if (!res.ok) throw new Error('Failed to fetch stats');
-                        return res.json();
-                    },
-                    staleTime: 5 * 60 * 1000,
-                });
+
 
                 // Prefetch notifications for instant badge count
                 await queryClient.prefetchQuery({
