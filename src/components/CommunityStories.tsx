@@ -11,7 +11,7 @@ interface StoryProps {
 
 const stories: StoryProps[] = [
     {
-m        name: "Nasir Ibrahim Imam",
+name: "Nasir Ibrahim Imam",
         role: "software developer",
         quote: "I used to code in bursts and burn out. Evergreeners helped me pace myself. Now I've coded for 100 days straight.",
         // Will be loaded asynchronously
