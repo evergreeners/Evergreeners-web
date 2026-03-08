@@ -11,22 +11,22 @@ interface StoryProps {
 
 const stories: StoryProps[] = [
     {
-        name: "Sarah J.",
-        role: "Senior Engineer",
-        quote: "I used to code in bursts and burn out. Evergreeners helped me pace myself. Now I've coded for 300 days straight.",
+m        name: "Nasir Ibrahim Imam",
+        role: "software developer",
+        quote: "I used to code in bursts and burn out. Evergreeners helped me pace myself. Now I've coded for 100 days straight.",
         // Will be loaded asynchronously
         image: "",
     },
     {
-        name: "Marcus Chen",
-        role: "Indie Hacker",
+        name: "Muhammad Adamu Aliyu",
+        role: "founder evergreeners",
         quote: "The GitHub sync is magic. It just works. Seeing that green graph fill up is the best dopamine hit.",
         image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=2787&auto=format&fit=crop",
     },
     {
-        name: "Alex Rivera",
-        role: "CTO @ Startup",
-        quote: "Leaderboards made it a game for our whole team. Productivity is up 40% since we started tracking.",
+        name: "Abdulmumini Muhammad Bello",
+        role: "founder",
+        quote: "Leaderboards made it a game for our whole team. Productivity is up 70% since we started tracking.",
         image: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=2787&auto=format&fit=crop",
     }
 ];
