@@ -23,7 +23,46 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { githubService } from "@/lib/githubService";
+
+const LANGUAGE_COLORS: Record<string, string> = {
+  JavaScript: "#f1e05a",
+  TypeScript: "#3178c6",
+  Python: "#3572A5",
+  Java: "#b07219",
+  "C++": "#f34b7d",
+  C: "#555555",
+  "C#": "#178600",
+  Ruby: "#701516",
+  Go: "#00ADD8",
+  Rust: "#dea584",
+  PHP: "#4F5D95",
+  HTML: "#e34c26",
+  CSS: "#563d7c",
+  Vue: "#41b883",
+  Svelte: "#ff3e00",
+  Dart: "#00B4AB",
+  Swift: "#F05138",
+  Kotlin: "#A97BFF",
+  Shell: "#89e051",
+  Jupyter: "#DA5B0B",
+  "Jupyter Notebook": "#DA5B0B",
+  Lua: "#000080",
+  Elixir: "#6e4a7e",
+  Haskell: "#5e5086",
+  Scala: "#c22d40",
+  Clojure: "#db5855"
+};
+
+const getLanguageColor = (lang: string) => LANGUAGE_COLORS[lang] || "#8b949e";
 
 type TimeRange = "week" | "month" | "year";
 
@@ -33,6 +72,8 @@ export default function Analytics() {
 
   const [repos, setRepos] = useState<any[]>([]);
   const [isLoadingRepos, setIsLoadingRepos] = useState(false);
+  const [repoSort, setRepoSort] = useState<"all" | "stars" | "forks" | "name">("all");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const { data: session, isPending: isSessionLoading } = useSession();
   const navigate = useNavigate();
@@ -66,6 +107,20 @@ export default function Analytics() {
     refetchOnWindowFocus: true,
     enabled: !!session?.session,
   });
+
+  const sortedRepos = useMemo(() => {
+    const filteredRepos = repos.filter(repo => 
+      repo.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      (repo.description && repo.description.toLowerCase().includes(searchQuery.toLowerCase()))
+    );
+
+    return filteredRepos.sort((a, b) => {
+      if (repoSort === "stars") return (b.stargazers_count || 0) - (a.stargazers_count || 0);
+      if (repoSort === "forks") return (b.forks_count || 0) - (a.forks_count || 0);
+      if (repoSort === "name") return (a.name || "").localeCompare(b.name || "");
+      return 0;
+    });
+  }, [repos, repoSort, searchQuery]);
 
   // Only show fullscreen loader if no data at all (first visit before prefetch)
   const shouldShowLoader = (isLoading || isSessionLoading) && !user;
@@ -221,12 +276,6 @@ export default function Analytics() {
       <div className="min-h-screen bg-background custom-scrollbar">
         <Header />
         <main className="container pt-24 pb-32 md:pb-12 space-y-8">
-          {/* Page Header Skeleton */}
-          <section className="animate-fade-in">
-            <Skeleton className="h-10 w-48 mb-2" />
-            <Skeleton className="h-4 w-64" />
-          </section>
-
           {/* Time Range Skeleton */}
           <div className="flex gap-2 animate-fade-up" style={{ animationDelay: "0.05s" }}>
             {[1, 2, 3].map((i) => (
@@ -282,18 +331,12 @@ export default function Analytics() {
       <Header />
 
       <main className="container pt-24 pb-32 md:pb-12 space-y-8">
-        {/* Page Header */}
-        <section className="animate-fade-in">
-          <h1 className="text-3xl font-bold text-gradient">Analytics</h1>
-          <p className="text-muted-foreground mt-1">Deep dive into your coding patterns</p>
-        </section>
-
         {/* Tabs for Overview / Repositories */}
         <Tabs defaultValue="overview" className="space-y-8" value={activeTab} onValueChange={setActiveTab}>
           <div className="flex justify-between items-center sm:flex-row flex-col gap-4 animate-fade-up" style={{ animationDelay: "0.05s" }}>
-            <TabsList className="bg-secondary/50 p-1">
-              <TabsTrigger value="overview" className="px-6 rounded-md">Overview</TabsTrigger>
-              <TabsTrigger value="repositories" className="px-6 rounded-md">Repositories</TabsTrigger>
+            <TabsList className="bg-secondary/30 p-1.5 rounded-xl w-full sm:w-auto shadow-sm border border-border/40">
+              <TabsTrigger value="overview" className="border border-transparent px-8 py-2.5 rounded-xl text-base font-medium flex-1 sm:flex-none transition-all duration-300 data-[state=active]:glass-nav data-[state=active]:border-primary/20 data-[state=active]:bg-primary/10 data-[state=active]:text-foreground data-[state=active]:shadow-none hover:bg-secondary/50 data-[state=active]:hover:bg-primary/10 data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground">Overview</TabsTrigger>
+              <TabsTrigger value="repositories" className="border border-transparent px-8 py-2.5 rounded-xl text-base font-medium flex-1 sm:flex-none transition-all duration-300 data-[state=active]:glass-nav data-[state=active]:border-primary/20 data-[state=active]:bg-primary/10 data-[state=active]:text-foreground data-[state=active]:shadow-none hover:bg-secondary/50 data-[state=active]:hover:bg-primary/10 data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground">Repositories</TabsTrigger>
             </TabsList>
 
             {activeTab === "overview" && (
@@ -303,10 +346,10 @@ export default function Analytics() {
                     key={range}
                     onClick={() => setTimeRange(range)}
                     className={cn(
-                      "px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-300",
+                      "px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-300 border",
                       timeRange === range
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary"
+                        ? "glass-nav bg-primary/10 border-primary/20 text-foreground"
+                        : "border-transparent bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary"
                     )}
                   >
                     {range.charAt(0).toUpperCase() + range.slice(1)}
@@ -474,36 +517,65 @@ export default function Analytics() {
           </TabsContent>
 
           <TabsContent value="repositories" className="space-y-6 animate-fade-in mt-0 outline-none">
+            {!isLoadingRepos && repos.length > 0 && (
+              <div className="flex flex-col sm:flex-row justify-between gap-4 items-center w-full">
+                <div className="relative w-full sm:max-w-xs">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder="Search repositories..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9 bg-secondary/40 border-border/40 focus-visible:ring-primary h-10"
+                  />
+                </div>
+                <div className="flex justify-end gap-3 items-center w-full sm:w-auto">
+                  <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">Sort By:</span>
+                  <Select value={repoSort} onValueChange={(v: any) => setRepoSort(v)}>
+                    <SelectTrigger className="w-full sm:w-[150px] bg-secondary/40 border-border/40 focus:ring-primary focus:border-primary h-10">
+                      <SelectValue placeholder="Sort repos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="stars">Stars</SelectItem>
+                      <SelectItem value="forks">Forks</SelectItem>
+                      <SelectItem value="name">Name</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+
             {isLoadingRepos ? (
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full">
                 {[1, 2, 3, 4, 5, 6].map(i => (
-                  <Skeleton key={i} className="h-32 w-full rounded-xl" />
+                  <Skeleton key={i} className="h-32 w-full min-w-0 rounded-xl" />
                 ))}
               </div>
-            ) : repos.length > 0 ? (
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {repos.map((repo) => (
-                  <div key={repo.id} className="p-5 rounded-xl border border-border bg-secondary/20 hover:bg-secondary/40 transition-all group flex flex-col justify-between h-full">
-                    <div>
-                      <div className="flex justify-between items-start mb-2">
-                        <h3 className="font-bold text-lg truncate pr-2 group-hover:text-primary transition-colors flex items-center gap-2">
-                          <GitBranch className="w-4 h-4 text-muted-foreground group-hover:text-primary" />
-                          {repo.name}
+            ) : sortedRepos.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full">
+                {sortedRepos.map((repo) => (
+                  <div key={repo.id} className="p-5 flex flex-col justify-between rounded-xl border border-border bg-secondary/20 hover:bg-secondary/40 transition-all group min-w-0 h-full w-full">
+                    <div className="min-w-0 w-full">
+                      <div className="flex justify-between items-start mb-2 gap-3 min-w-0 w-full">
+                        <h3 className="font-bold text-lg group-hover:text-primary transition-colors flex items-center gap-2 min-w-0 flex-1">
+                          <GitBranch className="w-4 h-4 shrink-0 text-muted-foreground group-hover:text-primary" />
+                          <span className="truncate">{repo.name}</span>
                         </h3>
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground bg-secondary/50 px-2 py-0.5 rounded-full border border-border">
+                        <div className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground bg-secondary/50 px-2 py-0.5 rounded-full border border-border">
                           <Star className="w-3 h-3 text-yellow-500" />
                           {repo.stargazers_count}
                         </div>
                       </div>
-                      <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
+                      <p className="text-sm text-muted-foreground line-clamp-2 mb-4 break-words">
                         {repo.description || "No description provided."}
                       </p>
                     </div>
-                    <div className="flex items-center justify-between mt-auto pt-4 border-t border-border/50">
-                      <div className="flex items-center gap-3">
+                    <div className="flex items-center justify-between mt-auto pt-4 border-t border-border/50 gap-2 flex-wrap min-w-0">
+                      <div className="flex items-center gap-3 shrink-0">
                         {repo.language && (
                           <span className="text-xs flex items-center gap-1.5 font-medium">
-                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: 'hsl(142, 71%, 45%)' }} />
+                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: getLanguageColor(repo.language) }} />
                             {repo.language}
                           </span>
                         )}
@@ -521,6 +593,12 @@ export default function Analytics() {
                     </div>
                   </div>
                 ))}
+              </div>
+            ) : sortedRepos.length === 0 && searchQuery ? (
+              <div className="p-12 text-center bg-secondary/10 border border-border rounded-xl">
+                <Search className="w-12 h-12 text-muted-foreground mx-auto mb-3 opacity-50" />
+                <h3 className="text-lg font-bold mb-1">No matches found</h3>
+                <p className="text-sm text-muted-foreground">We couldn't find any repositories matching "{searchQuery}".</p>
               </div>
             ) : (
               <div className="p-12 text-center bg-secondary/10 border border-border rounded-xl">
