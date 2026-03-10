@@ -120,6 +120,7 @@ export const quests = mySchema.table('quests', {
     tags: jsonb('tags').$type<string[]>(),
     difficulty: text('difficulty').notNull(),
     points: integer('points').default(10),
+    isOpenQuest: boolean('is_open_quest').default(false),
     createdBy: text('created_by'),
     createdAt: timestamp('created_at').defaultNow(),
     updatedAt: timestamp('updated_at').defaultNow(),

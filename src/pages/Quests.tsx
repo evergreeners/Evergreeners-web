@@ -28,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
     Drawer,
@@ -64,6 +65,7 @@ interface Quest {
     points: number;
     status: "available" | "active" | "completed"; // Legacy field from backend map, but we use myStatus now
     forkUrl?: string;
+    isOpenQuest: boolean;
 
     // New fields
     createdBy: string;
@@ -91,6 +93,7 @@ export default function Quests() {
     const [newQuestRepo, setNewQuestRepo] = useState("");
     const [newQuestTags, setNewQuestTags] = useState("");
     const [newQuestDiff, setNewQuestDiff] = useState<string>("Easy");
+    const [newQuestIsOpen, setNewQuestIsOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     
     const isMobile = useIsMobile();
@@ -250,7 +253,8 @@ export default function Quests() {
                     repoUrl: newQuestRepo,
                     difficulty: newQuestDiff,
                     tags: tags,
-                    points: newQuestDiff === 'Easy' ? 10 : newQuestDiff === 'Medium' ? 30 : 50
+                    points: newQuestDiff === 'Easy' ? 10 : newQuestDiff === 'Medium' ? 30 : 50,
+                    isOpenQuest: newQuestIsOpen
                 }),
                 credentials: "include"
             });
@@ -266,6 +270,7 @@ export default function Quests() {
             setNewQuestDesc("");
             setNewQuestRepo("");
             setNewQuestTags("");
+            setNewQuestIsOpen(false);
             refetchQuests(); // Refresh list
 
         } catch (error: any) {
@@ -370,6 +375,21 @@ export default function Quests() {
                         value={newQuestTags}
                         onChange={e => setNewQuestTags(e.target.value)}
                     />
+                </div>
+            </div>
+            <div className="flex items-center space-x-2 py-2">
+                <Switch 
+                    id="open-quest" 
+                    checked={newQuestIsOpen} 
+                    onCheckedChange={setNewQuestIsOpen} 
+                />
+                <div className="grid gap-1.5 leading-none">
+                    <Label htmlFor="open-quest" className="font-medium">
+                        Open Quest
+                    </Label>
+                    <p className="text-sm text-muted-foreground">
+                        Allow multiple people to accept this quest simultaneously.
+                    </p>
                 </div>
             </div>
             <Button type="submit" variant="outline" className="w-full glass-nav bg-primary/10 border-primary/20 text-foreground hover:bg-primary/20 hover:text-foreground transition-all duration-300" disabled={isSubmitting}>
@@ -481,9 +501,16 @@ export default function Quests() {
                                         <Card key={quest.id} className="bg-card/30 backdrop-blur-sm border-border hover:border-primary/50 transition-all duration-300 flex flex-col group relative">
                                             <CardHeader>
                                                 <div className="flex justify-between items-start">
-                                                    <Badge variant="outline" className={cn("mb-2", getDifficultyColor(quest.difficulty))}>
-                                                        {quest.difficulty}
-                                                    </Badge>
+                                                    <div className="flex gap-2 mb-2 flex-wrap">
+                                                        <Badge variant="outline" className={getDifficultyColor(quest.difficulty)}>
+                                                            {quest.difficulty}
+                                                        </Badge>
+                                                        {quest.isOpenQuest && (
+                                                            <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20">
+                                                                Open Quest
+                                                            </Badge>
+                                                        )}
+                                                    </div>
                                                     <div className="flex items-center gap-1 text-yellow-500">
                                                         <Zap className="w-4 h-4 fill-current" />
                                                         <span className="font-bold">{quest.points} XP</span>
@@ -543,9 +570,16 @@ export default function Quests() {
                                         <Card key={quest.id} className="bg-secondary/10 border-border flex flex-col">
                                             <CardHeader>
                                                 <div className="flex justify-between items-start">
-                                                    <Badge variant="outline" className={cn("mb-2 opacity-50", getDifficultyColor(quest.difficulty))}>
-                                                        {quest.difficulty}
-                                                    </Badge>
+                                                    <div className="flex gap-2 mb-2 flex-wrap">
+                                                        <Badge variant="outline" className={cn("opacity-50", getDifficultyColor(quest.difficulty))}>
+                                                            {quest.difficulty}
+                                                        </Badge>
+                                                        {quest.isOpenQuest && (
+                                                            <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20">
+                                                                Open Quest
+                                                            </Badge>
+                                                        )}
+                                                    </div>
                                                     <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-500 border-none">
                                                         Taken
                                                     </Badge>

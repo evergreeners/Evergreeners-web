@@ -595,7 +595,7 @@ server.register(async (instance) => {
                     creatorName,
                     acceptedBy,
                     acceptedStatus, // 'active' or 'completed'
-                    isTaken: !!activeAssignment && activeAssignment.userId !== userId, // Taken by someone else
+                    isTaken: q.isOpenQuest ? false : (!!activeAssignment && activeAssignment.userId !== userId), // Taken by someone else (unless open)
                     myStatus: myStatus ? myStatus.status : null, // 'active', 'completed', or null
                     myProgress: myStatus ? {
                         startedAt: myStatus.startedAt,
@@ -644,7 +644,11 @@ server.register(async (instance) => {
                 if (existingActive[0].userId === userId) {
                     return { success: true, status: 'active' };
                 }
-                return reply.status(400).send({ message: "This quest is already taken by another adventurer." });
+                
+                // If it's not an Open Quest, block others from accepting it
+                if (!quest[0].isOpenQuest) {
+                    return reply.status(400).send({ message: "This quest is already taken by another adventurer." });
+                }
             }
 
             // Check if I completed it before? (Optional: allow re-run? assume no for now)
@@ -793,6 +797,7 @@ server.register(async (instance) => {
                 difficulty: body.difficulty,
                 tags: body.tags || [],
                 points: body.points || 10,
+                isOpenQuest: body.isOpenQuest || false,
                 createdBy: userId,
             }).returning();
 
