@@ -796,6 +796,41 @@ server.register(async (instance) => {
                 createdBy: userId,
             }).returning();
 
+            // Asynchronously dispatch notifications to all users if creator is public
+            (async () => {
+                try {
+                    const submitRows = await db.select().from(schema.users).where(eq(schema.users.id, userId)).limit(1);
+                    if (!submitRows.length || !submitRows[0].isPublic) return;
+
+                    const submitter = submitRows[0];
+                    const submitterName = submitter.name || submitter.username || submitter.anonymousName || "A user";
+                    const APP_URL = process.env.APP_URL || 'https://evergreeners.dev';
+                    const { sendNewQuestEmail } = await import('./lib/email.js');
+
+                    // Let's grab all users who haven't explicitly disabled emails
+                    // (Assuming defaults are stored as true or null if missing)
+                    const usersToNotify = await db.select().from(schema.users).where(eq(schema.users.emailNotifications, true));
+                    const githubAccounts = await db.select({ userId: schema.accounts.userId }).from(schema.accounts).where(eq(schema.accounts.providerId, 'github'));
+                    
+                    for (const user of usersToNotify) {
+                        if (user.id === userId || !user.email) continue;
+                        
+                        const hasGithub = githubAccounts.some(acc => acc.userId === user.id);
+
+                        sendNewQuestEmail({
+                            to: user.email,
+                            userName: user.name || user.username || "Evergreener",
+                            submitterName,
+                            questTitle: body.title,
+                            questUrl: `${APP_URL}/quests`,
+                            hasGithub
+                        }).catch(err => console.error(`Failed to email new quest to ${user.email}`, err));
+                    }
+                } catch (e) {
+                    console.error("Async new quest email dispatch error:", e);
+                }
+            })();
+
             return { quest: newQuest[0] };
         } catch (error) {
             console.error("Create quest error:", error);

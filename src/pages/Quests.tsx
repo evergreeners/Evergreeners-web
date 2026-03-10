@@ -28,6 +28,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useIsMobile } from "@/hooks/use-mobile";
+import {
+    Drawer,
+    DrawerContent,
+    DrawerDescription,
+    DrawerHeader,
+    DrawerTitle,
+    DrawerTrigger,
+} from "@/components/ui/drawer";
+import { githubService } from "@/lib/githubService";
 import { toast } from "sonner";
 import { authClient } from "@/lib/auth-client";
 import {
@@ -82,6 +92,26 @@ export default function Quests() {
     const [newQuestTags, setNewQuestTags] = useState("");
     const [newQuestDiff, setNewQuestDiff] = useState<string>("Easy");
     const [isSubmitting, setIsSubmitting] = useState(false);
+    
+    const isMobile = useIsMobile();
+    const [repos, setRepos] = useState<any[]>([]);
+    const [isLoadingRepos, setIsLoadingRepos] = useState(false);
+
+    useEffect(() => {
+        async function fetchRepos() {
+            if (!session?.session?.token) return;
+            setIsLoadingRepos(true);
+            try {
+                const data = await githubService.getUserRepos(session.session.token);
+                if (Array.isArray(data)) setRepos(data);
+            } catch (e) { 
+                console.error(e); 
+            } finally { 
+                setIsLoadingRepos(false); 
+            }
+        }
+        fetchRepos();
+    }, [session?.session?.token]);
 
     // Use React Query for quests with caching
     const { data: quests = [], isLoading } = useQuery({
@@ -268,6 +298,86 @@ export default function Quests() {
     // If someone else completed it, it shouldn't show in Available.
     const availableQuests = quests.filter(q => !q.isTaken && !q.myStatus);
 
+    const questFormContent = (
+        <form onSubmit={handleCreateQuest} className="space-y-4 pt-4">
+            <div className="space-y-2">
+                <Label htmlFor="title">Title</Label>
+                <Input
+                    id="title"
+                    placeholder="e.g. Fix button contrast in dark mode"
+                    value={newQuestTitle}
+                    onChange={e => setNewQuestTitle(e.target.value)}
+                    required
+                />
+            </div>
+            <div className="space-y-2">
+                <Label htmlFor="repo">Repository URL</Label>
+                <Select onValueChange={(val) => setNewQuestRepo(`https://github.com/${val}`)}>
+                    <SelectTrigger className="w-full">
+                        <SelectValue placeholder={isLoadingRepos ? "Loading your repos..." : "Select a repository"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {repos && repos.map((r: any) => (
+                            <SelectItem key={r.full_name} value={r.full_name}>
+                                {r.full_name}
+                            </SelectItem>
+                        ))}
+                        {(!repos || repos.length === 0) && !isLoadingRepos && (
+                            <SelectItem value="none" disabled>
+                                No repositories found.
+                            </SelectItem>
+                        )}
+                    </SelectContent>
+                </Select>
+                <div className="text-xs text-center text-muted-foreground my-1">- OR -</div>
+                <Input
+                    id="repo"
+                    placeholder="https://github.com/owner/repo"
+                    value={newQuestRepo}
+                    onChange={e => setNewQuestRepo(e.target.value)}
+                    required
+                />
+            </div>
+            <div className="space-y-2">
+                <Label htmlFor="desc">Description</Label>
+                <Textarea
+                    id="desc"
+                    placeholder="Describe the task..."
+                    value={newQuestDesc}
+                    onChange={e => setNewQuestDesc(e.target.value)}
+                    required
+                />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label htmlFor="diff">Difficulty</Label>
+                    <Select value={newQuestDiff} onValueChange={setNewQuestDiff}>
+                        <SelectTrigger>
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="Easy">Easy (10 XP)</SelectItem>
+                            <SelectItem value="Medium">Medium (30 XP)</SelectItem>
+                            <SelectItem value="Hard">Hard (50 XP)</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="tags">Tags (comma separated)</Label>
+                    <Input
+                        id="tags"
+                        placeholder="bug, ui, react"
+                        value={newQuestTags}
+                        onChange={e => setNewQuestTags(e.target.value)}
+                    />
+                </div>
+            </div>
+            <Button type="submit" variant="outline" className="w-full glass-nav bg-primary/10 border-primary/20 text-foreground hover:bg-primary/20 hover:text-foreground transition-all duration-300" disabled={isSubmitting}>
+                {isSubmitting ? "Submitting..." : "Submit Quest"}
+            </Button>
+        </form>
+    );
+
     return (
         <div className="min-h-screen bg-background custom-scrollbar overflow-x-hidden">
             <Header />
@@ -293,80 +403,43 @@ export default function Quests() {
                     <div className="lg:col-span-8 space-y-8">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                             <h2 className="text-2xl font-bold">Available Quests</h2>
-                            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-                                <DialogTrigger asChild>
-                                    <Button variant="outline" className="gap-2 w-full sm:w-auto glass-nav bg-primary/10 border-primary/20 text-foreground hover:bg-primary/20 hover:text-foreground transition-all duration-300">
-                                        <Plus className="w-4 h-4" /> Submit Quest
-                                    </Button>
-                                </DialogTrigger>
-                                <DialogContent>
-                                    <DialogHeader>
-                                        <DialogTitle>Submit a New Quest</DialogTitle>
-                                        <DialogDescription>
-                                            Add an open source issue or task for others to solve.
-                                        </DialogDescription>
-                                    </DialogHeader>
-                                    <form onSubmit={handleCreateQuest} className="space-y-4 pt-4">
-                                        <div className="space-y-2">
-                                            <Label htmlFor="title">Title</Label>
-                                            <Input
-                                                id="title"
-                                                placeholder="e.g. Fix button contrast in dark mode"
-                                                value={newQuestTitle}
-                                                onChange={e => setNewQuestTitle(e.target.value)}
-                                                required
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label htmlFor="repo">Repository URL</Label>
-                                            <Input
-                                                id="repo"
-                                                placeholder="https://github.com/owner/repo"
-                                                value={newQuestRepo}
-                                                onChange={e => setNewQuestRepo(e.target.value)}
-                                                required
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label htmlFor="desc">Description</Label>
-                                            <Textarea
-                                                id="desc"
-                                                placeholder="Describe the task..."
-                                                value={newQuestDesc}
-                                                onChange={e => setNewQuestDesc(e.target.value)}
-                                                required
-                                            />
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="space-y-2">
-                                                <Label htmlFor="diff">Difficulty</Label>
-                                                <Select value={newQuestDiff} onValueChange={setNewQuestDiff}>
-                                                    <SelectTrigger>
-                                                        <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="Easy">Easy (10 XP)</SelectItem>
-                                                        <SelectItem value="Medium">Medium (30 XP)</SelectItem>
-                                                        <SelectItem value="Hard">Hard (50 XP)</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label htmlFor="tags">Tags (comma separated)</Label>
-                                                <Input
-                                                    id="tags"
-                                                    placeholder="bug, ui, react"
-                                                    value={newQuestTags}
-                                                    onChange={e => setNewQuestTags(e.target.value)}
-                                                />
-                                            </div>
-                                        </div>
-                                        <Button type="submit" variant="outline" className="w-full glass-nav bg-primary/10 border-primary/20 text-foreground hover:bg-primary/20 hover:text-foreground transition-all duration-300" disabled={isSubmitting}>
-                                            {isSubmitting ? "Submitting..." : "Submit Quest"}
+                            {isMobile ? (
+                                <Drawer open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+                                    <DrawerTrigger asChild>
+                                        <Button variant="outline" className="gap-2 w-full sm:w-auto glass-nav bg-primary/10 border-primary/20 text-foreground hover:bg-primary/20 hover:text-foreground transition-all duration-300">
+                                            <Plus className="w-4 h-4" /> Submit Quest
                                         </Button>
-                                    </form>
-                                </DialogContent>
-                            </Dialog>
+                                    </DrawerTrigger>
+                                    <DrawerContent className="max-h-[90vh]">
+                                        <DrawerHeader>
+                                            <DrawerTitle>Submit a New Quest</DrawerTitle>
+                                            <DrawerDescription>
+                                                Add an open source issue or task for others to solve.
+                                            </DrawerDescription>
+                                        </DrawerHeader>
+                                        <div className="overflow-y-auto px-4 pb-8">
+                                            {questFormContent}
+                                        </div>
+                                    </DrawerContent>
+                                </Drawer>
+                            ) : (
+                                <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+                                    <DialogTrigger asChild>
+                                        <Button variant="outline" className="gap-2 w-full sm:w-auto glass-nav bg-primary/10 border-primary/20 text-foreground hover:bg-primary/20 hover:text-foreground transition-all duration-300">
+                                            <Plus className="w-4 h-4" /> Submit Quest
+                                        </Button>
+                                    </DialogTrigger>
+                                    <DialogContent className="max-h-[90vh] overflow-y-auto">
+                                        <DialogHeader>
+                                            <DialogTitle>Submit a New Quest</DialogTitle>
+                                            <DialogDescription>
+                                                Add an open source issue or task for others to solve.
+                                            </DialogDescription>
+                                        </DialogHeader>
+                                        {questFormContent}
+                                    </DialogContent>
+                                </Dialog>
+                            )}
                         </div>
 
                         <Section className="animate-fade-up" style={{ animationDelay: "0.15s" }}>
