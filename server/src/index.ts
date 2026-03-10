@@ -92,7 +92,7 @@ const allowedOrigins = [
 server.register(cors, {
     origin: allowedOrigins,
     credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "Cookie"],
 });
 
@@ -843,8 +843,78 @@ server.register(async (instance) => {
         }
     });
 
+    // DELETE /api/quests/:id (only creator can delete)
+    instance.delete('/api/quests/:id', async (req, reply) => {
+        const session = await getSessionFromRequest(req);
+        if (!session) return reply.status(401).send({ message: "Unauthorized" });
+
+        const userId = session.session.userId;
+        const { id } = req.params as { id: string };
+        const questId = parseInt(id);
+
+        try {
+            const quest = await db.select().from(schema.quests).where(eq(schema.quests.id, questId)).limit(1);
+
+            if (!quest.length) {
+                return reply.status(404).send({ message: "Quest not found" });
+            }
+
+            if (quest[0].createdBy !== userId) {
+                return reply.status(403).send({ message: "Only the creator can delete this quest." });
+            }
+
+            // Cascade: remove all userQuests entries for this quest first (FK constraint)
+            await db.delete(schema.userQuests).where(eq(schema.userQuests.questId, questId));
+
+            // Now delete the quest itself
+            await db.delete(schema.quests).where(eq(schema.quests.id, questId));
+
+            return { success: true };
+        } catch (error) {
+            console.error("Delete quest error:", error);
+            return reply.status(500).send({ message: "Failed to delete quest" });
+        }
+    });
+
+    // PATCH /api/quests/:id (only creator can edit)
+    instance.patch('/api/quests/:id', async (req, reply) => {
+        const session = await getSessionFromRequest(req);
+        if (!session) return reply.status(401).send({ message: "Unauthorized" });
+
+        const userId = session.session.userId;
+        const { id } = req.params as { id: string };
+        const questId = parseInt(id);
+        const body = req.body as any;
+
+        try {
+            const quest = await db.select().from(schema.quests).where(eq(schema.quests.id, questId)).limit(1);
+
+            if (!quest.length) return reply.status(404).send({ message: "Quest not found" });
+            if (quest[0].createdBy !== userId) return reply.status(403).send({ message: "Only the creator can edit this quest." });
+
+            const updates: Record<string, any> = {};
+            if (body.title !== undefined) updates.title = body.title;
+            if (body.description !== undefined) updates.description = body.description;
+            if (body.repoUrl !== undefined) updates.repoUrl = body.repoUrl;
+            if (body.difficulty !== undefined) {
+                updates.difficulty = body.difficulty;
+                updates.points = body.difficulty === 'Easy' ? 10 : body.difficulty === 'Medium' ? 30 : 50;
+            }
+            if (body.tags !== undefined) updates.tags = body.tags;
+            if (body.isOpenQuest !== undefined) updates.isOpenQuest = body.isOpenQuest;
+            updates.updatedAt = new Date();
+
+            const updated = await db.update(schema.quests).set(updates).where(eq(schema.quests.id, questId)).returning();
+
+            return { quest: updated[0] };
+        } catch (error) {
+            console.error("Edit quest error:", error);
+            return reply.status(500).send({ message: "Failed to edit quest" });
+        }
+    });
 
     // GitHub Proxy Route
+
     instance.post('/api/github/proxy', async (req, reply) => {
         const session = await getSessionFromRequest(req);
         if (!session) return reply.status(401).send({ message: "Unauthorized" });
