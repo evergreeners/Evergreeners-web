@@ -304,7 +304,8 @@ export default function Generator() {
                                         <Button
                                             onClick={handleGenerate}
                                             disabled={isGenerating || !owner || !repo}
-                                            className="w-full gap-2 h-9"
+                                            variant="outline"
+                                            className="w-full gap-2 h-9 glass-nav bg-primary/10 border-primary/20 text-foreground hover:bg-primary/20 hover:text-foreground transition-all duration-300"
                                         >
                                             <Wand2 className="w-3.5 h-3.5" />
                                             {isGenerating ? "Generating…" : "Generate"}
@@ -341,8 +342,8 @@ export default function Generator() {
                                             <Button
                                                 onClick={deployToGithub}
                                                 disabled={isDeploying}
-                                                variant="secondary"
-                                                className="w-full gap-2 h-9"
+                                                variant="outline"
+                                                className="w-full gap-2 h-9 glass-nav bg-primary/10 border-primary/20 text-foreground hover:bg-primary/20 hover:text-foreground transition-all duration-300"
                                             >
                                                 <GitPullRequest className="w-3.5 h-3.5" />
                                                 {isDeploying ? "Opening PR…" : "Create Pull Request on GitHub"}

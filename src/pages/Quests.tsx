@@ -276,11 +276,10 @@ export default function Quests() {
                 {/* Hero Section */}
                 <section className="animate-fade-in text-center py-8 relative overflow-hidden">
                     <div className="relative inline-block">
-                        <div className="absolute inset-0 blur-3xl bg-primary/30 rounded-full scale-150 animate-pulse-slow" />
                         <div className="relative">
                             <div className="flex items-center justify-center gap-4">
-                                <Compass className="w-16 h-16 text-primary animate-pulse-slow" />
-                                <span className="text-4xl md:text-7xl font-bold text-gradient">Quests</span>
+                                <Compass className="w-12 h-12 text-primary" />
+                                <span className="text-4xl md:text-6xl font-extrabold text-foreground tracking-tight">Quests</span>
                             </div>
                             <p className="text-lg md:text-xl text-muted-foreground mt-4 max-w-2xl mx-auto">
                                 Discover meaningful work, contribute to open source, and advance your career.
@@ -296,7 +295,7 @@ export default function Quests() {
                             <h2 className="text-2xl font-bold">Available Quests</h2>
                             <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                                 <DialogTrigger asChild>
-                                    <Button className="gap-2 w-full sm:w-auto">
+                                    <Button variant="outline" className="gap-2 w-full sm:w-auto glass-nav bg-primary/10 border-primary/20 text-foreground hover:bg-primary/20 hover:text-foreground transition-all duration-300">
                                         <Plus className="w-4 h-4" /> Submit Quest
                                     </Button>
                                 </DialogTrigger>
@@ -362,7 +361,7 @@ export default function Quests() {
                                                 />
                                             </div>
                                         </div>
-                                        <Button type="submit" className="w-full" disabled={isSubmitting}>
+                                        <Button type="submit" variant="outline" className="w-full glass-nav bg-primary/10 border-primary/20 text-foreground hover:bg-primary/20 hover:text-foreground transition-all duration-300" disabled={isSubmitting}>
                                             {isSubmitting ? "Submitting..." : "Submit Quest"}
                                         </Button>
                                     </form>
