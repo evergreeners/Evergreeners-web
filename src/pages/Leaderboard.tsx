@@ -233,10 +233,10 @@ export default function Leaderboard() {
                     triggerHaptic();
                   }}
                   className={cn(
-                    "px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 whitespace-nowrap",
+                    "px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 whitespace-nowrap border",
                     filter === tab.key
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-secondary text-muted-foreground hover:text-foreground"
+                      ? "glass-nav bg-primary/10 border-primary/20 text-foreground"
+                      : "border-transparent bg-secondary text-muted-foreground hover:text-foreground hover:bg-secondary/80"
                   )}
                 >
                   {tab.label}
