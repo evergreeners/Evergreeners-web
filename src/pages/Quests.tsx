@@ -1,10 +1,11 @@
 import { Header } from "@/components/Header";
 import { FloatingNav } from "@/components/FloatingNav";
 import { Section } from "@/components/Section";
-import { Compass, Scroll, Zap, Star, Shield, Trophy, GitFork, ExternalLink, RefreshCw, CheckCircle, Plus, User, XCircle, GitCommit, PlayCircle } from "lucide-react";
+import { Compass, Scroll, Zap, Star, Shield, Trophy, GitFork, ExternalLink, RefreshCw, CheckCircle, Plus, User, XCircle, GitCommit, PlayCircle, ChevronRight, Clock, Calendar, Pencil, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import ReactMarkdown from "react-markdown";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,10 +25,28 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+    Sheet,
+    SheetContent,
+    SheetHeader,
+    SheetTitle,
+    SheetDescription,
+} from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { useIsMobile } from "@/hooks/use-mobile";
+import {
+    Drawer,
+    DrawerContent,
+    DrawerDescription,
+    DrawerHeader,
+    DrawerTitle,
+    DrawerTrigger,
+} from "@/components/ui/drawer";
+import { githubService } from "@/lib/githubService";
 import { toast } from "sonner";
 import { authClient } from "@/lib/auth-client";
 import {
@@ -54,6 +73,7 @@ interface Quest {
     points: number;
     status: "available" | "active" | "completed"; // Legacy field from backend map, but we use myStatus now
     forkUrl?: string;
+    isOpenQuest: boolean;
 
     // New fields
     createdBy: string;
@@ -81,7 +101,41 @@ export default function Quests() {
     const [newQuestRepo, setNewQuestRepo] = useState("");
     const [newQuestTags, setNewQuestTags] = useState("");
     const [newQuestDiff, setNewQuestDiff] = useState<string>("Easy");
+    const [newQuestIsOpen, setNewQuestIsOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Quest detail state
+    const [selectedQuest, setSelectedQuest] = useState<Quest | null>(null);
+
+    // Edit quest state
+    const [editingQuest, setEditingQuest] = useState<Quest | null>(null);
+    const [editTitle, setEditTitle] = useState("");
+    const [editDesc, setEditDesc] = useState("");
+    const [editRepo, setEditRepo] = useState("");
+    const [editTags, setEditTags] = useState("");
+    const [editDiff, setEditDiff] = useState("Easy");
+    const [editIsOpen, setEditIsOpen] = useState(false);
+    const [isSavingEdit, setIsSavingEdit] = useState(false);
+    
+    const isMobile = useIsMobile();
+    const [repos, setRepos] = useState<any[]>([]);
+    const [isLoadingRepos, setIsLoadingRepos] = useState(false);
+
+    useEffect(() => {
+        async function fetchRepos() {
+            if (!session?.session?.token) return;
+            setIsLoadingRepos(true);
+            try {
+                const data = await githubService.getUserRepos(session.session.token);
+                if (Array.isArray(data)) setRepos(data);
+            } catch (e) { 
+                console.error(e); 
+            } finally { 
+                setIsLoadingRepos(false); 
+            }
+        }
+        fetchRepos();
+    }, [session?.session?.token]);
 
     // Use React Query for quests with caching
     const { data: quests = [], isLoading } = useQuery({
@@ -220,7 +274,8 @@ export default function Quests() {
                     repoUrl: newQuestRepo,
                     difficulty: newQuestDiff,
                     tags: tags,
-                    points: newQuestDiff === 'Easy' ? 10 : newQuestDiff === 'Medium' ? 30 : 50
+                    points: newQuestDiff === 'Easy' ? 10 : newQuestDiff === 'Medium' ? 30 : 50,
+                    isOpenQuest: newQuestIsOpen
                 }),
                 credentials: "include"
             });
@@ -236,12 +291,75 @@ export default function Quests() {
             setNewQuestDesc("");
             setNewQuestRepo("");
             setNewQuestTags("");
+            setNewQuestIsOpen(false);
             refetchQuests(); // Refresh list
 
         } catch (error: any) {
             toast.error(error.message || "Failed to create quest");
         } finally {
             setIsSubmitting(false);
+        }
+    };
+
+    const handleDeleteQuest = async (id: number) => {
+        try {
+            const res = await fetch(`${API_URL}/api/quests/${id}`, {
+                method: "DELETE",
+                credentials: "include"
+            });
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.message || "Failed to delete quest");
+            }
+            toast.success("Quest deleted.");
+            setSelectedQuest(null);
+            refetchQuests();
+        } catch (error: any) {
+            toast.error(error.message || "Failed to delete quest");
+        }
+    };
+
+    const openEditQuest = (quest: Quest) => {
+        setEditingQuest(quest);
+        setEditTitle(quest.title);
+        setEditDesc(quest.description);
+        setEditRepo(quest.repoUrl);
+        setEditTags((quest.tags || []).join(', '));
+        setEditDiff(quest.difficulty);
+        setEditIsOpen(quest.isOpenQuest);
+    };
+
+    const handleSaveEdit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!editingQuest) return;
+        setIsSavingEdit(true);
+        try {
+            const tags = editTags.split(',').map(t => t.trim()).filter(Boolean);
+            const res = await fetch(`${API_URL}/api/quests/${editingQuest.id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    title: editTitle,
+                    description: editDesc,
+                    repoUrl: editRepo,
+                    difficulty: editDiff,
+                    tags,
+                    isOpenQuest: editIsOpen
+                }),
+                credentials: "include"
+            });
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.message || "Failed to update quest");
+            }
+            toast.success("Quest updated!");
+            setEditingQuest(null);
+            setSelectedQuest(null);
+            refetchQuests();
+        } catch (error: any) {
+            toast.error(error.message || "Failed to update quest");
+        } finally {
+            setIsSavingEdit(false);
         }
     };
 
@@ -268,6 +386,103 @@ export default function Quests() {
     // If someone else completed it, it shouldn't show in Available.
     const availableQuests = quests.filter(q => !q.isTaken && !q.myStatus);
 
+    const questFormContent = (
+        <form onSubmit={handleCreateQuest} className="space-y-4 pt-4">
+            <div className="space-y-2">
+                <Label htmlFor="title">Title</Label>
+                <Input
+                    id="title"
+                    placeholder="e.g. Fix button contrast in dark mode"
+                    value={newQuestTitle}
+                    onChange={e => setNewQuestTitle(e.target.value)}
+                    required
+                />
+            </div>
+            <div className="space-y-2">
+                <Label htmlFor="repo">Repository URL</Label>
+                <Select onValueChange={(val) => setNewQuestRepo(`https://github.com/${val}`)}>
+                    <SelectTrigger className="w-full">
+                        <SelectValue placeholder={isLoadingRepos ? "Loading your repos..." : "Select a repository"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {repos && repos.map((r: any) => (
+                            <SelectItem key={r.full_name} value={r.full_name}>
+                                {r.full_name}
+                            </SelectItem>
+                        ))}
+                        {(!repos || repos.length === 0) && !isLoadingRepos && (
+                            <SelectItem value="none" disabled>
+                                No repositories found.
+                            </SelectItem>
+                        )}
+                    </SelectContent>
+                </Select>
+                <div className="text-xs text-center text-muted-foreground my-1">- OR -</div>
+                <Input
+                    id="repo"
+                    placeholder="https://github.com/owner/repo"
+                    value={newQuestRepo}
+                    onChange={e => setNewQuestRepo(e.target.value)}
+                    required
+                />
+            </div>
+            <div className="space-y-2">
+                <Label htmlFor="desc">Description</Label>
+                <Textarea
+                    id="desc"
+                    placeholder="Describe the task... (supports **bold**, *italic*, ## headings, - lists, `code`)"
+                    value={newQuestDesc}
+                    onChange={e => setNewQuestDesc(e.target.value)}
+                    required
+                    rows={6}
+                />
+                <p className="text-xs text-muted-foreground">Supports Markdown: **bold**, *italic*, ## headings, - lists, `code`</p>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label htmlFor="diff">Difficulty</Label>
+                    <Select value={newQuestDiff} onValueChange={setNewQuestDiff}>
+                        <SelectTrigger>
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="Easy">Easy (10 XP)</SelectItem>
+                            <SelectItem value="Medium">Medium (30 XP)</SelectItem>
+                            <SelectItem value="Hard">Hard (50 XP)</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="tags">Tags (comma separated)</Label>
+                    <Input
+                        id="tags"
+                        placeholder="bug, ui, react"
+                        value={newQuestTags}
+                        onChange={e => setNewQuestTags(e.target.value)}
+                    />
+                </div>
+            </div>
+            <div className="flex items-center space-x-2 py-2">
+                <Switch 
+                    id="open-quest" 
+                    checked={newQuestIsOpen} 
+                    onCheckedChange={setNewQuestIsOpen} 
+                />
+                <div className="grid gap-1.5 leading-none">
+                    <Label htmlFor="open-quest" className="font-medium">
+                        Open Quest
+                    </Label>
+                    <p className="text-sm text-muted-foreground">
+                        Allow multiple people to accept this quest simultaneously.
+                    </p>
+                </div>
+            </div>
+            <Button type="submit" variant="outline" className="w-full glass-nav bg-primary/10 border-primary/20 text-foreground hover:bg-primary/20 hover:text-foreground transition-all duration-300" disabled={isSubmitting}>
+                {isSubmitting ? "Submitting..." : "Submit Quest"}
+            </Button>
+        </form>
+    );
+
     return (
         <div className="min-h-screen bg-background custom-scrollbar overflow-x-hidden">
             <Header />
@@ -293,80 +508,43 @@ export default function Quests() {
                     <div className="lg:col-span-8 space-y-8">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                             <h2 className="text-2xl font-bold">Available Quests</h2>
-                            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-                                <DialogTrigger asChild>
-                                    <Button variant="outline" className="gap-2 w-full sm:w-auto glass-nav bg-primary/10 border-primary/20 text-foreground hover:bg-primary/20 hover:text-foreground transition-all duration-300">
-                                        <Plus className="w-4 h-4" /> Submit Quest
-                                    </Button>
-                                </DialogTrigger>
-                                <DialogContent>
-                                    <DialogHeader>
-                                        <DialogTitle>Submit a New Quest</DialogTitle>
-                                        <DialogDescription>
-                                            Add an open source issue or task for others to solve.
-                                        </DialogDescription>
-                                    </DialogHeader>
-                                    <form onSubmit={handleCreateQuest} className="space-y-4 pt-4">
-                                        <div className="space-y-2">
-                                            <Label htmlFor="title">Title</Label>
-                                            <Input
-                                                id="title"
-                                                placeholder="e.g. Fix button contrast in dark mode"
-                                                value={newQuestTitle}
-                                                onChange={e => setNewQuestTitle(e.target.value)}
-                                                required
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label htmlFor="repo">Repository URL</Label>
-                                            <Input
-                                                id="repo"
-                                                placeholder="https://github.com/owner/repo"
-                                                value={newQuestRepo}
-                                                onChange={e => setNewQuestRepo(e.target.value)}
-                                                required
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label htmlFor="desc">Description</Label>
-                                            <Textarea
-                                                id="desc"
-                                                placeholder="Describe the task..."
-                                                value={newQuestDesc}
-                                                onChange={e => setNewQuestDesc(e.target.value)}
-                                                required
-                                            />
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="space-y-2">
-                                                <Label htmlFor="diff">Difficulty</Label>
-                                                <Select value={newQuestDiff} onValueChange={setNewQuestDiff}>
-                                                    <SelectTrigger>
-                                                        <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="Easy">Easy (10 XP)</SelectItem>
-                                                        <SelectItem value="Medium">Medium (30 XP)</SelectItem>
-                                                        <SelectItem value="Hard">Hard (50 XP)</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label htmlFor="tags">Tags (comma separated)</Label>
-                                                <Input
-                                                    id="tags"
-                                                    placeholder="bug, ui, react"
-                                                    value={newQuestTags}
-                                                    onChange={e => setNewQuestTags(e.target.value)}
-                                                />
-                                            </div>
-                                        </div>
-                                        <Button type="submit" variant="outline" className="w-full glass-nav bg-primary/10 border-primary/20 text-foreground hover:bg-primary/20 hover:text-foreground transition-all duration-300" disabled={isSubmitting}>
-                                            {isSubmitting ? "Submitting..." : "Submit Quest"}
+                            {isMobile ? (
+                                <Drawer open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+                                    <DrawerTrigger asChild>
+                                        <Button variant="outline" className="gap-2 w-full sm:w-auto glass-nav bg-primary/10 border-primary/20 text-foreground hover:bg-primary/20 hover:text-foreground transition-all duration-300">
+                                            <Plus className="w-4 h-4" /> Submit Quest
                                         </Button>
-                                    </form>
-                                </DialogContent>
-                            </Dialog>
+                                    </DrawerTrigger>
+                                    <DrawerContent className="max-h-[90vh]">
+                                        <DrawerHeader>
+                                            <DrawerTitle>Submit a New Quest</DrawerTitle>
+                                            <DrawerDescription>
+                                                Add an open source issue or task for others to solve.
+                                            </DrawerDescription>
+                                        </DrawerHeader>
+                                        <div className="overflow-y-auto px-4 pb-8">
+                                            {questFormContent}
+                                        </div>
+                                    </DrawerContent>
+                                </Drawer>
+                            ) : (
+                                <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+                                    <DialogTrigger asChild>
+                                        <Button variant="outline" className="gap-2 w-full sm:w-auto glass-nav bg-primary/10 border-primary/20 text-foreground hover:bg-primary/20 hover:text-foreground transition-all duration-300">
+                                            <Plus className="w-4 h-4" /> Submit Quest
+                                        </Button>
+                                    </DialogTrigger>
+                                    <DialogContent className="max-h-[90vh] overflow-y-auto">
+                                        <DialogHeader>
+                                            <DialogTitle>Submit a New Quest</DialogTitle>
+                                            <DialogDescription>
+                                                Add an open source issue or task for others to solve.
+                                            </DialogDescription>
+                                        </DialogHeader>
+                                        {questFormContent}
+                                    </DialogContent>
+                                </Dialog>
+                            )}
                         </div>
 
                         <Section className="animate-fade-up" style={{ animationDelay: "0.15s" }}>
@@ -405,12 +583,23 @@ export default function Quests() {
                                         </div>
                                     )}
                                     {availableQuests.map((quest) => (
-                                        <Card key={quest.id} className="bg-card/30 backdrop-blur-sm border-border hover:border-primary/50 transition-all duration-300 flex flex-col group relative">
+                                        <Card
+                                            key={quest.id}
+                                            className="bg-card/30 backdrop-blur-sm border-border hover:border-primary/50 transition-all duration-300 flex flex-col group relative cursor-pointer"
+                                            onClick={() => setSelectedQuest(quest)}
+                                        >
                                             <CardHeader>
                                                 <div className="flex justify-between items-start">
-                                                    <Badge variant="outline" className={cn("mb-2", getDifficultyColor(quest.difficulty))}>
-                                                        {quest.difficulty}
-                                                    </Badge>
+                                                    <div className="flex gap-2 mb-2 flex-wrap">
+                                                        <Badge variant="outline" className={getDifficultyColor(quest.difficulty)}>
+                                                            {quest.difficulty}
+                                                        </Badge>
+                                                        {quest.isOpenQuest && (
+                                                            <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20">
+                                                                Open Quest
+                                                            </Badge>
+                                                        )}
+                                                    </div>
                                                     <div className="flex items-center gap-1 text-yellow-500">
                                                         <Zap className="w-4 h-4 fill-current" />
                                                         <span className="font-bold">{quest.points} XP</span>
@@ -437,21 +626,21 @@ export default function Quests() {
                                                 </div>
                                             </CardContent>
                                             <CardFooter className="flex justify-between items-center gap-4 mt-auto">
-                                                <a
-                                                    href={quest.repoUrl}
-                                                    target="_blank"
-                                                    rel="noreferrer"
-                                                    className="text-sm text-muted-foreground hover:text-primary flex items-center gap-1"
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="text-sm text-muted-foreground hover:text-primary flex items-center gap-1 p-0"
+                                                    onClick={(e) => { e.stopPropagation(); window.open(quest.repoUrl, '_blank'); }}
                                                 >
                                                     <GitFork className="w-4 h-4" /> Repo
-                                                </a>
+                                                </Button>
 
                                                 {quest.createdBy === session?.user?.id ? (
-                                                    <Button disabled variant="secondary" className="w-full sm:w-auto opacity-50 cursor-not-allowed">
+                                                    <Button disabled variant="secondary" className="w-full sm:w-auto opacity-50 cursor-not-allowed" onClick={e => e.stopPropagation()}>
                                                         My Quest
                                                     </Button>
                                                 ) : (
-                                                    <Button onClick={() => handleStartQuest(quest.id)} className="w-full sm:w-auto">
+                                                    <Button onClick={(e) => { e.stopPropagation(); handleStartQuest(quest.id); }} className="w-full sm:w-auto">
                                                         Accept Quest
                                                     </Button>
                                                 )}
@@ -470,9 +659,16 @@ export default function Quests() {
                                         <Card key={quest.id} className="bg-secondary/10 border-border flex flex-col">
                                             <CardHeader>
                                                 <div className="flex justify-between items-start">
-                                                    <Badge variant="outline" className={cn("mb-2 opacity-50", getDifficultyColor(quest.difficulty))}>
-                                                        {quest.difficulty}
-                                                    </Badge>
+                                                    <div className="flex gap-2 mb-2 flex-wrap">
+                                                        <Badge variant="outline" className={cn("opacity-50", getDifficultyColor(quest.difficulty))}>
+                                                            {quest.difficulty}
+                                                        </Badge>
+                                                        {quest.isOpenQuest && (
+                                                            <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20">
+                                                                Open Quest
+                                                            </Badge>
+                                                        )}
+                                                    </div>
                                                     <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-500 border-none">
                                                         Taken
                                                     </Badge>
@@ -632,6 +828,284 @@ export default function Quests() {
                 </div>
             </main>
             <FloatingNav />
+
+            {/* Edit Quest Panel */}
+            {isMobile ? (
+                <Drawer open={!!editingQuest} onOpenChange={(open) => !open && setEditingQuest(null)}>
+                    <DrawerContent className="max-h-[92vh]">
+                        <DrawerHeader><DrawerTitle>Edit Quest</DrawerTitle></DrawerHeader>
+                        <div className="overflow-y-auto px-4 pb-10">
+                            <form onSubmit={handleSaveEdit} className="space-y-4">
+                                <div className="space-y-2"><Label>Title</Label>
+                                    <Input value={editTitle} onChange={e => setEditTitle(e.target.value)} required /></div>
+                                <div className="space-y-2"><Label>Description</Label>
+                                    <Textarea value={editDesc} onChange={e => setEditDesc(e.target.value)} required rows={6} />
+                                    <p className="text-xs text-muted-foreground">Supports Markdown: **bold**, *italic*, ## headings, - lists, `code`</p>
+                                </div>
+                                <div className="space-y-2"><Label>Repo URL</Label>
+                                    <Input value={editRepo} onChange={e => setEditRepo(e.target.value)} required /></div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2"><Label>Difficulty</Label>
+                                        <Select value={editDiff} onValueChange={setEditDiff}>
+                                            <SelectTrigger><SelectValue /></SelectTrigger>
+                                            <SelectContent><SelectItem value="Easy">Easy (10 XP)</SelectItem><SelectItem value="Medium">Medium (30 XP)</SelectItem><SelectItem value="Hard">Hard (50 XP)</SelectItem></SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2"><Label>Tags (comma-separated)</Label>
+                                        <Input value={editTags} onChange={e => setEditTags(e.target.value)} placeholder="e.g. ui, bug, feature" /></div>
+                                </div>
+                                <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-card/50">
+                                    <div><p className="text-sm font-medium">Open Quest</p>
+                                        <p className="text-xs text-muted-foreground">Allow multiple people to accept</p>
+                                    </div>
+                                    <Switch checked={editIsOpen} onCheckedChange={setEditIsOpen} />
+                                </div>
+                                <Button type="submit" className="w-full" disabled={isSavingEdit}>
+                                    {isSavingEdit ? 'Saving...' : 'Save Changes'}
+                                </Button>
+                            </form>
+                        </div>
+                    </DrawerContent>
+                </Drawer>
+            ) : (
+                <Sheet open={!!editingQuest} onOpenChange={(open) => !open && setEditingQuest(null)}>
+                    <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
+                        <SheetHeader className="pb-4">
+                            <SheetTitle>Edit Quest</SheetTitle>
+                            <SheetDescription>Update your quest details below.</SheetDescription>
+                        </SheetHeader>
+                        <form onSubmit={handleSaveEdit} className="space-y-4">
+                            <div className="space-y-2"><Label>Title</Label>
+                                <Input value={editTitle} onChange={e => setEditTitle(e.target.value)} required /></div>
+                            <div className="space-y-2"><Label>Description</Label>
+                                <Textarea value={editDesc} onChange={e => setEditDesc(e.target.value)} required rows={6} />
+                                <p className="text-xs text-muted-foreground">Supports Markdown: **bold**, *italic*, ## headings, - lists, `code`</p>
+                            </div>
+                            <div className="space-y-2"><Label>Repo URL</Label>
+                                <Input value={editRepo} onChange={e => setEditRepo(e.target.value)} required /></div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2"><Label>Difficulty</Label>
+                                    <Select value={editDiff} onValueChange={setEditDiff}>
+                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                        <SelectContent><SelectItem value="Easy">Easy (10 XP)</SelectItem><SelectItem value="Medium">Medium (30 XP)</SelectItem><SelectItem value="Hard">Hard (50 XP)</SelectItem></SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2"><Label>Tags (comma-separated)</Label>
+                                    <Input value={editTags} onChange={e => setEditTags(e.target.value)} placeholder="e.g. ui, bug, feature" /></div>
+                            </div>
+                            <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-card/50">
+                                <div><p className="text-sm font-medium">Open Quest</p>
+                                    <p className="text-xs text-muted-foreground">Allow multiple people to accept</p>
+                                </div>
+                                <Switch checked={editIsOpen} onCheckedChange={setEditIsOpen} />
+                            </div>
+                            <Button type="submit" className="w-full" disabled={isSavingEdit}>
+                                {isSavingEdit ? 'Saving...' : 'Save Changes'}
+                            </Button>
+                        </form>
+                    </SheetContent>
+                </Sheet>
+            )}
+
+            {/* Quest Detail Panel — Sheet on desktop, Drawer on mobile */}
+            {isMobile ? (
+                <Drawer open={!!selectedQuest} onOpenChange={(open) => !open && setSelectedQuest(null)}>
+                    <DrawerContent className="max-h-[92vh]">
+                        <DrawerHeader className="pb-2">
+                            {selectedQuest && (
+                                <>
+                                    <div className="flex flex-wrap gap-2 mb-3">
+                                        <Badge variant="outline" className={getDifficultyColor(selectedQuest.difficulty)}>{selectedQuest.difficulty}</Badge>
+                                        {selectedQuest.isOpenQuest && <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20">Open Quest</Badge>}
+                                        {selectedQuest.myStatus === 'active' && <Badge variant="outline" className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20">In Progress</Badge>}
+                                        {selectedQuest.myStatus === 'completed' && <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20">Completed</Badge>}
+                                    </div>
+                                    <DrawerTitle className="text-xl font-bold leading-tight text-left">{selectedQuest.title}</DrawerTitle>
+                                    <div className="flex items-center gap-1 text-yellow-500 pt-1">
+                                        <Zap className="w-4 h-4 fill-current" />
+                                        <span className="font-semibold">{selectedQuest.points} XP reward</span>
+                                    </div>
+                                </>
+                            )}
+                        </DrawerHeader>
+                        <div className="overflow-y-auto px-4 pb-10 space-y-6">
+                            {selectedQuest && <QuestDetailBody quest={selectedQuest} session={session} handleCheckProgress={handleCheckProgress} handleDropQuest={handleDropQuest} handleStartQuest={handleStartQuest} checkingId={checkingId} setSelectedQuest={setSelectedQuest} getDifficultyColor={getDifficultyColor} onDelete={handleDeleteQuest} onStartEdit={openEditQuest} />}
+                        </div>
+                    </DrawerContent>
+                </Drawer>
+            ) : (
+                <Sheet open={!!selectedQuest} onOpenChange={(open) => !open && setSelectedQuest(null)}>
+                    <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
+                        {selectedQuest && (
+                            <>
+                                <SheetHeader className="pb-4">
+                                    <div className="flex flex-wrap gap-2 mb-3">
+                                        <Badge variant="outline" className={getDifficultyColor(selectedQuest.difficulty)}>{selectedQuest.difficulty}</Badge>
+                                        {selectedQuest.isOpenQuest && <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20">Open Quest</Badge>}
+                                        {selectedQuest.myStatus === 'active' && <Badge variant="outline" className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20">In Progress</Badge>}
+                                        {selectedQuest.myStatus === 'completed' && <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20">Completed</Badge>}
+                                    </div>
+                                    <SheetTitle className="text-2xl font-bold leading-tight">{selectedQuest.title}</SheetTitle>
+                                    <div className="flex items-center gap-1 text-yellow-500 pt-1">
+                                        <Zap className="w-4 h-4 fill-current" />
+                                        <span className="font-semibold">{selectedQuest.points} XP reward</span>
+                                    </div>
+                                </SheetHeader>
+                                <QuestDetailBody quest={selectedQuest} session={session} handleCheckProgress={handleCheckProgress} handleDropQuest={handleDropQuest} handleStartQuest={handleStartQuest} checkingId={checkingId} setSelectedQuest={setSelectedQuest} getDifficultyColor={getDifficultyColor} onDelete={handleDeleteQuest} onStartEdit={openEditQuest} />
+                            </>
+                        )}
+                    </SheetContent>
+                </Sheet>
+            )}
+        </div>
+    );
+}
+
+// ─── Quest detail body (shared between Sheet & Drawer) ────────────────────────
+function QuestDetailBody({ quest, session, handleCheckProgress, handleDropQuest, handleStartQuest, checkingId, setSelectedQuest, getDifficultyColor, onDelete, onStartEdit }: {
+    quest: any; session: any;
+    handleCheckProgress: (id: number) => void;
+    handleDropQuest: (id: number) => void;
+    handleStartQuest: (id: number) => void;
+    checkingId: number | null;
+    setSelectedQuest: (q: any) => void;
+    getDifficultyColor: (d: string) => string;
+    onDelete: (id: number) => void;
+    onStartEdit: (quest: any) => void;
+}) {
+    return (
+        <div className="space-y-6">
+            {/* Description — rendered as Markdown */}
+            <div>
+                <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Description</p>
+                <div className="prose prose-sm dark:prose-invert max-w-none
+                    prose-headings:font-bold prose-headings:text-foreground
+                    prose-p:text-foreground prose-p:leading-relaxed
+                    prose-strong:text-foreground
+                    prose-ul:text-foreground prose-ol:text-foreground
+                    prose-li:marker:text-primary
+                    prose-code:text-primary prose-code:bg-secondary prose-code:px-1 prose-code:rounded prose-code:text-sm
+                    prose-a:text-primary">
+                    <ReactMarkdown>{quest.description}</ReactMarkdown>
+                </div>
+            </div>
+
+            {/* Tags */}
+            {quest.tags && quest.tags.length > 0 && (
+                <div>
+                    <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">Tags</p>
+                    <div className="flex flex-wrap gap-2">
+                        {quest.tags.map((tag: string) => (
+                            <span key={tag} className="text-xs px-2 py-1 rounded bg-secondary text-muted-foreground">#{tag}</span>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Meta */}
+            <div>
+                <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Details</p>
+                <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm">
+                        <User className="w-4 h-4 text-muted-foreground shrink-0" />
+                        <span className="text-muted-foreground">Posted by</span>
+                        <span className="font-medium text-foreground">{quest.creatorName}</span>
+                    </div>
+                    {quest.acceptedBy && !quest.isOpenQuest && (
+                        <div className="flex items-center gap-2 text-sm">
+                            <PlayCircle className="w-4 h-4 text-muted-foreground shrink-0" />
+                            <span className="text-muted-foreground">Accepted by</span>
+                            <span className="font-medium text-foreground">{quest.acceptedBy}</span>
+                        </div>
+                    )}
+                    {quest.myProgress?.startedAt && (
+                        <div className="flex items-center gap-2 text-sm">
+                            <Clock className="w-4 h-4 text-muted-foreground shrink-0" />
+                            <span className="text-muted-foreground">Started</span>
+                            <span className="font-medium text-foreground">{new Date(quest.myProgress.startedAt).toLocaleDateString()}</span>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Repo link */}
+            <div>
+                <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">Repository</p>
+                <a href={quest.repoUrl} target="_blank" rel="noreferrer"
+                    className="flex items-center gap-2 text-sm text-primary hover:underline break-all">
+                    <GitFork className="w-4 h-4 shrink-0" />
+                    {quest.repoUrl.replace('https://github.com/', '')}
+                    <ExternalLink className="w-3 h-3 shrink-0" />
+                </a>
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex flex-col gap-3 pt-2">
+                {quest.myStatus === 'active' ? (
+                    <>
+                        <Button onClick={() => { handleCheckProgress(quest.id); setSelectedQuest(null); }} disabled={checkingId === quest.id} className="w-full">
+                            <RefreshCw className="w-4 h-4 mr-2" />
+                            {checkingId === quest.id ? 'Checking...' : 'Check Progress'}
+                        </Button>
+                        <Button variant="outline" onClick={() => { handleDropQuest(quest.id); setSelectedQuest(null); }}
+                            className="w-full text-destructive border-destructive/30 hover:bg-destructive/10">
+                            <XCircle className="w-4 h-4 mr-2" /> Drop Quest
+                        </Button>
+                    </>
+                ) : quest.myStatus === 'completed' ? (
+                    <div className="flex items-center justify-center gap-2 p-3 rounded-lg bg-green-500/10 text-green-500">
+                        <CheckCircle className="w-5 h-5" />
+                        <span className="font-medium">Quest Completed!</span>
+                    </div>
+                ) : quest.createdBy === session?.user?.id ? (
+                    <div className="space-y-3">
+                        <div className="p-3 rounded-lg bg-secondary/50 text-center text-sm text-muted-foreground">
+                            This is your quest — others can accept it.
+                        </div>
+                        <div className="flex gap-2">
+                            <Button
+                                variant="outline"
+                                className="flex-1 gap-2 glass-nav bg-primary/10 border-primary/20 text-foreground hover:bg-primary/20 transition-all duration-300"
+                                onClick={() => { onStartEdit(quest); setSelectedQuest(null); }}
+                            >
+                                <Pencil className="w-4 h-4" /> Edit Quest
+                            </Button>
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="outline" className="flex-1 gap-2 text-destructive border-destructive/30 hover:bg-destructive/10">
+                                        <Trash2 className="w-4 h-4" /> Delete
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Delete this quest?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            This will permanently remove <strong>{quest.title}</strong> and all associated progress. This cannot be undone.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction
+                                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                            onClick={() => onDelete(quest.id)}
+                                        >
+                                            Yes, delete it
+                                        </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        </div>
+                    </div>
+                ) : quest.isTaken ? (
+                    <div className="p-3 rounded-lg bg-secondary/50 text-center text-sm text-muted-foreground">
+                        This quest is currently taken by another adventurer.
+                    </div>
+                ) : (
+                    <Button onClick={() => { handleStartQuest(quest.id); setSelectedQuest(null); }} className="w-full">
+                        <PlayCircle className="w-4 h-4 mr-2" /> Accept Quest
+                    </Button>
+                )}
+            </div>
         </div>
     );
 }

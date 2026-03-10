@@ -385,3 +385,86 @@ export async function sendStreakReminderEmail(opts: {
         weeklyCommits: opts.weeklyCommits ?? 0,
     });
 }
+
+// ─── New Quest Email ────────────────────────────────────────────────────────
+export interface NewQuestEmailOptions {
+    to: string;
+    userName: string;
+    submitterName: string;
+    questTitle: string;
+    questUrl: string;
+    hasGithub: boolean;
+}
+
+export async function sendNewQuestEmail(opts: NewQuestEmailOptions) {
+    const { to, userName, submitterName, questTitle, questUrl, hasGithub } = opts;
+    const displayName = userName?.split(' ')[0] || 'there';
+
+    const subject = `${submitterName} has submitted a new quest`;
+    
+    // Fallbacks for email client rendering of liquid glass (translucent green, bordered)
+    const buttonBg = '#cdf0e6'; // Primary/10 roughly (faked for solid background email clients)
+    const buttonBorder = '#10b981'; // Primary solid
+    const buttonText = '#10b981'; // Primary solid
+    
+    const bodyText = hasGithub 
+        ? `Review the details below and see if you have what it takes to solve it.`
+        : `To accept this quest, you will need to connect your GitHub account in your settings first. Review the details below.`;
+
+    const body = `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td style="padding-bottom:12px;">
+             <span style="display:inline-block;padding:4px 10px;border-radius:12px;background-color:#f4f4f5;font-family:ui-monospace,'SF Mono',monospace;font-size:11px;font-weight:600;color:#52525b;letter-spacing:0.05em;text-transform:uppercase;">
+              New Quest Available
+            </span>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding-bottom:12px;">
+            <h1 class="text-heading" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',Helvetica,Arial,sans-serif;font-size:24px;font-weight:700;color:#09090b;letter-spacing:-0.4px;line-height:1.3;">
+              Hello ${displayName},<br/>${submitterName} submitted a new quest.
+            </h1>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding-bottom:4px;">
+            <p class="text-body" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;color:#52525b;line-height:1.75;">
+              "${questTitle}"<br/><br/>
+              ${bodyText}
+            </p>
+          </td>
+        </tr>
+
+        ${divider}
+
+        <!-- CTA liquid-glass style button -->
+        <tr>
+          <td>
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="background-color:${buttonBg};border-radius:12px;border:1px solid ${buttonBorder};">
+                  <a href="${questUrl}" style="display:inline-block;padding:12px 24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;color:${buttonText};text-decoration:none;letter-spacing:-0.1px;">
+                    Review & Accept Quest
+                  </a>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>`;
+
+    try {
+        const result = await resend.emails.send({
+            from: FROM_EMAIL,
+            to,
+            subject,
+            html: emailShell(body),
+        });
+        console.log(`New quest email sent to ${to}:`, result.data?.id);
+        return result;
+    } catch (err) {
+        console.error(`Failed to send new quest email to ${to}:`, err);
+        throw err;
+    }
+}
