@@ -103,6 +103,7 @@ export default function Quests() {
     const [newQuestDiff, setNewQuestDiff] = useState<string>("Easy");
     const [newQuestIsOpen, setNewQuestIsOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isPreviewMode, setIsPreviewMode] = useState(false);
 
     // Quest detail state
     const [selectedQuest, setSelectedQuest] = useState<Quest | null>(null);
@@ -287,6 +288,7 @@ export default function Quests() {
 
             toast.success("Quest created successfully!");
             setIsCreateOpen(false);
+            setIsPreviewMode(false);
             setNewQuestTitle("");
             setNewQuestDesc("");
             setNewQuestRepo("");
@@ -372,6 +374,23 @@ export default function Quests() {
         }
     };
 
+    // Strips common markdown syntax to produce a clean plain-text preview
+    const stripMarkdown = (md: string): string => {
+        return md
+            .replace(/#{1,6}\s+/g, '')          // headings
+            .replace(/\*\*(.+?)\*\*/g, '$1')    // bold
+            .replace(/\*(.+?)\*/g, '$1')         // italic
+            .replace(/`{1,3}(.+?)`{1,3}/gs, '$1') // inline & block code
+            .replace(/!\[.*?\]\(.*?\)/g, '')    // images
+            .replace(/\[(.+?)\]\(.*?\)/g, '$1') // links
+            .replace(/^[-*+]\s+/gm, '')          // unordered list bullets
+            .replace(/^\d+\.\s+/gm, '')          // ordered list numbers
+            .replace(/^>\s+/gm, '')              // blockquotes
+            .replace(/\n{2,}/g, ' ')             // collapse blank lines
+            .replace(/\n/g, ' ')                 // collapse single newlines
+            .trim();
+    };
+
     // Filter Logic
     const myActiveQuests = quests.filter(q => q.myStatus === 'active');
 
@@ -386,8 +405,21 @@ export default function Quests() {
     // If someone else completed it, it shouldn't show in Available.
     const availableQuests = quests.filter(q => !q.isTaken && !q.myStatus);
 
-    const questFormContent = (
-        <form onSubmit={handleCreateQuest} className="space-y-4 pt-4">
+    // Points derived from difficulty
+    const newQuestPoints = newQuestDiff === 'Hard' ? 50 : newQuestDiff === 'Medium' ? 30 : 10;
+    const newQuestTagsArray = newQuestTags.split(',').map(t => t.trim()).filter(Boolean);
+
+    // ── Step 1: Form ──────────────────────────────────────────────────────────
+    const questFormStep = (
+        <form
+            onSubmit={e => {
+                e.preventDefault();
+                // Validate required fields before showing preview
+                if (!newQuestTitle.trim() || !newQuestDesc.trim() || !newQuestRepo.trim()) return;
+                setIsPreviewMode(true);
+            }}
+            className="space-y-4 pt-4"
+        >
             <div className="space-y-2">
                 <Label htmlFor="title">Title</Label>
                 <Input
@@ -463,25 +495,115 @@ export default function Quests() {
                 </div>
             </div>
             <div className="flex items-center space-x-2 py-2">
-                <Switch 
-                    id="open-quest" 
-                    checked={newQuestIsOpen} 
-                    onCheckedChange={setNewQuestIsOpen} 
+                <Switch
+                    id="open-quest"
+                    checked={newQuestIsOpen}
+                    onCheckedChange={setNewQuestIsOpen}
                 />
                 <div className="grid gap-1.5 leading-none">
-                    <Label htmlFor="open-quest" className="font-medium">
-                        Open Quest
-                    </Label>
-                    <p className="text-sm text-muted-foreground">
-                        Allow multiple people to accept this quest simultaneously.
-                    </p>
+                    <Label htmlFor="open-quest" className="font-medium">Open Quest</Label>
+                    <p className="text-sm text-muted-foreground">Allow multiple people to accept this quest simultaneously.</p>
                 </div>
             </div>
-            <Button type="submit" variant="outline" className="w-full glass-nav bg-primary/10 border-primary/20 text-foreground hover:bg-primary/20 hover:text-foreground transition-all duration-300" disabled={isSubmitting}>
-                {isSubmitting ? "Submitting..." : "Submit Quest"}
+            <Button
+                type="submit"
+                variant="outline"
+                className="w-full glass-nav bg-primary/10 border-primary/20 text-foreground hover:bg-primary/20 hover:text-foreground transition-all duration-300"
+            >
+                Preview Quest →
             </Button>
         </form>
     );
+
+    // ── Step 2: Preview ───────────────────────────────────────────────────────
+    const questPreviewStep = (
+        <div className="pt-4 space-y-5">
+            {/* Preview label */}
+            <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                <span className="h-px flex-1 bg-border" />
+                Preview — this is how your quest will appear
+                <span className="h-px flex-1 bg-border" />
+            </div>
+
+            {/* Quest preview card */}
+            <div className="rounded-xl border border-border bg-card/50 backdrop-blur-sm p-5 space-y-4">
+                {/* Badges + XP */}
+                <div className="flex items-start justify-between gap-2">
+                    <div className="flex flex-wrap gap-2">
+                        <Badge variant="outline" className={getDifficultyColor(newQuestDiff)}>{newQuestDiff}</Badge>
+                        {newQuestIsOpen && (
+                            <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20">Open Quest</Badge>
+                        )}
+                    </div>
+                    <div className="flex items-center gap-1 text-yellow-500 shrink-0">
+                        <Zap className="w-4 h-4 fill-current" />
+                        <span className="font-bold text-sm">{newQuestPoints} XP</span>
+                    </div>
+                </div>
+
+                {/* Title */}
+                <h2 className="text-xl font-bold text-foreground leading-tight">{newQuestTitle || <span className="text-muted-foreground italic">Untitled Quest</span>}</h2>
+
+                {/* Description rendered as Markdown */}
+                <div className="prose prose-sm dark:prose-invert max-w-none
+                    prose-h1:text-foreground prose-h1:text-xl prose-h1:font-bold prose-h1:mt-3 prose-h1:mb-1
+                    prose-h2:text-foreground prose-h2:text-lg prose-h2:font-semibold prose-h2:mt-3 prose-h2:mb-1
+                    prose-h3:text-foreground prose-h3:text-base prose-h3:font-semibold prose-h3:mt-2 prose-h3:mb-1
+                    prose-p:text-foreground/90 prose-p:leading-relaxed prose-p:my-1.5
+                    prose-strong:text-foreground prose-strong:font-semibold
+                    prose-em:text-foreground/80
+                    prose-ul:text-foreground/90 prose-ol:text-foreground/90
+                    prose-li:my-0.5 prose-li:marker:text-primary
+                    prose-code:text-primary prose-code:bg-primary/10 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-xs prose-code:font-mono prose-code:before:content-none prose-code:after:content-none
+                    prose-pre:bg-secondary prose-pre:rounded-lg prose-pre:text-xs
+                    prose-blockquote:border-l-primary prose-blockquote:text-muted-foreground
+                    prose-a:text-primary prose-a:no-underline hover:prose-a:underline
+                    prose-hr:border-border">
+                    <ReactMarkdown>{newQuestDesc || '*No description provided.*'}</ReactMarkdown>
+                </div>
+
+                {/* Tags */}
+                {newQuestTagsArray.length > 0 && (
+                    <div className="flex flex-wrap gap-2 pt-1">
+                        {newQuestTagsArray.map(tag => (
+                            <span key={tag} className="text-xs px-2 py-1 rounded bg-secondary text-muted-foreground">#{tag}</span>
+                        ))}
+                    </div>
+                )}
+
+                {/* Repo */}
+                {newQuestRepo && (
+                    <div className="flex items-center gap-2 text-sm text-primary pt-1">
+                        <GitFork className="w-4 h-4 shrink-0" />
+                        <span className="truncate">{newQuestRepo.replace('https://github.com/', '')}</span>
+                        <ExternalLink className="w-3 h-3 shrink-0" />
+                    </div>
+                )}
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3 pt-1">
+                <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => setIsPreviewMode(false)}
+                >
+                    ← Edit
+                </Button>
+                <Button
+                    type="button"
+                    className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground"
+                    disabled={isSubmitting}
+                    onClick={handleCreateQuest as any}
+                >
+                    {isSubmitting ? 'Submitting...' : 'Submit Quest ⚡'}
+                </Button>
+            </div>
+        </div>
+    );
+
+    const questFormContent = isPreviewMode ? questPreviewStep : questFormStep;
 
     return (
         <div className="min-h-screen bg-background custom-scrollbar overflow-x-hidden">
@@ -509,7 +631,7 @@ export default function Quests() {
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                             <h2 className="text-2xl font-bold">Available Quests</h2>
                             {isMobile ? (
-                                <Drawer open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+                                <Drawer open={isCreateOpen} onOpenChange={(open) => { setIsCreateOpen(open); if (!open) setIsPreviewMode(false); }}>
                                     <DrawerTrigger asChild>
                                         <Button variant="outline" className="gap-2 w-full sm:w-auto glass-nav bg-primary/10 border-primary/20 text-foreground hover:bg-primary/20 hover:text-foreground transition-all duration-300">
                                             <Plus className="w-4 h-4" /> Submit Quest
@@ -517,9 +639,9 @@ export default function Quests() {
                                     </DrawerTrigger>
                                     <DrawerContent className="max-h-[90vh]">
                                         <DrawerHeader>
-                                            <DrawerTitle>Submit a New Quest</DrawerTitle>
+                                            <DrawerTitle>{isPreviewMode ? 'Preview Your Quest' : 'Submit a New Quest'}</DrawerTitle>
                                             <DrawerDescription>
-                                                Add an open source issue or task for others to solve.
+                                                {isPreviewMode ? 'Check how your quest will look before submitting.' : 'Add an open source issue or task for others to solve.'}
                                             </DrawerDescription>
                                         </DrawerHeader>
                                         <div className="overflow-y-auto px-4 pb-8">
@@ -528,7 +650,7 @@ export default function Quests() {
                                     </DrawerContent>
                                 </Drawer>
                             ) : (
-                                <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+                                <Dialog open={isCreateOpen} onOpenChange={(open) => { setIsCreateOpen(open); if (!open) setIsPreviewMode(false); }}>
                                     <DialogTrigger asChild>
                                         <Button variant="outline" className="gap-2 w-full sm:w-auto glass-nav bg-primary/10 border-primary/20 text-foreground hover:bg-primary/20 hover:text-foreground transition-all duration-300">
                                             <Plus className="w-4 h-4" /> Submit Quest
@@ -536,9 +658,9 @@ export default function Quests() {
                                     </DialogTrigger>
                                     <DialogContent className="max-h-[90vh] overflow-y-auto">
                                         <DialogHeader>
-                                            <DialogTitle>Submit a New Quest</DialogTitle>
+                                            <DialogTitle>{isPreviewMode ? 'Preview Your Quest' : 'Submit a New Quest'}</DialogTitle>
                                             <DialogDescription>
-                                                Add an open source issue or task for others to solve.
+                                                {isPreviewMode ? 'Check how your quest will look before submitting.' : 'Add an open source issue or task for others to solve.'}
                                             </DialogDescription>
                                         </DialogHeader>
                                         {questFormContent}
@@ -607,7 +729,7 @@ export default function Quests() {
                                                 </div>
                                                 <CardTitle className="text-xl group-hover:text-primary transition-colors">{quest.title}</CardTitle>
                                                 <CardDescription className="line-clamp-2">
-                                                    {quest.description}
+                                                    {stripMarkdown(quest.description)}
                                                 </CardDescription>
                                                 <div className="text-xs text-muted-foreground flex items-center gap-1 pt-1">
                                                     <User className="w-3 h-3" /> Posted by {quest.creatorName}
@@ -979,13 +1101,20 @@ function QuestDetailBody({ quest, session, handleCheckProgress, handleDropQuest,
             <div>
                 <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Description</p>
                 <div className="prose prose-sm dark:prose-invert max-w-none
-                    prose-headings:font-bold prose-headings:text-foreground
-                    prose-p:text-foreground prose-p:leading-relaxed
-                    prose-strong:text-foreground
-                    prose-ul:text-foreground prose-ol:text-foreground
-                    prose-li:marker:text-primary
-                    prose-code:text-primary prose-code:bg-secondary prose-code:px-1 prose-code:rounded prose-code:text-sm
-                    prose-a:text-primary">
+                    prose-h1:text-foreground prose-h1:text-xl prose-h1:font-bold prose-h1:mt-4 prose-h1:mb-2
+                    prose-h2:text-foreground prose-h2:text-lg prose-h2:font-semibold prose-h2:mt-4 prose-h2:mb-2
+                    prose-h3:text-foreground prose-h3:text-base prose-h3:font-semibold prose-h3:mt-3 prose-h3:mb-1
+                    prose-h4:text-foreground prose-h4:font-medium
+                    prose-p:text-foreground/90 prose-p:leading-relaxed prose-p:my-2
+                    prose-strong:text-foreground prose-strong:font-semibold
+                    prose-em:text-foreground/80
+                    prose-ul:text-foreground/90 prose-ol:text-foreground/90
+                    prose-li:my-0.5 prose-li:marker:text-primary
+                    prose-code:text-primary prose-code:bg-primary/10 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-xs prose-code:font-mono prose-code:before:content-none prose-code:after:content-none
+                    prose-pre:bg-secondary prose-pre:text-foreground prose-pre:rounded-lg prose-pre:text-xs
+                    prose-blockquote:border-l-primary prose-blockquote:text-muted-foreground prose-blockquote:not-italic
+                    prose-a:text-primary prose-a:no-underline hover:prose-a:underline
+                    prose-hr:border-border">
                     <ReactMarkdown>{quest.description}</ReactMarkdown>
                 </div>
             </div>
