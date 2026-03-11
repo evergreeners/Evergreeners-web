@@ -400,10 +400,13 @@ export default function Quests() {
     // All completed (mine + others)
     const allCompleted = quests.filter(q => q.acceptedStatus === 'completed' || q.myStatus === 'completed');
 
-    // Available (neither taken by me active, nor taken by others active/completed)
-    // Note: If I completed it, it shouldn't show in Available for me.
-    // If someone else completed it, it shouldn't show in Available.
-    const availableQuests = quests.filter(q => !q.isTaken && !q.myStatus);
+    // Available quests: not taken by me, not completed, not taken by others (for non-open quests)
+    const availableQuests = quests.filter(q => {
+        if (q.myStatus) return false;                        // already accepted or completed by me
+        if (q.acceptedStatus === 'completed') return false;  // fully completed
+        if (!q.isOpenQuest && q.isTaken) return false;       // regular quest already taken by someone else
+        return true;
+    });
 
     // Points derived from difficulty
     const newQuestPoints = newQuestDiff === 'Hard' ? 50 : newQuestDiff === 'Medium' ? 30 : 10;
@@ -906,17 +909,27 @@ export default function Quests() {
                                                         )}
                                                     </div>
 
-                                                    <Button
-                                                        size="sm"
-                                                        variant="default"
-                                                        onClick={() => handleCheckProgress(quest.id)}
-                                                        disabled={checkingId === quest.id}
-                                                        className="w-full"
-                                                    >
-                                                        {checkingId === quest.id ? (
-                                                            <>Checking <RefreshCw className="w-4 h-4 ml-2 animate-spin" /></>
-                                                        ) : "Check Progress"}
-                                                    </Button>
+                                                    <div className="flex gap-2">
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="flex-1 text-muted-foreground hover:text-foreground"
+                                                            onClick={() => setSelectedQuest(quest)}
+                                                        >
+                                                            <ChevronRight className="w-4 h-4 mr-1" /> View Details
+                                                        </Button>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="default"
+                                                            onClick={() => handleCheckProgress(quest.id)}
+                                                            disabled={checkingId === quest.id}
+                                                            className="flex-1"
+                                                        >
+                                                            {checkingId === quest.id ? (
+                                                                <>Checking <RefreshCw className="w-4 h-4 ml-2 animate-spin" /></>
+                                                            ) : 'Check Progress'}
+                                                        </Button>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
