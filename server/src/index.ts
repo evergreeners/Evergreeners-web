@@ -925,6 +925,78 @@ server.register(async (instance) => {
         }
     });
 
+    // GET /api/quests/:id/participants — creator-only, lists everyone who accepted
+    instance.get('/api/quests/:id/participants', async (req, reply) => {
+        const session = await getSessionFromRequest(req);
+        if (!session) return reply.status(401).send({ message: 'Unauthorized' });
+
+        const userId = session.session.userId;
+        const { id } = req.params as { id: string };
+        const questId = parseInt(id);
+
+        try {
+            const quest = await db.select().from(schema.quests)
+                .where(eq(schema.quests.id, questId)).limit(1);
+
+            if (!quest.length) return reply.status(404).send({ message: 'Quest not found' });
+            if (quest[0].createdBy !== userId) {
+                return reply.status(403).send({ message: 'Only the quest creator can view participants.' });
+            }
+
+            // All userQuest rows for this quest
+            const rows = await db.select().from(schema.userQuests)
+                .where(eq(schema.userQuests.questId, questId));
+
+            if (!rows.length) return { participants: [] };
+
+            // Fetch matching user profiles
+            const participantIds = rows.map(r => r.userId);
+            const allUsers = await db.select({
+                id: schema.users.id,
+                name: schema.users.name,
+                username: schema.users.username,
+                image: schema.users.image,
+                isPublic: schema.users.isPublic,
+                anonymousName: schema.users.anonymousName,
+                streak: schema.users.streak,
+            }).from(schema.users);
+
+            const userMap = new Map(allUsers.map(u => [u.id, u]));
+
+            const participants = rows.map(row => {
+                const user = userMap.get(row.userId);
+                let displayName = 'Evergreener';
+                let avatar: string | null = null;
+
+                if (user) {
+                    if (user.isPublic) {
+                        displayName = user.name || user.username || 'Evergreener';
+                        avatar = user.image ?? null;
+                    } else {
+                        displayName = user.anonymousName || `Anonymous`;
+                        avatar = null;
+                    }
+                }
+
+                return {
+                    userId: row.userId,
+                    displayName,
+                    avatar,
+                    status: row.status,           // 'active' | 'completed'
+                    startedAt: row.startedAt,
+                    completedAt: row.completedAt,
+                    forkUrl: row.forkUrl,
+                    streak: user?.streak ?? 0,
+                };
+            });
+
+            return { participants };
+        } catch (error) {
+            console.error('Participants fetch error:', error);
+            return reply.status(500).send({ message: 'Failed to fetch participants' });
+        }
+    });
+
     // GitHub Proxy Route
 
     instance.post('/api/github/proxy', async (req, reply) => {

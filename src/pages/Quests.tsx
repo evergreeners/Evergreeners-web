@@ -1191,6 +1191,8 @@ function QuestDetailBody({ quest, session, handleCheckProgress, handleDropQuest,
                         <div className="p-3 rounded-lg bg-secondary/50 text-center text-sm text-muted-foreground">
                             This is your quest — others can accept it.
                         </div>
+                        {/* Participants list — only visible to creator */}
+                        <QuestParticipants questId={quest.id} />
                         <div className="flex gap-2">
                             <Button
                                 variant="outline"
@@ -1235,6 +1237,165 @@ function QuestDetailBody({ quest, session, handleCheckProgress, handleDropQuest,
                     </Button>
                 )}
             </div>
+        </div>
+    );
+}
+
+// ─── Quest Participants (creator-only view) ───────────────────────────────────
+const API_URL_INNER = import.meta.env.VITE_API_URL || '';
+
+interface Participant {
+    userId: string;
+    displayName: string;
+    avatar: string | null;
+    status: string;
+    startedAt: string | null;
+    completedAt: string | null;
+    forkUrl: string | null;
+    streak: number;
+}
+
+function QuestParticipants({ questId }: { questId: number }) {
+    const [participants, setParticipants] = useState<Participant[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [showAll, setShowAll] = useState(false);
+
+    const DEFAULT_VISIBLE = 3;
+
+    useEffect(() => {
+        setLoading(true);
+        setError(null);
+        fetch(`${API_URL_INNER}/api/quests/${questId}/participants`, { credentials: 'include' })
+            .then(r => r.json())
+            .then(data => {
+                const raw: Participant[] = data.participants || [];
+                // Sort: completed first, then by startedAt ascending (earliest first)
+                const sorted = [...raw].sort((a, b) => {
+                    if (a.status === 'completed' && b.status !== 'completed') return -1;
+                    if (a.status !== 'completed' && b.status === 'completed') return 1;
+                    const dateA = a.startedAt ? new Date(a.startedAt).getTime() : 0;
+                    const dateB = b.startedAt ? new Date(b.startedAt).getTime() : 0;
+                    return dateA - dateB;
+                });
+                setParticipants(sorted);
+            })
+            .catch(() => setError('Failed to load participants.'))
+            .finally(() => setLoading(false));
+    }, [questId]);
+
+    if (loading) {
+        return (
+            <div className="space-y-2 mt-1">
+                {[1, 2].map(i => (
+                    <div key={i} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card/40 animate-pulse">
+                        <div className="w-8 h-8 rounded-full bg-secondary shrink-0" />
+                        <div className="flex-1 space-y-1.5">
+                            <div className="h-3 bg-secondary rounded w-1/3" />
+                            <div className="h-2 bg-secondary rounded w-1/4" />
+                        </div>
+                    </div>
+                ))}
+            </div>
+        );
+    }
+
+    if (error) {
+        return <p className="text-xs text-destructive mt-1">{error}</p>;
+    }
+
+    if (participants.length === 0) {
+        return (
+            <div className="mt-1 p-3 rounded-lg border border-dashed border-border text-center text-sm text-muted-foreground">
+                No one has accepted this quest yet.
+            </div>
+        );
+    }
+
+    const visible = showAll ? participants : participants.slice(0, DEFAULT_VISIBLE);
+    const hiddenCount = participants.length - DEFAULT_VISIBLE;
+
+    return (
+        <div className="mt-1 space-y-1">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                Participants · {participants.length}
+            </p>
+            <div className="space-y-2">
+                {visible.map(p => {
+                    const isCompleted = p.status === 'completed';
+                    return (
+                        <div
+                            key={p.userId}
+                            className={cn(
+                                'flex items-start gap-3 p-3 rounded-lg border transition-colors',
+                                isCompleted
+                                    ? 'border-green-500/30 bg-green-500/5'
+                                    : 'border-border bg-card/40'
+                            )}
+                        >
+                            {/* Avatar */}
+                            <div className="w-8 h-8 rounded-full bg-secondary border border-border shrink-0 overflow-hidden flex items-center justify-center text-xs font-bold text-muted-foreground">
+                                {p.avatar
+                                    ? <img src={p.avatar} alt={p.displayName} className="w-full h-full object-cover" />
+                                    : p.displayName.charAt(0).toUpperCase()}
+                            </div>
+
+                            {/* Info */}
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-medium text-sm text-foreground truncate">{p.displayName}</span>
+                                    <span className={cn(
+                                        'text-xs px-1.5 py-0.5 rounded font-semibold',
+                                        isCompleted
+                                            ? 'bg-green-500/15 text-green-500'
+                                            : 'bg-yellow-500/15 text-yellow-500'
+                                    )}>
+                                        {isCompleted ? '✓ Completed' : '⏳ In Progress'}
+                                    </span>
+                                    {p.streak > 0 && (
+                                        <span className="text-xs text-primary font-mono">🔥 {p.streak}d</span>
+                                    )}
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs text-muted-foreground">
+                                    {p.startedAt && (
+                                        <span>Started {new Date(p.startedAt).toLocaleDateString()}</span>
+                                    )}
+                                    {p.completedAt && (
+                                        <span className="text-green-500">
+                                            Completed {new Date(p.completedAt).toLocaleDateString()}
+                                        </span>
+                                    )}
+                                    {p.forkUrl && (
+                                        <a
+                                            href={p.forkUrl}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="flex items-center gap-1 text-primary hover:underline"
+                                            onClick={e => e.stopPropagation()}
+                                        >
+                                            <GitFork className="w-3 h-3" /> View Fork
+                                        </a>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+
+            {/* Show more / show less toggle — only if there are more than DEFAULT_VISIBLE */}
+            {participants.length > DEFAULT_VISIBLE && (
+                <button
+                    type="button"
+                    onClick={() => setShowAll(prev => !prev)}
+                    className="w-full mt-1 py-2 text-xs font-medium text-muted-foreground hover:text-foreground border border-dashed border-border rounded-lg transition-colors hover:border-border/80"
+                >
+                    {showAll
+                        ? 'Show less ↑'
+                        : `Show ${hiddenCount} more participant${hiddenCount !== 1 ? 's' : ''} ↓`}
+                </button>
+            )}
         </div>
     );
 }
