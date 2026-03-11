@@ -817,19 +817,31 @@ server.register(async (instance) => {
                     const usersToNotify = await db.select().from(schema.users).where(eq(schema.users.emailNotifications, true));
                     const githubAccounts = await db.select({ userId: schema.accounts.userId }).from(schema.accounts).where(eq(schema.accounts.providerId, 'github'));
                     
+                    // Send emails sequentially with a 600ms gap to stay under
+                    // Resend's rate limit of 2 requests/second.
+                    const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
                     for (const user of usersToNotify) {
                         if (user.id === userId || !user.email) continue;
-                        
+
                         const hasGithub = githubAccounts.some(acc => acc.userId === user.id);
 
-                        sendNewQuestEmail({
-                            to: user.email,
-                            userName: user.name || user.username || "Evergreener",
-                            submitterName,
-                            questTitle: body.title,
-                            questUrl: `${APP_URL}/quests`,
-                            hasGithub
-                        }).catch(err => console.error(`Failed to email new quest to ${user.email}`, err));
+                        try {
+                            await sendNewQuestEmail({
+                                to: user.email,
+                                userName: user.name || user.username || "Evergreener",
+                                submitterName,
+                                questTitle: body.title,
+                                questUrl: `${APP_URL}/quests`,
+                                hasGithub
+                            });
+                            console.log(`New quest email queued for ${user.email}`);
+                        } catch (err) {
+                            console.error(`Failed to email new quest to ${user.email}:`, err);
+                        }
+
+                        // Respect Resend's 2 req/sec rate limit
+                        await sleep(600);
                     }
                 } catch (e) {
                     console.error("Async new quest email dispatch error:", e);
