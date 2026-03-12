@@ -17,6 +17,7 @@ import Leaderboard from "./pages/Leaderboard";
 import Generator from "./pages/Generator";
 import RepoDetail from "./pages/RepoDetail";
 import NotFound from "./pages/NotFound";
+import Community from "./pages/Community";
 import ScrollToTop from "./components/ScrollToTop";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { PWAInstallPrompt } from "./components/PWAInstallPrompt";
@@ -82,6 +83,7 @@ const AppContents = () => {
         <Route path="/" element={session ? <Navigate to="/dashboard" replace /> : <Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
+        <Route path="/community" element={<Community />} />
 
         <Route element={<ProtectedRoute />}>
           <Route path="/dashboard" element={<Index />} />

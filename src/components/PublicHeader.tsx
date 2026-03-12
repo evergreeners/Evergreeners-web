@@ -1,9 +1,11 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { Book, Newspaper, LogIn, ArrowRight } from "lucide-react";
+import { Users, GitMerge, LogIn, ArrowRight } from "lucide-react";
 import { Logo } from "./Logo";
 
 export function PublicHeader() {
+    const { pathname } = useLocation();
+
     return (
         <header className="fixed top-6 left-0 right-0 z-50 flex justify-center px-4">
             <div className="w-full max-w-4xl bg-black/60 backdrop-blur-xl border border-white/10 rounded-full pl-6 pr-2 py-2 flex items-center justify-between shadow-2xl shadow-black/50 transition-all duration-300 hover:border-white/20 hover:bg-black/70">
@@ -11,7 +13,6 @@ export function PublicHeader() {
                 {/* Logo Section */}
                 <Link to="/" className="flex items-center gap-3 group">
                     <div className="relative flex items-center justify-center w-10 h-10">
-                        {/* 6x6 Grid Logo - Contribution Graph Style */}
                         <Logo className="w-6 h-6" />
                     </div>
                     <span className="font-bold text-foreground tracking-tight text-lg group-hover:text-green-400 transition-colors">Forever Green</span>
@@ -19,14 +20,27 @@ export function PublicHeader() {
 
                 {/* Navigation - Centered (Hidden on mobile) */}
                 <nav className="hidden md:flex items-center gap-1 bg-white/5 rounded-full px-2 py-1 border border-white/5">
-                    <a href="#" className="flex items-center gap-2 px-4 py-1.5 text-sm font-medium text-muted-foreground hover:text-white hover:bg-white/5 rounded-full transition-all">
-                        <Book className="w-4 h-4" />
-                        <span>Documentation</span>
-                    </a>
+                    <Link
+                        to="/community"
+                        className={cn(
+                            "flex items-center gap-2 px-4 py-1.5 text-sm font-medium rounded-full transition-all",
+                            pathname === "/community"
+                                ? "text-primary bg-primary/10 border border-primary/20"
+                                : "text-muted-foreground hover:text-white hover:bg-white/5"
+                        )}
+                    >
+                        <Users className="w-4 h-4" />
+                        <span>Community</span>
+                    </Link>
                     <div className="w-px h-4 bg-white/10" />
-                    <a href="#" className="flex items-center gap-2 px-4 py-1.5 text-sm font-medium text-muted-foreground hover:text-white hover:bg-white/5 rounded-full transition-all">
-                        <Newspaper className="w-4 h-4" />
-                        <span>Blog</span>
+                    <a
+                        href="https://github.com/evergreeners"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-4 py-1.5 text-sm font-medium text-muted-foreground hover:text-white hover:bg-white/5 rounded-full transition-all"
+                    >
+                        <GitMerge className="w-4 h-4" />
+                        <span>Contribute</span>
                     </a>
                 </nav>
 

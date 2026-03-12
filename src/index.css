@@ -117,10 +117,16 @@
   background: hsl(var(--primary) / 0.5);
 }
 
-/* Global scrollbar */
+/* Global scrollbar + horizontal scroll lock */
 html {
   scrollbar-width: thin;
   scrollbar-color: hsl(var(--border)) transparent;
+  overflow-x: hidden;
+}
+
+body {
+  overflow-x: hidden;
+  max-width: 100vw;
 }
 
 html::-webkit-scrollbar {
