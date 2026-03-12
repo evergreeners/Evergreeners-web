@@ -6,6 +6,15 @@
 
 Evergreeners is a developer-focused habit and contribution tracking application — a **digital garden** where consistency compounds over time. It helps users visualize daily activity, maintain streaks, and build a lasting record of effort.
 
+## 📚 Documentation
+
+The official Evergreeners documentation is now hosted in its own repository: [Evergreeners-Docs](https://github.com/evergreeners/Evergreeners-Docs).
+
+It includes detailed guides on:
+- **Getting Started**: Installation and local development.
+- **Core Concepts**: Understanding the Streak Engine and Consistency Garden.
+- **API Reference**: Technical details for developers.
+- **Contributing**: How to get involved in the project.
 
 ---
 
