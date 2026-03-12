@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { Users, GitMerge, LogIn, ArrowRight } from "lucide-react";
+import { Users, GitMerge, LogIn, ArrowRight, BookOpen } from "lucide-react";
 import { Logo } from "./Logo";
 
 export function PublicHeader() {
@@ -32,6 +32,16 @@ export function PublicHeader() {
                         <Users className="w-4 h-4" />
                         <span>Community</span>
                     </Link>
+                    <div className="w-px h-4 bg-white/10" />
+                    <a
+                        href="https://docs.evergreeners.dev"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-4 py-1.5 text-sm font-medium text-muted-foreground hover:text-white hover:bg-white/5 rounded-full transition-all"
+                    >
+                        <BookOpen className="w-4 h-4" />
+                        <span>Docs</span>
+                    </a>
                     <div className="w-px h-4 bg-white/10" />
                     <a
                         href="https://github.com/evergreeners"
