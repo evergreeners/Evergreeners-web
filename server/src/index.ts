@@ -1,13 +1,17 @@
 import './env.js'; // Trigger restart
 import fastify, { FastifyRequest } from 'fastify';
 import cors from '@fastify/cors';
-// dotenv is loaded first via ./env.js
+import multipart from '@fastify/multipart';
+import fastifyStatic from '@fastify/static';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import fs from 'fs/promises';
 import { auth } from './auth.js';
 import { toNodeHandler } from 'better-auth/node';
 
 import { db } from './db/index.js';
 import * as schema from './db/schema.js';
-import { eq, and, desc, gt } from 'drizzle-orm';
+import { eq, and, desc, gt, sql } from 'drizzle-orm';
 import { getGithubContributions, checkQuestProgress } from './lib/github.js';
 import { setupCronJobs } from './cron.js';
 import { updateUserGoals } from './lib/goals.js';
@@ -94,6 +98,15 @@ server.register(cors, {
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "Cookie"],
+});
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+server.register(multipart);
+server.register(fastifyStatic, {
+    root: path.join(__dirname, '../public'),
+    prefix: '/public/', // optional: default '/'
 });
 
 // GitHub OAuth is handled by better-auth in separate adapter
@@ -1365,6 +1378,177 @@ if (process.env.NODE_ENV !== 'production') {
     console.log('   GET /api/dev/test-streak?to=you@email.com&committed=true  ← simulate committed day');
     console.log('   GET /api/dev/test-streak?to=you@email.com&committed=false ← simulate no commits');
 }
+
+// ── COMMUNITY ENDPOINTS ──
+server.register(async (instance) => {
+    // GET /api/community/stories
+    instance.get('/api/community/stories', async (req, reply) => {
+        try {
+            const allStories = await db.select()
+                .from(schema.communityStories)
+                .where(eq(schema.communityStories.approved, true))
+                .orderBy(desc(schema.communityStories.createdAt));
+            return { stories: allStories };
+        } catch (error) {
+            console.error("Fetch stories error:", error);
+            return reply.status(500).send({ message: "Failed to fetch stories" });
+        }
+    });
+
+    // POST /api/community/stories
+    instance.post('/api/community/stories', async (req, reply) => {
+        const body = req.body as any;
+        if (!body.name || !body.handle || !body.platform || !body.quote) {
+            return reply.status(400).send({ message: "Missing required fields" });
+        }
+
+        try {
+            const session = await getSessionFromRequest(req);
+            let userId = session?.session.userId;
+            let email = body.email;
+            let image = body.image;
+
+            // If not logged in but email provided, try to find user to link
+            if (!userId && email) {
+                const [user] = await db.select().from(schema.users).where(eq(schema.users.email, email)).limit(1);
+                if (user) {
+                    userId = user.id;
+                    if (!image) image = user.image;
+                }
+            } else if (session) {
+                // If logged in, get email from session if not provided
+                const [user] = await db.select().from(schema.users).where(eq(schema.users.id, userId as string)).limit(1);
+                if (user) {
+                    email = email || user.email;
+                    if (!image) image = user.image;
+                }
+            }
+
+            const [newStory] = await db.insert(schema.communityStories).values({
+                userId,
+                email: email,
+                name: body.name,
+                handle: body.handle,
+                platform: body.platform,
+                role: body.role,
+                quote: body.quote,
+                image: image || `https://ui-avatars.com/api/?name=${encodeURIComponent(body.name)}&background=random`,
+                featured: false,
+                approved: false, // Moderation required
+            } as any).returning();
+
+            return { success: true, story: newStory };
+        } catch (error) {
+            console.error("Submit story error:", error);
+            return reply.status(500).send({ message: "Failed to submit story" });
+        }
+    });
+
+    // PATCH /api/community/stories/:id/approve
+    instance.patch<{ Params: { id: string } }>('/api/community/stories/:id/approve', async (req, reply) => {
+        try {
+            const id = parseInt(req.params.id);
+            const [story] = await db.update(schema.communityStories)
+                .set({ approved: true })
+                .where(eq(schema.communityStories.id, id))
+                .returning();
+
+            if (story && story.email) {
+                // Send notification email
+                const { sendStoryPublishedEmail } = await import('./lib/email.js');
+                await sendStoryPublishedEmail(story.email, story.name);
+            }
+
+            return { success: true, story };
+        } catch (error) {
+            console.error("Approve story error:", error);
+            return reply.status(500).send({ message: "Failed to approve story" });
+        }
+    });
+
+    // GET /api/community/events
+    instance.get('/api/community/events', async (req, reply) => {
+        try {
+            const allEvents = await db.select()
+                .from(schema.events)
+                .orderBy(desc(schema.events.createdAt));
+            return { events: allEvents };
+        } catch (error) {
+            console.error("Fetch events error:", error);
+            return reply.status(500).send({ message: "Failed to fetch events" });
+        }
+    });
+
+    // GET /api/community/stats
+    instance.get('/api/community/stats', async (req, reply) => {
+        try {
+            const userStats = await db.select({
+                totalUsers: sql<number>`count(${schema.users.id})`,
+                totalStreakDays: sql<number>`sum(coalesce(${schema.users.streak}, 0))`,
+                totalCommits: sql<number>`sum(coalesce(${schema.users.totalCommits}, 0))`,
+                totalContributions: sql<number>`sum(coalesce(${schema.users.totalPullRequests}, 0))`,
+            }).from(schema.users);
+
+            const stats = [
+                { icon: 'Users', value: `${(userStats[0]?.totalUsers || 0).toLocaleString()}+`, label: "Developers" },
+                { icon: 'Flame', value: `${((userStats[0]?.totalStreakDays || 0) / 1000000).toFixed(1)}M+`, label: "Streak Days" },
+                { icon: 'Star', value: "98%", label: "Satisfaction" },
+                { icon: 'GitPullRequest', value: `${(userStats[0]?.totalContributions || 0).toLocaleString()}+`, label: "Contributions" },
+            ];
+
+            return { stats };
+        } catch (error) {
+            console.error("Fetch community stats error:", error);
+            return reply.status(500).send({ message: "Failed to fetch community stats" });
+        }
+    });
+
+    // GET /api/community/hero-avatars
+    instance.get('/api/community/hero-avatars', async (req, reply) => {
+        try {
+            const avatars = await db.select({
+                image: schema.communityStories.image,
+                name: schema.communityStories.name
+            })
+            .from(schema.communityStories)
+            .where(and(
+                eq(schema.communityStories.approved, true),
+                eq(schema.communityStories.heroFeatured, true)
+            ))
+            .limit(8);
+            
+            return { avatars };
+        } catch (error) {
+            console.error("Fetch hero avatars error:", error);
+            return reply.status(500).send({ message: "Failed to fetch hero avatars" });
+        }
+    });
+
+    // POST /api/community/upload
+    instance.post('/api/community/upload', async (req, reply) => {
+        try {
+            const data = await req.file();
+            if (!data) return reply.status(400).send({ message: "No file uploaded" });
+
+            const ext = path.extname(data.filename);
+            const filename = `${Date.now()}-${Math.round(Math.random() * 1E9)}${ext}`;
+            const uploadPath = path.join(__dirname, '../public/uploads', filename);
+
+            await fs.writeFile(uploadPath, await data.toBuffer());
+
+            // Get base URL for static files
+            const isLocal = req.hostname.includes('localhost') || req.hostname.includes('127.0.0.1');
+            const baseUrl = isLocal ? `http://${req.hostname}:3000` : ''; 
+
+            return { 
+                url: `${baseUrl}/public/uploads/${filename}` 
+            };
+        } catch (error) {
+            console.error("Upload error:", error);
+            return reply.status(500).send({ message: "Upload failed" });
+        }
+    });
+});
 
 const start = async () => {
     try {

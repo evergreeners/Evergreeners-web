@@ -468,3 +468,67 @@ export async function sendNewQuestEmail(opts: NewQuestEmailOptions) {
         throw err;
     }
 }
+// ─── Story Published Email ───────────────────────────────────────────────────
+export async function sendStoryPublishedEmail(to: string, name: string) {
+    const displayName = name?.split(' ')[0] || 'there';
+    const subject = 'Your Evergreeners story is published! 🎉';
+    
+    const body = `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td style="padding-bottom:12px;">
+            <h1 class="text-heading" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',Helvetica,Arial,sans-serif;font-size:24px;font-weight:700;color:#09090b;letter-spacing:-0.4px;line-height:1.3;">
+              It's live, ${displayName}!
+            </h1>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding-bottom:4px;">
+            <p class="text-body" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;color:#52525b;line-height:1.75;">
+              Your story has been approved and is now featured in the Evergreeners community. 
+              Thanks for sharing your journey and inspiring other developers to stay consistent.
+            </p>
+          </td>
+        </tr>
+
+        ${divider}
+
+        <tr>
+          <td>
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="background-color:#10b981;border-radius:12px;">
+                  <a href="${APP_URL}/community" style="display:inline-block;padding:12px 24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;color:#ffffff;text-decoration:none;letter-spacing:-0.1px;">
+                    View in Community
+                  </a>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        ${divider}
+
+        <tr>
+          <td>
+            <p class="text-muted" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:13px;color:#71717a;line-height:1.6;">
+              If you ever want to update or remove your story, just reply to this email or contact us at support@evergreeners.dev.
+            </p>
+          </td>
+        </tr>
+      </table>`;
+
+    try {
+        const result = await resend.emails.send({
+            from: FROM_EMAIL,
+            to,
+            subject,
+            html: emailShell(body),
+        });
+        console.log(`Story published email sent to ${to}:`, result.data?.id);
+        return result;
+    } catch (err) {
+        console.error(`Failed to send story published email to ${to}:`, err);
+        throw err;
+    }
+}
