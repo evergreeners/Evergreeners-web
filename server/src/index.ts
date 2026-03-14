@@ -1384,11 +1384,22 @@ server.register(async (instance) => {
     // GET /api/community/stories
     instance.get('/api/community/stories', async (req, reply) => {
         try {
-            const allStories = await db.select()
-                .from(schema.communityStories)
-                .where(eq(schema.communityStories.approved, true))
-                .orderBy(desc(schema.communityStories.createdAt));
-            return { stories: allStories };
+            const session = await getSessionFromRequest(req);
+            let isAdmin = false;
+
+            if (session) {
+                const [user] = await db.select().from(schema.users).where(eq(schema.users.id, session.session.userId)).limit(1);
+                isAdmin = user?.role === 'admin';
+            }
+
+            const query = db.select().from(schema.communityStories);
+            
+            if (!isAdmin) {
+                query.where(eq(schema.communityStories.approved, true));
+            }
+
+            const allStories = await query.orderBy(desc(schema.communityStories.createdAt));
+            return { stories: allStories, isAdmin };
         } catch (error) {
             console.error("Fetch stories error:", error);
             return reply.status(500).send({ message: "Failed to fetch stories" });
@@ -1444,26 +1455,69 @@ server.register(async (instance) => {
         }
     });
 
-    // PATCH /api/community/stories/:id/approve
-    instance.patch<{ Params: { id: string } }>('/api/community/stories/:id/approve', async (req, reply) => {
-        try {
-            const id = parseInt(req.params.id);
-            const [story] = await db.update(schema.communityStories)
-                .set({ approved: true })
-                .where(eq(schema.communityStories.id, id))
-                .returning();
+    // Admin-only moderation endpoints
+    instance.register(async (adminInstance) => {
+        adminInstance.addHook('preHandler', async (req, reply) => {
+            const session = await getSessionFromRequest(req);
+            if (!session) return reply.status(401).send({ message: "Unauthorized" });
+            
+            const [user] = await db.select().from(schema.users).where(eq(schema.users.id, session.session.userId)).limit(1);
+            if (user?.role !== 'admin') return reply.status(403).send({ message: "Forbidden" });
+        });
 
-            if (story && story.email) {
-                // Send notification email
-                const { sendStoryPublishedEmail } = await import('./lib/email.js');
-                await sendStoryPublishedEmail(story.email, story.name);
+        // PATCH /api/community/stories/:id/approve
+        adminInstance.patch<{ Params: { id: string } }>('/api/community/stories/:id/approve', async (req, reply) => {
+            try {
+                const id = parseInt(req.params.id);
+                const [story] = await db.update(schema.communityStories)
+                    .set({ approved: true })
+                    .where(eq(schema.communityStories.id, id))
+                    .returning();
+
+                if (story && story.email) {
+                    // Send notification email
+                    const { sendStoryPublishedEmail } = await import('./lib/email.js');
+                    await sendStoryPublishedEmail(story.email, story.name);
+                }
+
+                return { success: true, story };
+            } catch (error) {
+                console.error("Approve story error:", error);
+                return reply.status(500).send({ message: "Failed to approve story" });
             }
+        });
 
-            return { success: true, story };
-        } catch (error) {
-            console.error("Approve story error:", error);
-            return reply.status(500).send({ message: "Failed to approve story" });
-        }
+        // PATCH /api/community/stories/:id/toggle-hero
+        adminInstance.patch<{ Params: { id: string } }>('/api/community/stories/:id/toggle-hero', async (req, reply) => {
+            try {
+                const id = parseInt(req.params.id);
+                const [story] = await db.select().from(schema.communityStories).where(eq(schema.communityStories.id, id)).limit(1);
+                
+                if (!story) return reply.status(404).send({ message: "Story not found" });
+
+                const [updated] = await db.update(schema.communityStories)
+                    .set({ heroFeatured: !story.heroFeatured })
+                    .where(eq(schema.communityStories.id, id))
+                    .returning();
+
+                return { success: true, story: updated };
+            } catch (error) {
+                console.error("Toggle hero error:", error);
+                return reply.status(500).send({ message: "Failed to toggle hero" });
+            }
+        });
+
+        // DELETE /api/community/stories/:id
+        adminInstance.delete<{ Params: { id: string } }>('/api/community/stories/:id', async (req, reply) => {
+            try {
+                const id = parseInt(req.params.id);
+                await db.delete(schema.communityStories).where(eq(schema.communityStories.id, id));
+                return { success: true };
+            } catch (error) {
+                console.error("Delete story error:", error);
+                return reply.status(500).send({ message: "Failed to delete story" });
+            }
+        });
     });
 
     // GET /api/community/events

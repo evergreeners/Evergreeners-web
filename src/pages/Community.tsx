@@ -6,7 +6,7 @@ import {
     Github, Twitter, X, Send, ArrowRight, Star, Users,
     Flame, Calendar, MessageSquare, GitPullRequest, Trophy,
     BookOpen, ExternalLink, Clock, Zap, Loader2, Image as ImageIcon,
-    Upload, Link as LinkIcon
+    Upload, Link as LinkIcon, Check, Trash2
 } from 'lucide-react';
 import { getApiUrl } from '@/lib/api-config';
 import { useSession } from '@/lib/auth-client';
@@ -14,45 +14,34 @@ import './Community.css';
 
 /* ─────────────── DATA ─────────────── */
 
-const floatingAvatars = [
-    { src: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=200", style: { top: '18%', left: '8%' }, size: 'lg', delay: '0s' },
-    { src: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=200", style: { top: '10%', left: '22%' }, size: 'md', delay: '0.5s' },
-    { src: "https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=200", style: { top: '55%', left: '5%' }, size: 'sm', delay: '1s' },
-    { src: "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?q=80&w=200", style: { top: '75%', left: '18%' }, size: 'md', delay: '1.5s' },
-    { src: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=200", style: { top: '12%', right: '20%' }, size: 'lg', delay: '0.3s' },
-    { src: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=200", style: { top: '8%', right: '7%' }, size: 'md', delay: '0.8s' },
-    { src: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?q=80&w=200", style: { top: '55%', right: '8%' }, size: 'sm', delay: '1.2s' },
-    { src: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200", style: { top: '72%', right: '20%' }, size: 'md', delay: '0.6s' },
-];
-
-const storiesFallback = [
-    { id: 1, name: "Muhammad Adamu Aliyu", handle: "muhammad_adamu", platform: 'twitter' as const, role: "Founder", featured: true, quote: "The GitHub sync is magic. Seeing that green graph fill up is the best dopamine hit. It's transformed how I think about consistency.", image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=200" },
-    { id: 2, name: "Sarah Chen", handle: "schen_dev", platform: 'twitter' as const, role: "Software Engineer", quote: "It's like an RPG for my career. The Quest system finally made documentation fun for our entire team.", image: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=200" },
-    { id: 3, name: "Nasir Ibrahim Imam", handle: "nasir_imam", platform: 'github' as const, role: "Software Developer", featured: true, quote: "I used to code in bursts and burn out. Now I've coded for 100 days straight. Evergreeners made consistency my default.", image: "https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=200" },
-    { id: 4, name: "Abdulmumini Muhammad Bello", handle: "abdul_mumi", platform: 'github' as const, role: "Founder", quote: "Leaderboards made it a game for our whole team. Productivity is up 70% since we started tracking.", image: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=200" },
-];
-
-const eventsFallback = [
-    { id: 1, title: "Monthly Streak Showcase", date: "Mar 28, 2026", time: "7:00 PM WAT", type: "Live Session", desc: "Top streakers share their daily routines and tips for maintaining consistency over months.", attendees: 142, icon: 'Flame' },
-    { id: 2, title: "Open Source Sprint Weekend", date: "Apr 5-6, 2026", time: "All Day", type: "Hackathon", desc: "48-hour collaborative sprint where community members contribute to the Evergreeners open source repos.", attendees: 89, icon: 'GitPullRequest' },
-];
-
-const membersFallback = [
-    { rank: 1, name: "Abdulmumini Bello", handle: "abdul_mumi", streak: 312, role: "Founder", image: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=200", badge: "🏆" },
-    { rank: 2, name: "Nasir Ibrahim Imam", handle: "nasir_imam", streak: 289, role: "Software Developer", image: "https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=200", badge: "🥈" },
-];
-
-const openSourceItems = [
-    { title: "Evergreeners Core", desc: "The main app — React + TypeScript. Great first issues available for UI improvements and new features.", stars: 847, issues: 23, lang: "TypeScript", color: "#3178c6", link: "https://github.com/evergreeners/core" },
-    { title: "Evergreeners API", desc: "The backend service — Node.js + Express. Looking for contributors on the GitHub sync and analytics engine.", stars: 412, issues: 11, lang: "JavaScript", color: "#f7df1e", link: "https://github.com/evergreeners/api" },
+const AVATAR_LAYOUTS = [
+    { style: { top: '18%', left: '8%' }, size: 'lg', delay: '0s' },
+    { style: { top: '10%', left: '22%' }, size: 'md', delay: '0.5s' },
+    { style: { top: '55%', left: '5%' }, size: 'sm', delay: '1s' },
+    { style: { top: '75%', left: '18%' }, size: 'md', delay: '1.5s' },
+    { style: { top: '12%', right: '20%' }, size: 'lg', delay: '0.3s' },
+    { style: { top: '8%', right: '7%' }, size: 'md', delay: '0.8s' },
+    { style: { top: '55%', right: '8%' }, size: 'sm', delay: '1.2s' },
+    { style: { top: '72%', right: '20%' }, size: 'md', delay: '0.6s' },
 ];
 
 /* ─────────────── COMPONENTS ─────────────── */
 
-function StoryCard({ story }: { story: any }) {
+function StoryCard({ story, isAdmin, onAction }: { story: any; isAdmin?: boolean; onAction?: (action: string, id: number) => void }) {
+    const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+    const handleAction = async (action: string) => {
+        if (!onAction) return;
+        setActionLoading(action);
+        await onAction(action, story.id);
+        setActionLoading(null);
+    };
+
     return (
-        <div className={`comm-card ${story.featured ? 'comm-card--featured' : ''}`}>
+        <div className={`comm-card ${story.featured ? 'comm-card--featured' : ''} ${!story.approved ? 'comm-card--pending' : ''}`}>
             {story.featured && <div className="comm-card-featured-badge">⭐ Featured</div>}
+            {!story.approved && <div className="comm-card-pending-badge">⏳ Pending Approval</div>}
+            
             <div className="comm-card-header">
                 <img src={story.image} alt={story.name} className="comm-card-avatar" loading="lazy" />
                 <div className="comm-card-user">
@@ -64,6 +53,37 @@ function StoryCard({ story }: { story: any }) {
                 </div>
             </div>
             <p className="comm-card-quote">"{story.quote}"</p>
+
+            {isAdmin && (
+                <div className="comm-card-admin-actions">
+                    {!story.approved && (
+                        <button 
+                            className="comm-admin-btn comm-admin-btn--approve" 
+                            onClick={() => handleAction('approve')}
+                            disabled={actionLoading === 'approve'}
+                        >
+                            {actionLoading === 'approve' ? <Loader2 className="animate-spin" size={12} /> : <Check size={12} />}
+                            Approve
+                        </button>
+                    )}
+                    <button 
+                        className={`comm-admin-btn ${story.heroFeatured ? 'comm-admin-btn--unhero' : 'comm-admin-btn--hero'}`}
+                        onClick={() => handleAction('toggle-hero')}
+                        disabled={actionLoading === 'toggle-hero'}
+                    >
+                        {actionLoading === 'toggle-hero' ? <Loader2 className="animate-spin" size={12} /> : <Star size={12} />}
+                        {story.heroFeatured ? 'Remove Hero' : 'Hero Wall'}
+                    </button>
+                    <button 
+                        className="comm-admin-btn comm-admin-btn--delete" 
+                        onClick={() => handleAction('delete')}
+                        disabled={actionLoading === 'delete'}
+                    >
+                        {actionLoading === 'delete' ? <Loader2 className="animate-spin" size={12} /> : <Trash2 size={12} />}
+                        Delete
+                    </button>
+                </div>
+            )}
         </div>
     );
 }
@@ -101,7 +121,7 @@ function MemberRow({ member }: { member: any }) {
             <span className={`comm-member-rank ${member.rank <= 3 ? 'top3' : ''}`}>
                 {member.badge ?? `#${member.rank}`}
             </span>
-            <img src={member.image} alt={member.name} className="comm-member-avatar" loading="lazy" />
+            <img src={member.image || member.avatar} alt={member.name} className="comm-member-avatar" loading="lazy" />
             <div className="comm-member-info">
                 <span className="comm-member-name">{member.name}</span>
                 <span className="comm-member-handle">@{member.handle} · {member.role}</span>
@@ -114,7 +134,7 @@ function MemberRow({ member }: { member: any }) {
     );
 }
 
-function OpenSourceCard({ item }: { item: typeof openSourceItems[0] }) {
+function OpenSourceCard({ item }: { item: any }) {
     return (
         <a href={item.link} target="_blank" rel="noopener noreferrer" className="comm-oss-card">
             <div className="comm-oss-header">
@@ -315,6 +335,7 @@ export default function Community() {
     const [apiEvents, setApiEvents] = useState<any[]>([]);
     const [apiStats, setApiStats] = useState<any[]>([]);
     const [apiHeroAvatars, setApiHeroAvatars] = useState<any[]>([]);
+    const [isAdmin, setIsAdmin] = useState(false);
     const [leaderboard, setLeaderboard] = useState<any[]>([]);
     const [loading, setLoading] = useState({
         stories: true,
@@ -329,12 +350,34 @@ export default function Community() {
             const res = await fetch(getApiUrl('/api/community/stories'));
             const data = await res.json();
             setApiStories(data.stories || []);
+            setIsAdmin(data.isAdmin || false);
         } catch (err) {
             console.error('Fetch stories error:', err);
         } finally {
             setLoading(prev => ({ ...prev, stories: false }));
         }
     }, []);
+
+    const handleAdminAction = async (action: string, id: number) => {
+        try {
+            let res;
+            if (action === 'approve') {
+                res = await fetch(getApiUrl(`/api/community/stories/${id}/approve`), { method: 'PATCH' });
+            } else if (action === 'toggle-hero') {
+                res = await fetch(getApiUrl(`/api/community/stories/${id}/toggle-hero`), { method: 'PATCH' });
+            } else if (action === 'delete') {
+                if (!confirm('Are you sure you want to delete this story?')) return;
+                res = await fetch(getApiUrl(`/api/community/stories/${id}`), { method: 'DELETE' });
+            }
+
+            if (res && res.ok) {
+                fetchStories();
+                if (action === 'toggle-hero' || action === 'approve') fetchHeroAvatars();
+            }
+        } catch (err) {
+            console.error('Admin action error:', err);
+        }
+    };
 
     const fetchEvents = useCallback(async () => {
         try {
@@ -404,17 +447,15 @@ export default function Community() {
         fetchHeroAvatars();
     }, [fetchStories, fetchEvents, fetchStats, fetchLeaderboard, fetchHeroAvatars]);
 
-    const displayHeroAvatars = apiHeroAvatars.length > 0 ? apiHeroAvatars : floatingAvatars.map((a, i) => ({ image: a.src, name: "Member" }));
-
-    const mappedHeroAvatars = displayHeroAvatars.map((avatar, i) => {
-        const layout = floatingAvatars[i % floatingAvatars.length];
+    const mappedHeroAvatars = apiHeroAvatars.map((avatar, i) => {
+        const layout = AVATAR_LAYOUTS[i % AVATAR_LAYOUTS.length];
         return { ...avatar, ...layout };
     });
 
-    const displayStories = apiStories.length > 0 ? apiStories : storiesFallback;
-    const displayEvents = apiEvents.length > 0 ? apiEvents : eventsFallback;
-    const displayStats = apiStats.length > 0 ? apiStats : [];
-    const displayMembers = leaderboard.length > 0 ? leaderboard : membersFallback;
+    const displayStories = apiStories;
+    const displayEvents = apiEvents;
+    const displayStats = apiStats;
+    const displayMembers = leaderboard;
 
     const filteredStories = displayStories.filter(s => {
         if (storyFilter === 'all') return true;
@@ -436,10 +477,6 @@ export default function Community() {
                     ))}
 
                     <div className="comm-hero-content">
-                        <div className="comm-eyebrow">
-                            <span className="comm-eyebrow-dot" />
-                            10,000+ developers worldwide
-                        </div>
                         <h1>Welcome to the<br /><span className="comm-hero-accent">Evergreeners</span> community</h1>
                         <p>Build in public. Stay consistent. Grow together. Whether you're on day 1 or day 500, there's a place for you here.</p>
 
@@ -461,18 +498,7 @@ export default function Community() {
                 </section>
 
                 <section className="comm-stats">
-                    {displayStats.length > 0 ? displayStats.map((s, i) => (
-                        <div key={i} className="comm-stat">
-                            <div className="comm-stat-icon">{s.icon}</div>
-                            <div className="comm-stat-value">{s.value}</div>
-                            <div className="comm-stat-label">{s.label}</div>
-                        </div>
-                    )) : [
-                        { icon: <Users size={18} />, value: "10,000+", label: "Developers" },
-                        { icon: <Flame size={18} />, value: "2.4M+", label: "Streak Days" },
-                        { icon: <Star size={18} />, value: "98%", label: "Satisfaction" },
-                        { icon: <GitPullRequest size={18} />, value: "340+", label: "Contributions" },
-                    ].map((s, i) => (
+                    {displayStats.length > 0 && displayStats.map((s, i) => (
                         <div key={i} className="comm-stat">
                             <div className="comm-stat-icon">{s.icon}</div>
                             <div className="comm-stat-value">{s.value}</div>
@@ -505,7 +531,15 @@ export default function Community() {
                                 ))}
                             </div>
                             <div className="comm-grid">
-                                {filteredStories.map(s => <StoryCard key={s.id} story={s} />)}
+                                {filteredStories.length > 0 ? (
+                                    filteredStories.map((story) => (
+                                        <StoryCard key={story.id} story={story} isAdmin={isAdmin} onAction={handleAdminAction} />
+                                    ))
+                                ) : !loading.stories && (
+                                    <div className="comm-empty-state">
+                                        <p>No stories found in this category.</p>
+                                    </div>
+                                )}
                                 <button className="comm-card comm-card--submit" onClick={() => setShowModal(true)}>
                                     <div className="comm-card-submit-inner">
                                         <div className="comm-card-submit-icon"><ArrowRight size={22} /></div>
@@ -520,20 +554,26 @@ export default function Community() {
 
                     {tab === 'events' && (
                         <div className="comm-events-grid">
-                            {displayEvents.map((e, idx) => {
-                                if (typeof e.icon === 'string') {
-                                    const iconMap: any = { 
-                                        Flame: <Flame size={20} className="text-orange-400" />, 
-                                        Calendar: <Calendar size={20} className="text-purple-400" />, 
-                                        MessageSquare: <MessageSquare size={20} className="text-blue-400" />, 
-                                        GitPullRequest: <GitPullRequest size={20} className="text-purple-400" />, 
-                                        Trophy: <Trophy size={20} className="text-yellow-400" />, 
-                                        Zap: <Zap size={20} className="text-green-400" /> 
-                                    };
-                                    e = { ...e, icon: iconMap[e.icon] || <Calendar size={20} /> };
-                                }
-                                return <EventCard key={e.id || idx} event={e} />;
-                            })}
+                            {displayEvents.length > 0 ? (
+                                displayEvents.map((e, idx) => {
+                                    if (typeof e.icon === 'string') {
+                                        const iconMap: any = { 
+                                            Flame: <Flame size={20} className="text-orange-400" />, 
+                                            Calendar: <Calendar size={20} className="text-purple-400" />, 
+                                            MessageSquare: <MessageSquare size={20} className="text-blue-400" />, 
+                                            GitPullRequest: <GitPullRequest size={20} className="text-purple-400" />, 
+                                            Trophy: <Trophy size={20} className="text-yellow-400" />, 
+                                            Zap: <Zap size={20} className="text-green-400" /> 
+                                        };
+                                        e = { ...e, icon: iconMap[e.icon] || <Calendar size={20} /> };
+                                    }
+                                    return <EventCard key={e.id || idx} event={e} />;
+                                })
+                            ) : !loading.events && (
+                                <div className="comm-empty-state">
+                                    <p>No upcoming events at the moment. Stay tuned!</p>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -544,9 +584,15 @@ export default function Community() {
                                 <p>The top developers by longest active streak. Updated daily.</p>
                             </div>
                             <div className="comm-members-list">
-                                {displayMembers.map((m, idx) => (
-                                    <MemberRow key={m.rank || idx} member={{...m, image: m.avatar || m.image}} />
-                                ))}
+                                {displayMembers.length > 0 ? (
+                                    displayMembers.map((m, idx) => (
+                                        <MemberRow key={m.rank || idx} member={{...m, image: m.avatar || m.image}} />
+                                    ))
+                                ) : !loading.leaderboard && (
+                                    <div className="comm-empty-state">
+                                        <p>Leaderboard is being updated. Join now to be the first!</p>
+                                    </div>
+                                )}
                             </div>
                             <div className="comm-members-cta">
                                 <Link to="/signup"><CosmicButton>Join & track your streak</CosmicButton></Link>
@@ -561,7 +607,9 @@ export default function Community() {
                                 <p>Evergreeners is built in the open. Pick a repo, find a good first issue, and start contributing today.</p>
                             </div>
                             <div className="comm-oss-grid">
-                                {openSourceItems.map((item, i) => <OpenSourceCard key={i} item={item} />)}
+                                <div className="comm-empty-state">
+                                    <p>Open source repository information will be available soon.</p>
+                                </div>
                             </div>
                         </div>
                     )}
