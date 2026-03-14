@@ -1,4 +1,4 @@
-import { Settings, Menu, Home, BarChart3, Compass, Target, Trophy, LogOut, Wand2 } from "lucide-react";
+import { Settings, Menu, Home, BarChart3, Compass, Target, Trophy, LogOut, Wand2, ShieldCheck } from "lucide-react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Logo } from "@/components/Logo";
 import { NotificationCenter } from "@/components/NotificationCenter";
@@ -144,6 +144,18 @@ export function Header() {
                     </div>
                     <span className="font-medium text-sm">Settings</span>
                   </DropdownMenuItem>
+
+                  {(session?.user as any)?.role === 'admin' && (
+                    <DropdownMenuItem
+                      onClick={() => navigate('/admin')}
+                      className="w-full p-2 cursor-pointer rounded-xl transition-all duration-200 hover:bg-primary/5 focus:bg-primary/5 focus:outline-none flex items-center gap-3"
+                    >
+                      <div className="w-8 h-8 flex items-center justify-center shrink-0">
+                        <ShieldCheck className="w-4 h-4 text-primary" />
+                      </div>
+                      <span className="font-medium text-sm text-primary">Admin Panel</span>
+                    </DropdownMenuItem>
+                  )}
                 </div>
 
                 <div className="p-1.5 border-t border-primary/5 bg-gradient-to-r from-transparent to-primary/3 backdrop-blur-sm relative rounded-b-2xl z-10">

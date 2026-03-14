@@ -1507,6 +1507,26 @@ server.register(async (instance) => {
             }
         });
 
+        // PATCH /api/community/stories/:id/toggle-featured
+        adminInstance.patch<{ Params: { id: string } }>('/api/community/stories/:id/toggle-featured', async (req, reply) => {
+            try {
+                const id = parseInt(req.params.id);
+                const [story] = await db.select().from(schema.communityStories).where(eq(schema.communityStories.id, id)).limit(1);
+                
+                if (!story) return reply.status(404).send({ message: "Story not found" });
+
+                const [updated] = await db.update(schema.communityStories)
+                    .set({ featured: !story.featured })
+                    .where(eq(schema.communityStories.id, id))
+                    .returning();
+
+                return { success: true, story: updated };
+            } catch (error) {
+                console.error("Toggle featured error:", error);
+                return reply.status(500).send({ message: "Failed to toggle featured" });
+            }
+        });
+
         // DELETE /api/community/stories/:id
         adminInstance.delete<{ Params: { id: string } }>('/api/community/stories/:id', async (req, reply) => {
             try {
