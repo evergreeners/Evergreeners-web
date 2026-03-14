@@ -81,7 +81,7 @@ export default function AdminDashboard() {
                 url = getApiUrl(`/api/community/stories/${id}/${action}`);
             }
 
-            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+            const headers: Record<string, string> = {};
             if (session?.session?.token) {
                 headers['Authorization'] = `Bearer ${session.session.token}`;
             }
