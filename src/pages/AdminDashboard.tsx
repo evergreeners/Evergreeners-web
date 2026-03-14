@@ -7,6 +7,7 @@ import {
     Loader2, AlertCircle, ExternalLink, ShieldCheck
 } from 'lucide-react';
 import { getApiUrl } from '@/lib/api-config';
+import { useSession } from '@/lib/auth-client';
 import { toast } from 'sonner';
 import './AdminDashboard.css';
 
@@ -25,6 +26,7 @@ interface Story {
 }
 
 export default function AdminDashboard() {
+    const { data: session, isPending: authLoading } = useSession();
     const [stories, setStories] = useState<Story[]>([]);
     const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -32,7 +34,15 @@ export default function AdminDashboard() {
 
     const fetchStories = async () => {
         try {
-            const res = await fetch(getApiUrl('/api/community/stories'));
+            const headers: Record<string, string> = {};
+            if (session?.session?.token) {
+                headers['Authorization'] = `Bearer ${session.session.token}`;
+            }
+
+            const res = await fetch(getApiUrl('/api/community/stories'), {
+                headers,
+                credentials: 'include'
+            });
             const data = await res.json();
             
             if (!data.isAdmin) {
@@ -50,8 +60,10 @@ export default function AdminDashboard() {
     };
 
     useEffect(() => {
-        fetchStories();
-    }, []);
+        if (!authLoading) {
+            fetchStories();
+        }
+    }, [authLoading]);
 
     const handleAction = async (id: number, action: 'approve' | 'toggle-featured' | 'toggle-hero' | 'delete') => {
         const loadingId = `${action}-${id}`;
@@ -69,9 +81,15 @@ export default function AdminDashboard() {
                 url = getApiUrl(`/api/community/stories/${id}/${action}`);
             }
 
+            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+            if (session?.session?.token) {
+                headers['Authorization'] = `Bearer ${session.session.token}`;
+            }
+
             const res = await fetch(url, {
                 method,
-                headers: { 'Content-Type': 'application/json' }
+                headers,
+                credentials: 'include'
             });
 
             if (res.ok) {
