@@ -49,7 +49,8 @@ export const auth = betterAuth({
             totalCommits: { type: "number" },
             todayCommits: { type: "number" }, // Field for daily stats
             isGithubConnected: { type: "boolean" },
-            bestRank: { type: "number" }
+            bestRank: { type: "number" },
+            role: { type: "string" }
         }
     },
     socialProviders: {

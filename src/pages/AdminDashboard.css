@@ -1,0 +1,201 @@
+
+.admin-page {
+    min-height: 100vh;
+    background-color: #050505;
+    color: #fff;
+    padding-top: 100px;
+}
+
+.admin-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px;
+}
+
+.admin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 32px;
+}
+
+.admin-header h1 {
+    font-size: 2rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, #fff 0%, #4ade80 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.admin-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 40px;
+}
+
+.admin-stat-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(74, 222, 128, 0.1);
+    padding: 24px;
+    border-radius: 20px;
+    backdrop-filter: blur(10px);
+}
+
+.admin-stat-label {
+    font-size: 0.8rem;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+}
+
+.admin-stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #4ade80;
+}
+
+.admin-tabs {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding-bottom: 12px;
+}
+
+.admin-tab {
+    padding: 8px 16px;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #6b7280;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.admin-tab.active {
+    background: rgba(74, 222, 128, 0.1);
+    color: #4ade80;
+}
+
+.admin-table-container {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 20px;
+    overflow: hidden;
+}
+
+.admin-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+}
+
+.admin-table th {
+    padding: 16px;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    color: #6b7280;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.admin-table td {
+    padding: 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    font-size: 0.9rem;
+}
+
+.admin-user-cell {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.admin-user-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    object-fit: cover;
+}
+
+.admin-user-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.admin-user-name {
+    font-weight: 600;
+    color: #fff;
+}
+
+.admin-user-handle {
+    font-size: 0.75rem;
+    color: #6b7280;
+}
+
+.admin-badge {
+    padding: 2px 8px;
+    border-radius: 99px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.admin-badge--pending { background: rgba(234, 179, 8, 0.1); color: #eab308; border: 1px solid rgba(234, 179, 8, 0.2); }
+.admin-badge--approved { background: rgba(74, 222, 128, 0.1); color: #4ade80; border: 1px solid rgba(74, 222, 128, 0.2); }
+.admin-badge--featured { background: rgba(168, 85, 247, 0.1); color: #a855f7; border: 1px solid rgba(168, 85, 247, 0.2); }
+
+.admin-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.admin-btn {
+    padding: 6px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: transparent;
+    color: #6b7280;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.admin-btn:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.admin-btn--approve:hover { color: #4ade80; border-color: #4ade80; }
+.admin-btn--feature:hover { color: #a855f7; border-color: #a855f7; }
+.admin-btn--hero:hover { color: #fbbf24; border-color: #fbbf24; }
+.admin-btn--delete:hover { color: #ef4444; border-color: #ef4444; }
+
+.admin-btn.active {
+    background: rgba(74, 222, 128, 0.1);
+    color: #4ade80;
+    border-color: #4ade80;
+}
+
+.admin-btn--feature.active {
+    background: rgba(168, 85, 247, 0.1);
+    color: #a855f7;
+    border-color: #a855f7;
+}
+
+.admin-btn--hero.active {
+    background: rgba(251, 191, 36, 0.1);
+    color: #fbbf24;
+    border-color: #fbbf24;
+}
+
+.admin-empty {
+    padding: 48px;
+    text-align: center;
+    color: #6b7280;
+}

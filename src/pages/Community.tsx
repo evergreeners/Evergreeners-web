@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { PublicHeader } from '@/components/PublicHeader';
+import { Header } from '@/components/Header';
 import { CosmicButton } from '@/components/ui/cosmic-button';
 import { Link } from 'react-router-dom';
 import {
     Github, Twitter, X, Send, ArrowRight, Star, Users,
     Flame, Calendar, MessageSquare, GitPullRequest, Trophy,
     BookOpen, ExternalLink, Clock, Zap, Loader2, Image as ImageIcon,
-    Upload, Link as LinkIcon, Check, Trash2
+    Upload, Link as LinkIcon, Check, Trash2, ShieldCheck
 } from 'lucide-react';
 import { getApiUrl } from '@/lib/api-config';
 import { useSession } from '@/lib/auth-client';
@@ -323,9 +324,10 @@ function SubmitModal({ onClose, onRefresh }: { onClose: () => void; onRefresh: (
 
 /* ─────────────── PAGE ─────────────── */
 
-type Tab = 'stories' | 'events' | 'members' | 'opensource';
+type Tab = 'stories' | 'events' | 'members' | 'opensource' | 'admin';
 
 export default function Community() {
+    const { data: session } = useSession();
     const [tab, setTab] = useState<Tab>('stories');
     const [storyFilter, setStoryFilter] = useState<'all' | 'featured' | 'github' | 'twitter'>('all');
     const [showModal, setShowModal] = useState(false);
@@ -465,7 +467,7 @@ export default function Community() {
 
     return (
         <div className="comm-page">
-            <PublicHeader />
+            {session ? <Header /> : <PublicHeader />}
             <div className="comm-bg"><div className="comm-bg-grid" /></div>
 
             <main className="comm-main">
@@ -513,7 +515,8 @@ export default function Community() {
                         { id: 'events', label: 'Events', icon: <Calendar size={15} /> },
                         { id: 'members', label: 'Top Members', icon: <Trophy size={15} /> },
                         { id: 'opensource', label: 'Open Source', icon: <GitPullRequest size={15} /> },
-                    ] as any).map((t: any) => (
+                        isAdmin && { id: 'admin', label: 'Moderation', icon: <ShieldCheck size={15} /> },
+                    ].filter(Boolean) as any).map((t: any) => (
                         <button key={t.id} onClick={() => setTab(t.id)} className={`comm-tab-btn ${tab === t.id ? 'active' : ''}`}>
                             {t.icon} {t.label}
                         </button>
@@ -611,6 +614,18 @@ export default function Community() {
                                     <p>Open source repository information will be available soon.</p>
                                 </div>
                             </div>
+                        </div>
+                    )}
+
+                    {tab === 'admin' && isAdmin && (
+                        <div className="comm-admin-section">
+                            <div className="comm-members-header">
+                                <h2>Community Moderation</h2>
+                                <p>Manage pending stories and community content.</p>
+                            </div>
+                            <Link to="/admin">
+                                <CosmicButton className="mx-auto block">Open Admin Dashboard</CosmicButton>
+                            </Link>
                         </div>
                     )}
                 </div>

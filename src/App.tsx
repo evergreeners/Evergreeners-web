@@ -18,6 +18,7 @@ import Generator from "./pages/Generator";
 import RepoDetail from "./pages/RepoDetail";
 import NotFound from "./pages/NotFound";
 import Community from "./pages/Community";
+import AdminDashboard from "./pages/AdminDashboard";
 import ScrollToTop from "./components/ScrollToTop";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { PWAInstallPrompt } from "./components/PWAInstallPrompt";
@@ -94,6 +95,7 @@ const AppContents = () => {
           <Route path="/settings" element={<Settings />} />
           <Route path="/leaderboard" element={<Leaderboard />} />
           <Route path="/generator" element={<Generator />} />
+          <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/repo/:owner/:repo" element={<RepoDetail />} />
         </Route>
 
