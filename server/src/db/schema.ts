@@ -110,6 +110,7 @@ export const communityStories = mySchema.table('community_stories', {
     quote: text('quote').notNull(),
     image: text('image'),
     approved: boolean('approved').default(false),
+    heroFeatured: boolean('hero_featured').default(false),
     createdAt: timestamp('created_at').defaultNow(),
 });
 

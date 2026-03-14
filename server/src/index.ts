@@ -1,7 +1,11 @@
 import './env.js'; // Trigger restart
 import fastify, { FastifyRequest } from 'fastify';
 import cors from '@fastify/cors';
-// dotenv is loaded first via ./env.js
+import multipart from '@fastify/multipart';
+import fastifyStatic from '@fastify/static';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import fs from 'fs/promises';
 import { auth } from './auth.js';
 import { toNodeHandler } from 'better-auth/node';
 
@@ -94,6 +98,15 @@ server.register(cors, {
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "Cookie"],
+});
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+server.register(multipart);
+server.register(fastifyStatic, {
+    root: path.join(__dirname, '../public'),
+    prefix: '/public/', // optional: default '/'
 });
 
 // GitHub OAuth is handled by better-auth in separate adapter
@@ -1446,6 +1459,52 @@ server.register(async (instance) => {
         } catch (error) {
             console.error("Fetch community stats error:", error);
             return reply.status(500).send({ message: "Failed to fetch community stats" });
+        }
+    });
+
+    // GET /api/community/hero-avatars
+    instance.get('/api/community/hero-avatars', async (req, reply) => {
+        try {
+            const avatars = await db.select({
+                image: schema.communityStories.image,
+                name: schema.communityStories.name
+            })
+            .from(schema.communityStories)
+            .where(and(
+                eq(schema.communityStories.approved, true),
+                eq(schema.communityStories.heroFeatured, true)
+            ))
+            .limit(8);
+            
+            return { avatars };
+        } catch (error) {
+            console.error("Fetch hero avatars error:", error);
+            return reply.status(500).send({ message: "Failed to fetch hero avatars" });
+        }
+    });
+
+    // POST /api/community/upload
+    instance.post('/api/community/upload', async (req, reply) => {
+        try {
+            const data = await req.file();
+            if (!data) return reply.status(400).send({ message: "No file uploaded" });
+
+            const ext = path.extname(data.filename);
+            const filename = `${Date.now()}-${Math.round(Math.random() * 1E9)}${ext}`;
+            const uploadPath = path.join(__dirname, '../public/uploads', filename);
+
+            await fs.writeFile(uploadPath, await data.toBuffer());
+
+            // Get base URL for static files
+            const isLocal = req.hostname.includes('localhost') || req.hostname.includes('127.0.0.1');
+            const baseUrl = isLocal ? `http://${req.hostname}:3000` : ''; 
+
+            return { 
+                url: `${baseUrl}/public/uploads/${filename}` 
+            };
+        } catch (error) {
+            console.error("Upload error:", error);
+            return reply.status(500).send({ message: "Upload failed" });
         }
     });
 });

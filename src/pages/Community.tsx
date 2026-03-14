@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { PublicHeader } from '@/components/PublicHeader';
 import { CosmicButton } from '@/components/ui/cosmic-button';
@@ -6,7 +5,8 @@ import { Link } from 'react-router-dom';
 import {
     Github, Twitter, X, Send, ArrowRight, Star, Users,
     Flame, Calendar, MessageSquare, GitPullRequest, Trophy,
-    BookOpen, ExternalLink, Clock, Zap, Loader2, Image as ImageIcon
+    BookOpen, ExternalLink, Clock, Zap, Loader2, Image as ImageIcon,
+    Upload, Link as LinkIcon
 } from 'lucide-react';
 import { getApiUrl } from '@/lib/api-config';
 import { useSession } from '@/lib/auth-client';
@@ -25,52 +25,31 @@ const floatingAvatars = [
     { src: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200", style: { top: '72%', right: '20%' }, size: 'md', delay: '0.6s' },
 ];
 
-const stories = [
+const storiesFallback = [
     { id: 1, name: "Muhammad Adamu Aliyu", handle: "muhammad_adamu", platform: 'twitter' as const, role: "Founder", featured: true, quote: "The GitHub sync is magic. Seeing that green graph fill up is the best dopamine hit. It's transformed how I think about consistency.", image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=200" },
     { id: 2, name: "Sarah Chen", handle: "schen_dev", platform: 'twitter' as const, role: "Software Engineer", quote: "It's like an RPG for my career. The Quest system finally made documentation fun for our entire team.", image: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=200" },
     { id: 3, name: "Nasir Ibrahim Imam", handle: "nasir_imam", platform: 'github' as const, role: "Software Developer", featured: true, quote: "I used to code in bursts and burn out. Now I've coded for 100 days straight. Evergreeners made consistency my default.", image: "https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=200" },
     { id: 4, name: "Abdulmumini Muhammad Bello", handle: "abdul_mumi", platform: 'github' as const, role: "Founder", quote: "Leaderboards made it a game for our whole team. Productivity is up 70% since we started tracking.", image: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=200" },
-    { id: 5, name: "Elena Rodriguez", handle: "elena_codes", platform: 'twitter' as const, role: "Full-stack Engineer", featured: true, quote: "The DX is incredibly smooth. Within a week I saw the benefits — cleaner commits, longer focused sessions, less burnout.", image: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=200" },
-    { id: 6, name: "Marcus Thorne", handle: "mthorne_eng", platform: 'github' as const, role: "Backend Engineer", quote: "Three months in and the insights are incredibly deep. It helped me identify exactly where my bottlenecks were hiding.", image: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=200" },
-    { id: 7, name: "James Wilson", handle: "jwil_dev", platform: 'github' as const, role: "DevOps Engineer", featured: true, quote: "My team follows my public profile now — it became our unofficial daily accountability board. Game changer.", image: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?q=80&w=200" },
-    { id: 8, name: "Aisha Yusuf", handle: "aisha_codes", platform: 'twitter' as const, role: "Frontend Developer", quote: "Finally a tool that understands the developer workflow. No more manual tracking. It just lives where I work.", image: "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?q=80&w=200" },
 ];
 
-const events = [
-    { id: 1, title: "Monthly Streak Showcase", date: "Mar 28, 2026", time: "7:00 PM WAT", type: "Live Session", desc: "Top streakers share their daily routines and tips for maintaining consistency over months.", attendees: 142, icon: <Flame size={20} className="text-orange-400" /> },
-    { id: 2, title: "Open Source Sprint Weekend", date: "Apr 5-6, 2026", time: "All Day", type: "Hackathon", desc: "48-hour collaborative sprint where community members contribute to the Evergreeners open source repos.", attendees: 89, icon: <GitPullRequest size={20} className="text-purple-400" /> },
-    { id: 3, title: "Ask Me Anything — Core Team", date: "Apr 12, 2026", time: "5:00 PM WAT", type: "AMA", desc: "Live Q&A with the Evergreeners core team. Ask about the roadmap, features, and what's coming next.", attendees: 231, icon: <MessageSquare size={20} className="text-blue-400" /> },
-    { id: 4, title: "100-Day Streak Club Meetup", date: "Apr 19, 2026", time: "6:00 PM WAT", type: "Community", desc: "Exclusive gathering for developers who've maintained a 100+ day streak. Share your story and get your badge.", attendees: 67, icon: <Trophy size={20} className="text-yellow-400" /> },
-    { id: 5, title: "Dev Tools Deep Dive", date: "May 3, 2026", time: "4:00 PM WAT", type: "Workshop", desc: "A workshop on integrating Evergreeners with your existing workflow — GitHub Actions, WakaTime, custom scripts.", attendees: 115, icon: <Zap size={20} className="text-green-400" /> },
-    { id: 6, title: "Community Roadmap Vote", date: "May 10, 2026", time: "Async", type: "Community", desc: "Vote on the features you want to see next. Your voice directly shapes the Evergreeners roadmap.", attendees: 408, icon: <Star size={20} className="text-green-400" /> },
+const eventsFallback = [
+    { id: 1, title: "Monthly Streak Showcase", date: "Mar 28, 2026", time: "7:00 PM WAT", type: "Live Session", desc: "Top streakers share their daily routines and tips for maintaining consistency over months.", attendees: 142, icon: 'Flame' },
+    { id: 2, title: "Open Source Sprint Weekend", date: "Apr 5-6, 2026", time: "All Day", type: "Hackathon", desc: "48-hour collaborative sprint where community members contribute to the Evergreeners open source repos.", attendees: 89, icon: 'GitPullRequest' },
 ];
 
-const members = [
+const membersFallback = [
     { rank: 1, name: "Abdulmumini Bello", handle: "abdul_mumi", streak: 312, role: "Founder", image: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=200", badge: "🏆" },
     { rank: 2, name: "Nasir Ibrahim Imam", handle: "nasir_imam", streak: 289, role: "Software Developer", image: "https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=200", badge: "🥈" },
-    { rank: 3, name: "Marcus Thorne", handle: "mthorne_eng", streak: 241, role: "Backend Engineer", image: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=200", badge: "🥉" },
-    { rank: 4, name: "James Wilson", handle: "jwil_dev", streak: 198, role: "DevOps Engineer", image: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?q=80&w=200", badge: null },
-    { rank: 5, name: "Elena Rodriguez", handle: "elena_codes", streak: 175, role: "Full-stack Engineer", image: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=200", badge: null },
-    { rank: 6, name: "Sarah Chen", handle: "schen_dev", streak: 154, role: "Software Engineer", image: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=200", badge: null },
 ];
 
 const openSourceItems = [
     { title: "Evergreeners Core", desc: "The main app — React + TypeScript. Great first issues available for UI improvements and new features.", stars: 847, issues: 23, lang: "TypeScript", color: "#3178c6", link: "https://github.com/evergreeners/core" },
     { title: "Evergreeners API", desc: "The backend service — Node.js + Express. Looking for contributors on the GitHub sync and analytics engine.", stars: 412, issues: 11, lang: "JavaScript", color: "#f7df1e", link: "https://github.com/evergreeners/api" },
-    { title: "Streak CLI", desc: "A terminal-first companion for Evergreeners. Log streaks, view stats, and push updates from your terminal.", stars: 234, issues: 8, lang: "Rust", color: "#ce422b", link: "https://github.com/evergreeners/cli" },
-    { title: "Docs & Wiki", desc: "Help us document Evergreeners better. Great for non-code contributions — writing, diagrams, examples.", stars: 89, issues: 34, lang: "MDX", color: "#4ade80", link: "https://github.com/evergreeners/docs" },
-];
-
-const stats = [
-    { icon: <Users size={18} />, value: "10,000+", label: "Developers" },
-    { icon: <Flame size={18} />, value: "2.4M+", label: "Streak Days" },
-    { icon: <Star size={18} />, value: "98%", label: "Satisfaction" },
-    { icon: <GitPullRequest size={18} />, value: "340+", label: "Contributions" },
 ];
 
 /* ─────────────── COMPONENTS ─────────────── */
 
-function StoryCard({ story }: { story: typeof stories[0] }) {
+function StoryCard({ story }: { story: any }) {
     return (
         <div className={`comm-card ${story.featured ? 'comm-card--featured' : ''}`}>
             {story.featured && <div className="comm-card-featured-badge">⭐ Featured</div>}
@@ -89,7 +68,7 @@ function StoryCard({ story }: { story: typeof stories[0] }) {
     );
 }
 
-function EventCard({ event }: { event: typeof events[0] }) {
+function EventCard({ event }: { event: any }) {
     return (
         <div className="comm-event-card">
             <div className="comm-event-icon">{event.icon}</div>
@@ -116,7 +95,7 @@ function EventCard({ event }: { event: typeof events[0] }) {
     );
 }
 
-function MemberRow({ member }: { member: typeof members[0] }) {
+function MemberRow({ member }: { member: any }) {
     return (
         <div className="comm-member-row">
             <span className={`comm-member-rank ${member.rank <= 3 ? 'top3' : ''}`}>
@@ -171,13 +150,40 @@ function SubmitModal({ onClose, onRefresh }: { onClose: () => void; onRefresh: (
         role: '',
         platform: 'github',
         story: '',
-        image: session?.user?.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(session?.user?.name || 'User')}&background=random`
+        image: (session?.user as any)?.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(session?.user?.name || 'User')}&background=random`
     });
     const [submitted, setSubmitted] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [uploading, setUploading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const avatarUrl = form.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(form.name || 'User')}&background=random`;
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setUploading(true);
+        setError(null);
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const res = await fetch(getApiUrl('/api/community/upload'), {
+                method: 'POST',
+                body: formData,
+            });
+
+            if (!res.ok) throw new Error('Upload failed');
+            const data = await res.json();
+            setForm(f => ({ ...f, image: data.url }));
+        } catch (err: any) {
+            setError(err.message);
+        } finally {
+            setUploading(false);
+        }
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -251,10 +257,25 @@ function SubmitModal({ onClose, onRefresh }: { onClose: () => void; onRefresh: (
                                     </select>
                                 </div>
                             </div>
+
                             <div className="comm-form-group">
-                                <label>Profile Image URL (Optional)</label>
-                                <input type="url" placeholder="https://..." value={form.image} onChange={e => setForm(f => ({ ...f, image: e.target.value }))} />
+                                <label>Profile Image</label>
+                                <div className="comm-upload-options">
+                                    <div className="comm-upload-btn-wrapper">
+                                        <button type="button" className="comm-upload-btn" disabled={uploading}>
+                                            {uploading ? <Loader2 className="animate-spin" size={14} /> : <Upload size={14} />}
+                                            {uploading ? 'Upload photo' : 'Upload photo'}
+                                        </button>
+                                        <input type="file" accept="image/*" onChange={handleFileUpload} disabled={uploading} />
+                                    </div>
+                                    <div className="comm-upload-divider">or</div>
+                                    <div className="comm-link-input">
+                                        <LinkIcon size={14} />
+                                        <input type="url" placeholder="Paste image URL..." value={form.image} onChange={e => setForm(f => ({ ...f, image: e.target.value }))} />
+                                    </div>
+                                </div>
                             </div>
+
                             <div className="comm-form-group">
                                 <label>Your story</label>
                                 <textarea rows={5} placeholder="Tell us what Evergreeners has meant for your journey as a developer..." value={form.story} onChange={e => setForm(f => ({ ...f, story: e.target.value }))} required />
@@ -285,12 +306,14 @@ export default function Community() {
     const [apiStories, setApiStories] = useState<any[]>([]);
     const [apiEvents, setApiEvents] = useState<any[]>([]);
     const [apiStats, setApiStats] = useState<any[]>([]);
+    const [apiHeroAvatars, setApiHeroAvatars] = useState<any[]>([]);
     const [leaderboard, setLeaderboard] = useState<any[]>([]);
     const [loading, setLoading] = useState({
         stories: true,
         events: true,
         stats: true,
-        leaderboard: true
+        leaderboard: true,
+        hero: true
     });
 
     const fetchStories = useCallback(async () => {
@@ -322,14 +345,12 @@ export default function Community() {
             const res = await fetch(getApiUrl('/api/community/stats'));
             const data = await res.json();
             if (data.stats) {
-                // Map the icon strings back to Lucide components
                 const iconMap: Record<string, React.ReactNode> = {
                     'Users': <Users size={18} />,
                     'Flame': <Flame size={18} />,
                     'Star': <Star size={18} />,
                     'GitPullRequest': <GitPullRequest size={18} />
                 };
-
                 const mappedStats = data.stats.map((s: any) => ({
                     ...s,
                     icon: iconMap[s.icon] || <Zap size={18} />
@@ -355,17 +376,37 @@ export default function Community() {
         }
     }, []);
 
+    const fetchHeroAvatars = useCallback(async () => {
+        try {
+            const res = await fetch(getApiUrl('/api/community/hero-avatars'));
+            const data = await res.json();
+            setApiHeroAvatars(data.avatars || []);
+        } catch (err) {
+            console.error('Fetch hero avatars error:', err);
+        } finally {
+            setLoading(prev => ({ ...prev, hero: false }));
+        }
+    }, []);
+
     useEffect(() => {
         fetchStories();
         fetchEvents();
         fetchStats();
         fetchLeaderboard();
-    }, [fetchStories, fetchEvents, fetchStats, fetchLeaderboard]);
+        fetchHeroAvatars();
+    }, [fetchStories, fetchEvents, fetchStats, fetchLeaderboard, fetchHeroAvatars]);
 
-    const displayStories = apiStories.length > 0 ? apiStories : stories;
-    const displayEvents = apiEvents.length > 0 ? apiEvents : events;
-    const displayStats = apiStats.length > 0 ? apiStats : stats;
-    const displayMembers = leaderboard.length > 0 ? leaderboard : members;
+    const displayHeroAvatars = apiHeroAvatars.length > 0 ? apiHeroAvatars : floatingAvatars.map((a, i) => ({ image: a.src, name: "Member" }));
+
+    const mappedHeroAvatars = displayHeroAvatars.map((avatar, i) => {
+        const layout = floatingAvatars[i % floatingAvatars.length];
+        return { ...avatar, ...layout };
+    });
+
+    const displayStories = apiStories.length > 0 ? apiStories : storiesFallback;
+    const displayEvents = apiEvents.length > 0 ? apiEvents : eventsFallback;
+    const displayStats = apiStats.length > 0 ? apiStats : [];
+    const displayMembers = leaderboard.length > 0 ? leaderboard : membersFallback;
 
     const filteredStories = displayStories.filter(s => {
         if (storyFilter === 'all') return true;
@@ -376,22 +417,13 @@ export default function Community() {
     return (
         <div className="comm-page">
             <PublicHeader />
-
-            {/* Background */}
             <div className="comm-bg"><div className="comm-bg-grid" /></div>
 
             <main className="comm-main">
-
-                {/* ── Hero with floating avatars ── */}
                 <section className="comm-hero">
-                    {/* Floating member photos */}
-                    {floatingAvatars.map((a, i) => (
-                        <div
-                            key={i}
-                            className={`comm-float-avatar comm-float-avatar--${a.size}`}
-                            style={{ ...a.style, animationDelay: a.delay } as React.CSSProperties}
-                        >
-                            <img src={a.src} alt="Community member" loading="lazy" />
+                    {mappedHeroAvatars.map((a, i) => (
+                        <div key={i} className={`comm-float-avatar comm-float-avatar--${a.size}`} style={{ ...a.style, animationDelay: a.delay } as any}>
+                            <img src={a.image} alt={a.name} loading="lazy" />
                         </div>
                     ))}
 
@@ -420,9 +452,19 @@ export default function Community() {
                     </div>
                 </section>
 
-                {/* ── Stats ── */}
                 <section className="comm-stats">
-                    {displayStats.map((s, i) => (
+                    {displayStats.length > 0 ? displayStats.map((s, i) => (
+                        <div key={i} className="comm-stat">
+                            <div className="comm-stat-icon">{s.icon}</div>
+                            <div className="comm-stat-value">{s.value}</div>
+                            <div className="comm-stat-label">{s.label}</div>
+                        </div>
+                    )) : [
+                        { icon: <Users size={18} />, value: "10,000+", label: "Developers" },
+                        { icon: <Flame size={18} />, value: "2.4M+", label: "Streak Days" },
+                        { icon: <Star size={18} />, value: "98%", label: "Satisfaction" },
+                        { icon: <GitPullRequest size={18} />, value: "340+", label: "Contributions" },
+                    ].map((s, i) => (
                         <div key={i} className="comm-stat">
                             <div className="comm-stat-icon">{s.icon}</div>
                             <div className="comm-stat-value">{s.value}</div>
@@ -431,38 +473,25 @@ export default function Community() {
                     ))}
                 </section>
 
-                {/* ── Tab Navigation ── */}
                 <div className="comm-tabs">
                     {([
                         { id: 'stories', label: 'Stories', icon: <MessageSquare size={15} /> },
                         { id: 'events', label: 'Events', icon: <Calendar size={15} /> },
                         { id: 'members', label: 'Top Members', icon: <Trophy size={15} /> },
                         { id: 'opensource', label: 'Open Source', icon: <GitPullRequest size={15} /> },
-                    ] as { id: Tab; label: string; icon: React.ReactNode }[]).map(t => (
-                        <button
-                            key={t.id}
-                            onClick={() => setTab(t.id)}
-                            className={`comm-tab-btn ${tab === t.id ? 'active' : ''}`}
-                        >
-                            {t.icon}
-                            {t.label}
+                    ] as any).map((t: any) => (
+                        <button key={t.id} onClick={() => setTab(t.id)} className={`comm-tab-btn ${tab === t.id ? 'active' : ''}`}>
+                            {t.icon} {t.label}
                         </button>
                     ))}
                 </div>
 
-                {/* ── Tab Content ── */}
                 <div className="comm-tab-content">
-
-                    {/* STORIES */}
                     {tab === 'stories' && (
                         <>
                             <div className="comm-filters">
                                 {(['all', 'featured', 'github', 'twitter'] as const).map(f => (
-                                    <button
-                                        key={f}
-                                        className={`comm-filter-btn ${storyFilter === f ? 'active' : ''}`}
-                                        onClick={() => setStoryFilter(f)}
-                                    >
+                                    <button key={f} className={`comm-filter-btn ${storyFilter === f ? 'active' : ''}`} onClick={() => setStoryFilter(f)}>
                                         {f === 'all' ? 'All Stories' : f === 'featured' ? '⭐ Featured' : f === 'github' ? 'GitHub' : 'Twitter / X'}
                                     </button>
                                 ))}
@@ -481,14 +510,9 @@ export default function Community() {
                         </>
                     )}
 
-                    {/* EVENTS */}
                     {tab === 'events' && (
                         <div className="comm-events-grid">
-                            {displayEvents.length === 0 && !loading.events && (
-                                <div className="comm-empty-state">No upcoming events scheduled. Check back later!</div>
-                            )}
                             {displayEvents.map((e, idx) => {
-                                // Handle icon if it's a string from DB
                                 if (typeof e.icon === 'string') {
                                     const iconMap: any = { 
                                         Flame: <Flame size={20} className="text-orange-400" />, 
@@ -505,7 +529,6 @@ export default function Community() {
                         </div>
                     )}
 
-                    {/* MEMBERS */}
                     {tab === 'members' && (
                         <div className="comm-members-section">
                             <div className="comm-members-header">
@@ -514,21 +537,15 @@ export default function Community() {
                             </div>
                             <div className="comm-members-list">
                                 {displayMembers.map((m, idx) => (
-                                    <MemberRow key={m.rank || idx} member={{
-                                        ...m,
-                                        image: m.avatar || m.image // handle field name mismatch between leaderboard and members data
-                                    }} />
+                                    <MemberRow key={m.rank || idx} member={{...m, image: m.avatar || m.image}} />
                                 ))}
                             </div>
                             <div className="comm-members-cta">
-                                <Link to="/signup">
-                                    <CosmicButton>Join & track your streak</CosmicButton>
-                                </Link>
+                                <Link to="/signup"><CosmicButton>Join & track your streak</CosmicButton></Link>
                             </div>
                         </div>
                     )}
 
-                    {/* OPEN SOURCE */}
                     {tab === 'opensource' && (
                         <div className="comm-oss-section">
                             <div className="comm-oss-intro">
@@ -540,7 +557,6 @@ export default function Community() {
                             </div>
                         </div>
                     )}
-
                 </div>
             </main>
 
