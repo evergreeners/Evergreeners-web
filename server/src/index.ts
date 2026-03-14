@@ -7,7 +7,7 @@ import { toNodeHandler } from 'better-auth/node';
 
 import { db } from './db/index.js';
 import * as schema from './db/schema.js';
-import { eq, and, desc, gt } from 'drizzle-orm';
+import { eq, and, desc, gt, sql } from 'drizzle-orm';
 import { getGithubContributions, checkQuestProgress } from './lib/github.js';
 import { setupCronJobs } from './cron.js';
 import { updateUserGoals } from './lib/goals.js';
@@ -1365,6 +1365,88 @@ if (process.env.NODE_ENV !== 'production') {
     console.log('   GET /api/dev/test-streak?to=you@email.com&committed=true  ← simulate committed day');
     console.log('   GET /api/dev/test-streak?to=you@email.com&committed=false ← simulate no commits');
 }
+
+// ── COMMUNITY ENDPOINTS ──
+server.register(async (instance) => {
+    // GET /api/community/stories
+    instance.get('/api/community/stories', async (req, reply) => {
+        try {
+            const allStories = await db.select()
+                .from(schema.communityStories)
+                .orderBy(desc(schema.communityStories.createdAt));
+            return { stories: allStories };
+        } catch (error) {
+            console.error("Fetch stories error:", error);
+            return reply.status(500).send({ message: "Failed to fetch stories" });
+        }
+    });
+
+    // POST /api/community/stories
+    instance.post('/api/community/stories', async (req, reply) => {
+        const body = req.body as any;
+        if (!body.name || !body.handle || !body.platform || !body.quote) {
+            return reply.status(400).send({ message: "Missing required fields" });
+        }
+
+        try {
+            const session = await getSessionFromRequest(req);
+            const userId = session?.session.userId;
+
+            const [newStory] = await db.insert(schema.communityStories).values({
+                userId,
+                name: body.name,
+                handle: body.handle,
+                platform: body.platform,
+                role: body.role,
+                quote: body.quote,
+                image: body.image,
+                featured: false,
+            } as any).returning();
+
+            return { success: true, story: newStory };
+        } catch (error) {
+            console.error("Submit story error:", error);
+            return reply.status(500).send({ message: "Failed to submit story" });
+        }
+    });
+
+    // GET /api/community/events
+    instance.get('/api/community/events', async (req, reply) => {
+        try {
+            const allEvents = await db.select()
+                .from(schema.events)
+                .orderBy(desc(schema.events.createdAt));
+            return { events: allEvents };
+        } catch (error) {
+            console.error("Fetch events error:", error);
+            return reply.status(500).send({ message: "Failed to fetch events" });
+        }
+    });
+
+    // GET /api/community/stats
+    instance.get('/api/community/stats', async (req, reply) => {
+        try {
+            const userStats = await db.select({
+                totalUsers: sql<number>`count(${schema.users.id})`,
+                totalStreakDays: sql<number>`sum(coalesce(${schema.users.streak}, 0))`,
+                totalCommits: sql<number>`sum(coalesce(${schema.users.totalCommits}, 0))`,
+                totalContributions: sql<number>`sum(coalesce(${schema.users.totalPullRequests}, 0))`,
+            }).from(schema.users);
+
+            const stats = [
+                { icon: 'Users', value: `${(userStats[0]?.totalUsers || 0).toLocaleString()}+`, label: "Developers" },
+                { icon: 'Flame', value: `${((userStats[0]?.totalStreakDays || 0) / 1000000).toFixed(1)}M+`, label: "Streak Days" },
+                { icon: 'Star', value: "98%", label: "Satisfaction" },
+                { icon: 'GitPullRequest', value: `${(userStats[0]?.totalContributions || 0).toLocaleString()}+`, label: "Contributions" },
+            ];
+
+            return { stats };
+        } catch (error) {
+            console.error("Fetch community stats error:", error);
+            return reply.status(500).send({ message: "Failed to fetch community stats" });
+        }
+    });
+});
 
 const start = async () => {
     try {

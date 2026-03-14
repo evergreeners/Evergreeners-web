@@ -1,13 +1,14 @@
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { PublicHeader } from '@/components/PublicHeader';
 import { CosmicButton } from '@/components/ui/cosmic-button';
 import { Link } from 'react-router-dom';
 import {
     Github, Twitter, X, Send, ArrowRight, Star, Users,
     Flame, Calendar, MessageSquare, GitPullRequest, Trophy,
-    BookOpen, ExternalLink, Clock, Zap
+    BookOpen, ExternalLink, Clock, Zap, Loader2
 } from 'lucide-react';
+import { getApiUrl } from '@/lib/api-config';
 import './Community.css';
 
 /* ─────────────── DATA ─────────────── */
@@ -161,11 +162,41 @@ interface SubmitFormData {
     platform: 'github' | 'twitter'; story: string;
 }
 
-function SubmitModal({ onClose }: { onClose: () => void }) {
+function SubmitModal({ onClose, onRefresh }: { onClose: () => void; onRefresh: () => void }) {
     const [form, setForm] = useState<SubmitFormData>({ name: '', handle: '', role: '', platform: 'github', story: '' });
     const [submitted, setSubmitted] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); setSubmitted(true); };
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+        setError(null);
+
+        try {
+            const res = await fetch(getApiUrl('/api/community/stories'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: form.name,
+                    handle: form.handle,
+                    platform: form.platform,
+                    role: form.role,
+                    quote: form.story,
+                    image: `https://ui-avatars.com/api/?name=${encodeURIComponent(form.name)}&background=random`
+                }),
+            });
+
+            if (!res.ok) throw new Error('Failed to submit story');
+
+            setSubmitted(true);
+            onRefresh();
+        } catch (err: any) {
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     return (
         <div className="comm-modal-overlay" onClick={onClose}>
@@ -212,9 +243,11 @@ function SubmitModal({ onClose }: { onClose: () => void }) {
                                 <label>Your story</label>
                                 <textarea rows={5} placeholder="Tell us what Evergreeners has meant for your journey as a developer..." value={form.story} onChange={e => setForm(f => ({ ...f, story: e.target.value }))} required />
                             </div>
-                            <button type="submit" className="comm-add-btn" style={{ gap: '10px' }}>
-                                <Send size={16} /> Submit my story
+                            <button type="submit" className="comm-add-btn" style={{ gap: '10px' }} disabled={loading}>
+                                {loading ? <Loader2 className="animate-spin" size={16} /> : <Send size={16} />}
+                                {loading ? 'Submitting...' : 'Submit my story'}
                             </button>
+                            {error && <p className="comm-form-error" style={{ color: '#ff4d4d', fontSize: '0.8rem', marginTop: '10px', textAlign: 'center' }}>{error}</p>}
                         </form>
                     </>
                 )}
@@ -232,7 +265,93 @@ export default function Community() {
     const [storyFilter, setStoryFilter] = useState<'all' | 'featured' | 'github' | 'twitter'>('all');
     const [showModal, setShowModal] = useState(false);
 
-    const filteredStories = stories.filter(s => {
+    // API Data State
+    const [apiStories, setApiStories] = useState<any[]>([]);
+    const [apiEvents, setApiEvents] = useState<any[]>([]);
+    const [apiStats, setApiStats] = useState<any[]>([]);
+    const [leaderboard, setLeaderboard] = useState<any[]>([]);
+    const [loading, setLoading] = useState({
+        stories: true,
+        events: true,
+        stats: true,
+        leaderboard: true
+    });
+
+    const fetchStories = useCallback(async () => {
+        try {
+            const res = await fetch(getApiUrl('/api/community/stories'));
+            const data = await res.json();
+            setApiStories(data.stories || []);
+        } catch (err) {
+            console.error('Fetch stories error:', err);
+        } finally {
+            setLoading(prev => ({ ...prev, stories: false }));
+        }
+    }, []);
+
+    const fetchEvents = useCallback(async () => {
+        try {
+            const res = await fetch(getApiUrl('/api/community/events'));
+            const data = await res.json();
+            setApiEvents(data.events || []);
+        } catch (err) {
+            console.error('Fetch events error:', err);
+        } finally {
+            setLoading(prev => ({ ...prev, events: false }));
+        }
+    }, []);
+
+    const fetchStats = useCallback(async () => {
+        try {
+            const res = await fetch(getApiUrl('/api/community/stats'));
+            const data = await res.json();
+            if (data.stats) {
+                // Map the icon strings back to Lucide components
+                const iconMap: Record<string, React.ReactNode> = {
+                    'Users': <Users size={18} />,
+                    'Flame': <Flame size={18} />,
+                    'Star': <Star size={18} />,
+                    'GitPullRequest': <GitPullRequest size={18} />
+                };
+
+                const mappedStats = data.stats.map((s: any) => ({
+                    ...s,
+                    icon: iconMap[s.icon] || <Zap size={18} />
+                }));
+                setApiStats(mappedStats);
+            }
+        } catch (err) {
+            console.error('Fetch stats error:', err);
+        } finally {
+            setLoading(prev => ({ ...prev, stats: false }));
+        }
+    }, []);
+
+    const fetchLeaderboard = useCallback(async () => {
+        try {
+            const res = await fetch(getApiUrl('/api/leaderboard'));
+            const data = await res.json();
+            setLeaderboard(data.leaderboard || []);
+        } catch (err) {
+            console.error('Fetch leaderboard error:', err);
+        } finally {
+            setLoading(prev => ({ ...prev, leaderboard: false }));
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchStories();
+        fetchEvents();
+        fetchStats();
+        fetchLeaderboard();
+    }, [fetchStories, fetchEvents, fetchStats, fetchLeaderboard]);
+
+    const displayStories = apiStories.length > 0 ? apiStories : stories;
+    const displayEvents = apiEvents.length > 0 ? apiEvents : events;
+    const displayStats = apiStats.length > 0 ? apiStats : stats;
+    const displayMembers = leaderboard.length > 0 ? leaderboard : members;
+
+    const filteredStories = displayStories.filter(s => {
         if (storyFilter === 'all') return true;
         if (storyFilter === 'featured') return s.featured;
         return s.platform === storyFilter;
@@ -287,7 +406,7 @@ export default function Community() {
 
                 {/* ── Stats ── */}
                 <section className="comm-stats">
-                    {stats.map((s, i) => (
+                    {displayStats.map((s, i) => (
                         <div key={i} className="comm-stat">
                             <div className="comm-stat-icon">{s.icon}</div>
                             <div className="comm-stat-value">{s.value}</div>
@@ -349,7 +468,24 @@ export default function Community() {
                     {/* EVENTS */}
                     {tab === 'events' && (
                         <div className="comm-events-grid">
-                            {events.map(e => <EventCard key={e.id} event={e} />)}
+                            {displayEvents.length === 0 && !loading.events && (
+                                <div className="comm-empty-state">No upcoming events scheduled. Check back later!</div>
+                            )}
+                            {displayEvents.map((e, idx) => {
+                                // Handle icon if it's a string from DB
+                                if (typeof e.icon === 'string') {
+                                    const iconMap: any = { 
+                                        Flame: <Flame size={20} className="text-orange-400" />, 
+                                        Calendar: <Calendar size={20} className="text-purple-400" />, 
+                                        MessageSquare: <MessageSquare size={20} className="text-blue-400" />, 
+                                        GitPullRequest: <GitPullRequest size={20} className="text-purple-400" />, 
+                                        Trophy: <Trophy size={20} className="text-yellow-400" />, 
+                                        Zap: <Zap size={20} className="text-green-400" /> 
+                                    };
+                                    e = { ...e, icon: iconMap[e.icon] || <Calendar size={20} /> };
+                                }
+                                return <EventCard key={e.id || idx} event={e} />;
+                            })}
                         </div>
                     )}
 
@@ -361,7 +497,12 @@ export default function Community() {
                                 <p>The top developers by longest active streak. Updated daily.</p>
                             </div>
                             <div className="comm-members-list">
-                                {members.map(m => <MemberRow key={m.rank} member={m} />)}
+                                {displayMembers.map((m, idx) => (
+                                    <MemberRow key={m.rank || idx} member={{
+                                        ...m,
+                                        image: m.avatar || m.image // handle field name mismatch between leaderboard and members data
+                                    }} />
+                                ))}
                             </div>
                             <div className="comm-members-cta">
                                 <Link to="/signup">
@@ -387,7 +528,7 @@ export default function Community() {
                 </div>
             </main>
 
-            {showModal && <SubmitModal onClose={() => setShowModal(false)} />}
+            {showModal && <SubmitModal onClose={() => setShowModal(false)} onRefresh={fetchStories} />}
         </div>
     );
 }

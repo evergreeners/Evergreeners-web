@@ -99,6 +99,31 @@ export const stories = mySchema.table('stories', {
     createdAt: timestamp('created_at').defaultNow(),
 });
 
+export const communityStories = mySchema.table('community_stories', {
+    id: serial('id').primaryKey(),
+    userId: text('user_id').references(() => users.id), // Optional: links to a registered user
+    name: text('name').notNull(),
+    handle: text('handle').notNull(),
+    platform: text('platform').notNull(), // 'github' or 'twitter'
+    role: text('role'),
+    featured: boolean('featured').default(false),
+    quote: text('quote').notNull(),
+    image: text('image'),
+    createdAt: timestamp('created_at').defaultNow(),
+});
+
+export const events = mySchema.table('events', {
+    id: serial('id').primaryKey(),
+    title: text('title').notNull(),
+    date: text('date').notNull(),
+    time: text('time').notNull(),
+    type: text('type').notNull(), // 'Live Session', 'Hackathon', etc.
+    description: text('description'),
+    attendees: integer('attendees').default(0),
+    icon: text('icon'), // Name of the icon (e.g., 'Flame', 'Calendar')
+    createdAt: timestamp('created_at').defaultNow(),
+});
+
 export const goals = mySchema.table('goals', {
     id: serial('id').primaryKey(),
     userId: text('user_id').notNull().references(() => users.id),
