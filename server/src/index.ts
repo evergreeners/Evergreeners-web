@@ -1448,6 +1448,22 @@ server.register(async (instance) => {
                 approved: false, // Moderation required
             } as any).returning();
 
+            // Notify Admins
+            try {
+                const admins = await db.select({ email: schema.users.email })
+                    .from(schema.users)
+                    .where(eq(schema.users.role, 'admin'));
+                
+                const adminEmails = admins.map(a => a.email).filter(Boolean) as string[];
+                
+                if (adminEmails.length > 0) {
+                    const { sendAdminStorySubmittedEmail } = await import('./lib/email.js');
+                    await sendAdminStorySubmittedEmail(adminEmails, body.name, body.quote);
+                }
+            } catch (emailErr) {
+                console.error("Failed to notify admins of new story:", emailErr);
+            }
+
             return { success: true, story: newStory };
         } catch (error) {
             console.error("Submit story error:", error);

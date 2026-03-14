@@ -532,3 +532,65 @@ export async function sendStoryPublishedEmail(to: string, name: string) {
         throw err;
     }
 }
+
+// ─── Admin Story Submitted Email ──────────────────────────────────────────────
+export async function sendAdminStorySubmittedEmail(to: string[], storyAuthor: string, quote: string) {
+    const subject = 'New story submitted for moderation 📝';
+    
+    const body = `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td style="padding-bottom:12px;">
+             <span style="display:inline-block;padding:4px 10px;border-radius:12px;background-color:#fef3c7;font-family:ui-monospace,'SF Mono',monospace;font-size:11px;font-weight:600;color:#d97706;letter-spacing:0.05em;text-transform:uppercase;">
+              Pending Review
+            </span>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding-bottom:12px;">
+            <h1 class="text-heading" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',Helvetica,Arial,sans-serif;font-size:24px;font-weight:700;color:#09090b;letter-spacing:-0.4px;line-height:1.3;">
+              New Story Submission
+            </h1>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding-bottom:4px;">
+            <p class="text-body" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;color:#52525b;line-height:1.75;">
+              <strong>${storyAuthor}</strong> just submitted a story for review:
+              <br/><br/>
+              <em style="opacity: 0.8;">"${quote}"</em>
+            </p>
+          </td>
+        </tr>
+
+        ${divider}
+
+        <tr>
+          <td>
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="background-color:#10b981;border-radius:12px;">
+                  <a href="${APP_URL}/admin" style="display:inline-block;padding:12px 24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;color:#ffffff;text-decoration:none;letter-spacing:-0.1px;">
+                    Review in Admin Dashboard
+                  </a>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>`;
+
+    try {
+        const result = await resend.emails.send({
+            from: FROM_EMAIL,
+            to,
+            subject,
+            html: emailShell(body),
+        });
+        console.log(`Admin story notification sent to ${to.length} admins:`, result.data?.id);
+        return result;
+    } catch (err) {
+        console.error(`Failed to send admin story notification:`, err);
+        throw err;
+    }
+}
