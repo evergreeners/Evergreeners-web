@@ -1373,6 +1373,7 @@ server.register(async (instance) => {
         try {
             const allStories = await db.select()
                 .from(schema.communityStories)
+                .where(eq(schema.communityStories.approved, true))
                 .orderBy(desc(schema.communityStories.createdAt));
             return { stories: allStories };
         } catch (error) {
@@ -1401,6 +1402,7 @@ server.register(async (instance) => {
                 quote: body.quote,
                 image: body.image,
                 featured: false,
+                approved: false, // Moderation required
             } as any).returning();
 
             return { success: true, story: newStory };

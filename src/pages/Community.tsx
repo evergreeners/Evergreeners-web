@@ -6,9 +6,10 @@ import { Link } from 'react-router-dom';
 import {
     Github, Twitter, X, Send, ArrowRight, Star, Users,
     Flame, Calendar, MessageSquare, GitPullRequest, Trophy,
-    BookOpen, ExternalLink, Clock, Zap, Loader2
+    BookOpen, ExternalLink, Clock, Zap, Loader2, Image as ImageIcon
 } from 'lucide-react';
 import { getApiUrl } from '@/lib/api-config';
+import { useSession } from '@/lib/auth-client';
 import './Community.css';
 
 /* ─────────────── DATA ─────────────── */
@@ -159,14 +160,24 @@ function OpenSourceCard({ item }: { item: typeof openSourceItems[0] }) {
 
 interface SubmitFormData {
     name: string; handle: string; role: string;
-    platform: 'github' | 'twitter'; story: string;
+    platform: 'github' | 'twitter'; story: string; image: string;
 }
 
 function SubmitModal({ onClose, onRefresh }: { onClose: () => void; onRefresh: () => void }) {
-    const [form, setForm] = useState<SubmitFormData>({ name: '', handle: '', role: '', platform: 'github', story: '' });
+    const { data: session } = useSession();
+    const [form, setForm] = useState<SubmitFormData>({
+        name: session?.user?.name || '',
+        handle: (session?.user as any)?.username || '',
+        role: '',
+        platform: 'github',
+        story: '',
+        image: session?.user?.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(session?.user?.name || 'User')}&background=random`
+    });
     const [submitted, setSubmitted] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    const avatarUrl = form.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(form.name || 'User')}&background=random`;
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -178,12 +189,9 @@ function SubmitModal({ onClose, onRefresh }: { onClose: () => void; onRefresh: (
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    name: form.name,
-                    handle: form.handle,
-                    platform: form.platform,
-                    role: form.role,
+                    ...form,
                     quote: form.story,
-                    image: `https://ui-avatars.com/api/?name=${encodeURIComponent(form.name)}&background=random`
+                    image: avatarUrl
                 }),
             });
 
@@ -212,6 +220,10 @@ function SubmitModal({ onClose, onRefresh }: { onClose: () => void; onRefresh: (
                 ) : (
                     <>
                         <div className="comm-modal-header">
+                            <div className="comm-modal-avatar-preview">
+                                <img src={avatarUrl} alt="Preview" />
+                                <div className="comm-modal-avatar-badge"><ImageIcon size={10} /></div>
+                            </div>
                             <h2>Share your story</h2>
                             <p>Tell the community how Evergreeners changed your journey.</p>
                         </div>
@@ -238,6 +250,10 @@ function SubmitModal({ onClose, onRefresh }: { onClose: () => void; onRefresh: (
                                         <option value="twitter">Twitter / X</option>
                                     </select>
                                 </div>
+                            </div>
+                            <div className="comm-form-group">
+                                <label>Profile Image URL (Optional)</label>
+                                <input type="url" placeholder="https://..." value={form.image} onChange={e => setForm(f => ({ ...f, image: e.target.value }))} />
                             </div>
                             <div className="comm-form-group">
                                 <label>Your story</label>
