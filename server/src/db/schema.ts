@@ -102,6 +102,7 @@ export const stories = mySchema.table('stories', {
 export const communityStories = mySchema.table('community_stories', {
     id: serial('id').primaryKey(),
     userId: text('user_id').references(() => users.id), // Optional: links to a registered user
+    email: text('email'), // For notifications and linking
     name: text('name').notNull(),
     handle: text('handle').notNull(),
     platform: text('platform').notNull(), // 'github' or 'twitter'

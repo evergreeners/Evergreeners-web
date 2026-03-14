@@ -140,6 +140,7 @@ function OpenSourceCard({ item }: { item: typeof openSourceItems[0] }) {
 interface SubmitFormData {
     name: string; handle: string; role: string;
     platform: 'github' | 'twitter'; story: string; image: string;
+    email: string;
 }
 
 function SubmitModal({ onClose, onRefresh }: { onClose: () => void; onRefresh: () => void }) {
@@ -150,7 +151,8 @@ function SubmitModal({ onClose, onRefresh }: { onClose: () => void; onRefresh: (
         role: '',
         platform: 'github',
         story: '',
-        image: (session?.user as any)?.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(session?.user?.name || 'User')}&background=random`
+        image: (session?.user as any)?.image || '',
+        email: session?.user?.email || ''
     });
     const [submitted, setSubmitted] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -220,7 +222,7 @@ function SubmitModal({ onClose, onRefresh }: { onClose: () => void; onRefresh: (
                     <div className="comm-modal-success">
                         <div className="comm-modal-success-icon">🎉</div>
                         <h3>Story submitted!</h3>
-                        <p>Thanks for sharing. We'll review your story and feature it on the community wall soon.</p>
+                        <p>Thanks for sharing. We'll review your story and notify you via email at <strong>{form.email}</strong> once it's published on the community wall.</p>
                         <button className="comm-add-btn" onClick={onClose}>Close</button>
                     </div>
                 ) : (
@@ -256,6 +258,12 @@ function SubmitModal({ onClose, onRefresh }: { onClose: () => void; onRefresh: (
                                         <option value="twitter">Twitter / X</option>
                                     </select>
                                 </div>
+                            </div>
+
+                            <div className="comm-form-group">
+                                <label>Email address</label>
+                                <input type="email" placeholder="ada@example.com" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} required />
+                                <p style={{ fontSize: '0.7rem', color: '#4b5563', marginTop: '4px' }}>Used to link your story to your account and notify you when it's published.</p>
                             </div>
 
                             <div className="comm-form-group">

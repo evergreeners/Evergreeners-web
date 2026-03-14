@@ -1404,16 +1404,35 @@ server.register(async (instance) => {
 
         try {
             const session = await getSessionFromRequest(req);
-            const userId = session?.session.userId;
+            let userId = session?.session.userId;
+            let email = body.email;
+            let image = body.image;
+
+            // If not logged in but email provided, try to find user to link
+            if (!userId && email) {
+                const [user] = await db.select().from(schema.users).where(eq(schema.users.email, email)).limit(1);
+                if (user) {
+                    userId = user.id;
+                    if (!image) image = user.image;
+                }
+            } else if (session) {
+                // If logged in, get email from session if not provided
+                const [user] = await db.select().from(schema.users).where(eq(schema.users.id, userId as string)).limit(1);
+                if (user) {
+                    email = email || user.email;
+                    if (!image) image = user.image;
+                }
+            }
 
             const [newStory] = await db.insert(schema.communityStories).values({
                 userId,
+                email: email,
                 name: body.name,
                 handle: body.handle,
                 platform: body.platform,
                 role: body.role,
                 quote: body.quote,
-                image: body.image,
+                image: image || `https://ui-avatars.com/api/?name=${encodeURIComponent(body.name)}&background=random`,
                 featured: false,
                 approved: false, // Moderation required
             } as any).returning();
@@ -1422,6 +1441,28 @@ server.register(async (instance) => {
         } catch (error) {
             console.error("Submit story error:", error);
             return reply.status(500).send({ message: "Failed to submit story" });
+        }
+    });
+
+    // PATCH /api/community/stories/:id/approve
+    instance.patch<{ Params: { id: string } }>('/api/community/stories/:id/approve', async (req, reply) => {
+        try {
+            const id = parseInt(req.params.id);
+            const [story] = await db.update(schema.communityStories)
+                .set({ approved: true })
+                .where(eq(schema.communityStories.id, id))
+                .returning();
+
+            if (story && story.email) {
+                // Send notification email
+                const { sendStoryPublishedEmail } = await import('./lib/email.js');
+                await sendStoryPublishedEmail(story.email, story.name);
+            }
+
+            return { success: true, story };
+        } catch (error) {
+            console.error("Approve story error:", error);
+            return reply.status(500).send({ message: "Failed to approve story" });
         }
     });
 
