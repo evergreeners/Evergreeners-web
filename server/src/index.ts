@@ -87,13 +87,27 @@ const server = fastify({
     bodyLimit: 5 * 1024 * 1024 // 5MB limit for Base64 image uploads
 });
 
+const getBaseURL = (url: string | undefined) => {
+    if (!url) return undefined;
+    if (url.startsWith("http://") || url.startsWith("https://")) return url;
+    if (url.includes("localhost") || url.includes("127.0.0.1")) return `http://${url}`;
+    return `https://${url}`;
+};
+
+const finalBaseURL = getBaseURL(process.env.BETTER_AUTH_URL);
 const allowedOrigins = [
     "http://localhost:5173",
     "http://localhost:8080",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:8080",
     "https://www.evergreeners.dev",
     "https://evergreeners.dev",
-    ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(",") : [])
-];
+    "https://evergreeners.vercel.app",
+    ...(finalBaseURL ? [finalBaseURL] : []),
+    ...(process.env.ALLOWED_ORIGINS 
+        ? process.env.ALLOWED_ORIGINS.split(",").map(o => o.trim().replace(/["']/g, "")) 
+        : [])
+].filter(Boolean);
 
 server.register(cors, {
     origin: allowedOrigins,
@@ -124,30 +138,26 @@ server.register(async (instance) => {
 
     instance.all('/api/auth/*', async (req, reply) => {
         const origin = req.headers.origin;
-        const allowedOrigins = [
-            "http://localhost:5173",
-            "http://localhost:8080",
-            "https://www.evergreeners.dev",
-            "https://evergreeners.dev",
-            ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(",") : [])
-        ];
 
-        // Always set CORS headers for preflight requests
+        // Always set CORS headers for preflight and actual requests
         reply.raw.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
         reply.raw.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Cookie");
 
         // Set origin header if allowed
-        if (origin && allowedOrigins.includes(origin)) {
-            reply.raw.setHeader("Access-Control-Allow-Origin", origin);
-            reply.raw.setHeader("Access-Control-Allow-Credentials", "true");
-        } else if (!origin) {
+        if (origin) {
+            const isAllowed = allowedOrigins.some(o => o.toLowerCase() === origin.toLowerCase());
+            if (isAllowed) {
+                reply.raw.setHeader("Access-Control-Allow-Origin", origin);
+                reply.raw.setHeader("Access-Control-Allow-Credentials", "true");
+            }
+        } else {
             // For requests without origin (like server-to-server), allow all
             reply.raw.setHeader("Access-Control-Allow-Origin", "*");
         }
 
         // Handle preflight request
         if (req.method === 'OPTIONS') {
-            return reply.status(200).send();
+            return reply.status(204).send();
         }
 
         return toNodeHandler(auth)(req.raw, reply.raw);

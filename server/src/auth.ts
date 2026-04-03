@@ -33,8 +33,10 @@ export const auth = betterAuth({
         "http://localhost:8080",
         "http://127.0.0.1:5173",
         "http://127.0.0.1:8080",
-        ...(process.env.BETTER_AUTH_URL ? [process.env.BETTER_AUTH_URL] : []),
-        ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(",") : [])
+        ...(finalBaseURL ? [finalBaseURL] : []),
+        ...(process.env.ALLOWED_ORIGINS 
+            ? process.env.ALLOWED_ORIGINS.split(",").map(o => o.trim().replace(/["']/g, "")) 
+            : [])
     ],
     // Add other plugins or providers here (e.g., GitHub)
     user: {
