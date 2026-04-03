@@ -348,7 +348,10 @@ export default function Settings() {
             <Section title="Notifications" className="animate-fade-up" style={{ animationDelay: "0.2s" }}>
               <div className="space-y-1 rounded-xl border border-border overflow-hidden">
                 {/* Streak Reminder Emails */}
-                <div className="flex items-center justify-between p-4 bg-secondary/30">
+                <div className={cn(
+                  "flex items-center justify-between p-4 bg-secondary/30",
+                  !isGithubConnected && "opacity-50"
+                )}>
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center">
                       <Bell className="w-5 h-5 text-muted-foreground" />
@@ -356,26 +359,29 @@ export default function Settings() {
                     <div>
                       <p className="font-medium">Streak Reminders</p>
                       <p className="text-sm text-muted-foreground">
-                        Daily email when you have an active streak
+                        {isGithubConnected
+                          ? "Daily email when you have an active streak"
+                          : "Connect GitHub to enable this"}
                       </p>
                     </div>
                   </div>
                   <button
-                    disabled={savingNotif}
+                    disabled={!isGithubConnected || savingNotif}
                     onClick={() => {
+                      if (!isGithubConnected) return;
                       const next = !emailNotifications;
                       setEmailNotifications(next);
                       saveNotificationPref(next);
                     }}
                     className={cn(
                       "w-12 h-6 rounded-full p-1 transition-colors duration-300",
-                      emailNotifications ? "bg-primary" : "bg-muted",
-                      savingNotif && "cursor-not-allowed opacity-60"
+                      emailNotifications && isGithubConnected ? "bg-primary" : "bg-muted",
+                      (!isGithubConnected || savingNotif) && "cursor-not-allowed"
                     )}
                   >
                     <div className={cn(
                       "w-4 h-4 rounded-full bg-white transition-transform duration-300",
-                      emailNotifications ? "translate-x-6" : "translate-x-0"
+                      emailNotifications && isGithubConnected ? "translate-x-6" : "translate-x-0"
                     )} />
                   </button>
                 </div>
