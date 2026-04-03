@@ -90,9 +90,11 @@ export const auth = betterAuth({
                 after: async (user) => {
                     // Fire-and-forget welcome email for ALL signup methods (email + GitHub OAuth)
                     if (user.email) {
+                        const isGithubConnected = !!(user as any).isGithubConnected;
                         sendWelcomeEmail(
                             user.email,
-                            user.name || (user as any).username || "Developer"
+                            user.name || (user as any).username || "Developer",
+                            isGithubConnected
                         ).catch(err => console.error("Welcome email failed:", err));
                     }
                 }

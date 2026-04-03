@@ -84,8 +84,19 @@ const divider = `
 
 // ─── Welcome Email ────────────────────────────────────────────────────────────
 
-export async function sendWelcomeEmail(to: string, name: string) {
+export async function sendWelcomeEmail(to: string, name: string, githubConnected = false) {
     const displayName = name?.split(' ')[0] || 'there';
+
+    // Step 01 differs: GitHub users are already connected, email users still need to
+    const step01 = githubConnected
+        ? 'Your GitHub is connected — tracking has already started'
+        : 'Connect your GitHub account in Settings to start tracking';
+
+    // CTA differs too: GitHub users go straight to dashboard, email users to settings
+    const ctaHref = githubConnected ? `${APP_URL}/dashboard` : `${APP_URL}/settings`;
+    const ctaLabel = githubConnected ? 'Go to dashboard' : 'Connect GitHub';
+    const ctaSecondaryHref = githubConnected ? `${APP_URL}/settings` : `${APP_URL}/dashboard`;
+    const ctaSecondaryLabel = githubConnected ? 'Settings →' : 'Go to dashboard →';
 
     const body = `
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
@@ -119,7 +130,7 @@ export async function sendWelcomeEmail(to: string, name: string) {
                 </td>
                 <td>
                   <span class="text-body" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;color:#52525b;line-height:1.6;">
-                    Connect your GitHub account in Settings to start tracking
+                    ${step01}
                   </span>
                 </td>
               </tr>
@@ -158,13 +169,13 @@ export async function sendWelcomeEmail(to: string, name: string) {
             <table role="presentation" cellpadding="0" cellspacing="0" border="0">
               <tr>
                 <td style="background-color:#10b981;border-radius:7px;">
-                  <a href="${APP_URL}/settings" style="display:inline-block;padding:11px 22px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;color:#ffffff;text-decoration:none;letter-spacing:-0.1px;">
-                    Connect GitHub
+                  <a href="${ctaHref}" style="display:inline-block;padding:11px 22px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;color:#ffffff;text-decoration:none;letter-spacing:-0.1px;">
+                    ${ctaLabel}
                   </a>
                 </td>
                 <td style="padding-left:20px;">
-                  <a href="${APP_URL}/dashboard" class="cta-secondary" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;color:#71717a;text-decoration:none;">
-                    Go to dashboard &rarr;
+                  <a href="${ctaSecondaryHref}" class="cta-secondary" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;color:#71717a;text-decoration:none;">
+                    ${ctaSecondaryLabel}
                   </a>
                 </td>
               </tr>
@@ -180,7 +191,7 @@ export async function sendWelcomeEmail(to: string, name: string) {
             subject: 'Welcome to Evergreeners',
             html: emailShell(body),
         });
-        console.log(`Welcome email sent to ${to}:`, result.data?.id);
+        console.log(`Welcome email sent to ${to} [github=${githubConnected}]:`, result.data?.id);
         return result;
     } catch (err) {
         console.error(`Failed to send welcome email to ${to}:`, err);
