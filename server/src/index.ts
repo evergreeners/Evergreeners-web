@@ -132,13 +132,23 @@ server.register(async (instance) => {
             ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(",") : [])
         ];
 
+        // Always set CORS headers for preflight requests
+        reply.raw.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+        reply.raw.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Cookie");
+
+        // Set origin header if allowed
         if (origin && allowedOrigins.includes(origin)) {
             reply.raw.setHeader("Access-Control-Allow-Origin", origin);
             reply.raw.setHeader("Access-Control-Allow-Credentials", "true");
+        } else if (!origin) {
+            // For requests without origin (like server-to-server), allow all
+            reply.raw.setHeader("Access-Control-Allow-Origin", "*");
         }
 
-        reply.raw.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-        reply.raw.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Cookie");
+        // Handle preflight request
+        if (req.method === 'OPTIONS') {
+            return reply.status(200).send();
+        }
 
         return toNodeHandler(auth)(req.raw, reply.raw);
     });

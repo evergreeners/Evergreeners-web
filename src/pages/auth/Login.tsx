@@ -90,6 +90,7 @@ export default function Login() {
                                 <Input
                                     id="email"
                                     type="email"
+                                    autoComplete="email"
                                     placeholder="hello@example.com"
                                     className="bg-secondary/30 border-border focus:border-primary/50 h-11"
                                     required

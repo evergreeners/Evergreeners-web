@@ -129,6 +129,7 @@ export default function Signup() {
                                 <Input
                                     id="email"
                                     type="email"
+                                    autoComplete="email"
                                     placeholder="emeka@example.com"
                                     className="bg-secondary/30 border-border focus:border-primary/50 h-11"
                                     required
