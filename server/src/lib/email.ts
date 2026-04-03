@@ -386,6 +386,119 @@ export async function sendStreakReminderEmail(opts: {
     });
 }
 
+// ─── Streak Broken Email ──────────────────────────────────────────────────────
+// Sent once when a user's streak drops to 0. After this, their email
+// notifications are disabled until they opt back in from Settings.
+
+export interface StreakBrokenEmailOptions {
+    to: string;
+    name: string;
+    username: string;
+    previousStreak: number; // How many days they had
+}
+
+export async function sendStreakBrokenEmail(opts: StreakBrokenEmailOptions) {
+    const { to, name, username, previousStreak } = opts;
+    const displayName = name?.split(' ')[0] || username || 'there';
+
+    const subject = previousStreak >= 7
+        ? `Your ${previousStreak}-day streak ended — here's what's next`
+        : `Streak ended — no worries, ${displayName}`;
+
+    const heading = previousStreak >= 30
+        ? `${previousStreak} days. That's real.`
+        : previousStreak >= 7
+            ? `Your ${previousStreak}-day streak ended.`
+            : `Streak broken, ${displayName}.`;
+
+    const bodyText = previousStreak >= 30
+        ? `You built a ${previousStreak}-day streak. That's not nothing — that's discipline. Today didn't go as planned, but the foundation you built doesn't disappear. Start fresh tomorrow.`
+        : previousStreak >= 7
+            ? `A ${previousStreak}-day streak is something to be proud of. Take a breath, and restart tomorrow. The leaderboard will be waiting.`
+            : `Missing a day happens. What matters is what you do next. Open GitHub tomorrow and start a new streak.`;
+
+    const body = `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td style="padding-bottom:8px;">
+            <h1 class="text-heading" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',Helvetica,Arial,sans-serif;font-size:26px;font-weight:700;color:#09090b;letter-spacing:-0.4px;line-height:1.3;">
+              ${heading}
+            </h1>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding-bottom:4px;">
+            <p class="text-body" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;color:#52525b;line-height:1.75;">
+              ${bodyText}
+            </p>
+          </td>
+        </tr>
+
+        ${divider}
+
+        <!-- Stat box: previous streak -->
+        <tr>
+          <td style="padding-bottom:24px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td class="stat-box" style="padding:16px 24px;background-color:#fafafa;border:1px solid #e4e4e7;border-radius:8px;">
+                  <p class="stat-label" style="margin:0 0 4px;font-family:ui-monospace,'SF Mono',monospace;font-size:10px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:#a1a1aa;">Previous streak</p>
+                  <p style="margin:0;font-family:ui-monospace,'SF Mono','Fira Code',monospace;font-size:28px;font-weight:700;line-height:1;color:#10b981;">
+                    ${previousStreak}<span class="stat-unit" style="font-size:12px;font-weight:400;color:#a1a1aa;margin-left:3px;">days</span>
+                  </p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <tr>
+          <td style="padding-bottom:20px;">
+            <p class="text-muted" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:13px;color:#71717a;line-height:1.75;">
+              We've paused your daily streak reminders. When you're ready to start tracking again, re-enable them in your
+              <a href="${APP_URL}/settings" style="color:#10b981;text-decoration:underline;">Settings</a>.
+            </p>
+          </td>
+        </tr>
+
+        <!-- CTA -->
+        <tr>
+          <td>
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="background-color:#09090b;border-radius:7px;">
+                  <a href="${APP_URL}/dashboard" style="display:inline-block;padding:11px 22px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;color:#ffffff;text-decoration:none;letter-spacing:-0.1px;">
+                    Back to dashboard
+                  </a>
+                </td>
+                <td style="padding-left:20px;">
+                  <a href="https://github.com/${username}" class="cta-secondary" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;color:#71717a;text-decoration:none;">
+                    Open GitHub &rarr;
+                  </a>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>`;
+
+    try {
+        const result = await resend.emails.send({
+            from: FROM_EMAIL,
+            to,
+            subject,
+            html: emailShell(body),
+        });
+        console.log(`Streak broken email sent to ${to}:`, result.data?.id);
+        return result;
+    } catch (err) {
+        console.error(`Failed to send streak broken email to ${to}:`, err);
+        throw err;
+    }
+}
+
+
+
 // ─── New Quest Email ────────────────────────────────────────────────────────
 export interface NewQuestEmailOptions {
     to: string;
