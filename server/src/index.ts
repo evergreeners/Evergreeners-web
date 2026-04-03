@@ -383,6 +383,94 @@ server.register(async (instance) => {
         }
     });
 
+    // Public background sync — no auth required from caller.
+    // Triggered when anyone visits a profile page so stats stay fresh.
+    // Uses the profile owner's own stored GitHub token.
+    instance.post('/api/user/sync-github/:username', async (req, reply) => {
+        const { username } = req.params as { username: string };
+
+        try {
+            // 1. Find user by username
+            const userRecord = await db.select()
+                .from(schema.users)
+                .where(eq(schema.users.username, username))
+                .limit(1);
+
+            if (!userRecord.length) {
+                return reply.status(404).send({ message: 'User not found' });
+            }
+
+            const user = userRecord[0];
+            if (!user.isPublic) {
+                return reply.status(403).send({ message: 'Profile is private' });
+            }
+
+            // 2. Get their GitHub account token
+            const account = await db.select()
+                .from(schema.accounts)
+                .where(and(
+                    eq(schema.accounts.userId, user.id),
+                    eq(schema.accounts.providerId, 'github')
+                ))
+                .limit(1);
+
+            if (!account.length || !account[0].accessToken) {
+                // No GitHub connected — nothing to sync, return current DB data without error
+                return reply.status(200).send({ success: true, synced: false, message: 'No GitHub account linked' });
+            }
+
+            // 3. Fire-and-forget background sync — respond immediately so the UI doesn't block
+            (async () => {
+                try {
+                    console.log(`[Public sync] Starting background sync for @${username}`);
+                    const ghRes = await fetch('https://api.github.com/user', {
+                        headers: {
+                            Authorization: `Bearer ${account[0].accessToken}`,
+                            'User-Agent': 'Evergreeners-App'
+                        }
+                    });
+
+                    if (!ghRes.ok) throw new Error('GitHub API error');
+                    const ghUser = await ghRes.json();
+
+                    const {
+                        totalCommits, currentStreak, todayCommits, yesterdayCommits,
+                        weeklyCommits, activeDays, totalProjects, projects,
+                        contributionCalendar, totalPullRequests, languages
+                    } = await getGithubContributions(ghUser.login, account[0].accessToken!);
+
+                    await db.update(schema.users)
+                        .set({
+                            streak: currentStreak,
+                            totalCommits,
+                            todayCommits,
+                            yesterdayCommits,
+                            weeklyCommits,
+                            activeDays,
+                            totalProjects,
+                            projectsData: projects,
+                            languages,
+                            totalPullRequests,
+                            contributionData: contributionCalendar,
+                            isGithubConnected: true,
+                            updatedAt: new Date()
+                        })
+                        .where(eq(schema.users.id, user.id));
+
+                    await updateUserGoals(user.id, { currentStreak, weeklyCommits, activeDays, totalProjects, contributionCalendar });
+                    console.log(`[Public sync] Done for @${username}`);
+                } catch (err) {
+                    console.error(`[Public sync] Failed for @${username}:`, err);
+                }
+            })();
+
+            return reply.status(200).send({ success: true, synced: true });
+        } catch (error) {
+            console.error('[Public sync] Error:', error);
+            return reply.status(500).send({ message: 'Failed to trigger sync' });
+        }
+    });
+
     // Update User Profile Route
     instance.put('/api/user/profile', async (req, reply: any) => {
         const session = await getSessionFromRequest(req);
@@ -450,6 +538,43 @@ server.register(async (instance) => {
         // Include notification preference in response
         return { user: { ...user[0], emailNotifications: user[0].emailNotifications ?? true } };
     });
+
+    // GET Public User Profile by Username
+    instance.get('/api/user/profile/:username', async (req, reply) => {
+        const { username } = req.params as { username: string };
+        
+        try {
+            const userRecord = await db.select()
+                .from(schema.users)
+                .where(eq(schema.users.username, username))
+                .limit(1);
+
+            if (userRecord.length === 0) {
+                return reply.status(404).send({ message: "User not found" });
+            }
+
+            const userData = userRecord[0];
+
+            if (!userData.isPublic) {
+                return reply.status(403).send({ message: "This profile is private" });
+            }
+
+            // Define which fields to exclude for the public view
+            const { 
+                email, 
+                emailVerified, 
+                role, 
+                emailNotifications,
+                ...publicData 
+            } = userData;
+
+            return { user: publicData };
+        } catch (error) {
+            console.error("Public profile fetch error:", error);
+            return reply.status(500).send({ message: "Internal server error" });
+        }
+    });
+
 
     // DELETE User Account Route
     instance.delete('/api/user/account', async (req, reply) => {
