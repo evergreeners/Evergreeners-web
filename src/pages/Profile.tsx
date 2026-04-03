@@ -177,18 +177,25 @@ export default function Profile() {
 
         // Only check GitHub connection status for own profile — via better-auth
         if (isOwnProfile) {
-          setIsGithubConnected(!!user.isGithubConnected);
+          let githubConnected = !!user.isGithubConnected;
           try {
             const accounts = await authClient.listAccounts();
             if (accounts.data) {
-              const hasGithub = accounts.data.some((acc) => acc.providerId === "github");
-              setIsGithubConnected(hasGithub);
+              githubConnected = accounts.data.some((acc) => acc.providerId === "github");
             }
           } catch {
-            // fall back to DB value already set above
+            // fall back to DB value
           }
+          setIsGithubConnected(githubConnected);
+
+          // Kick off authenticated sync ONCE, right here after we have the data
+          if (githubConnected) {
+            syncGithubData(true);
+          }
+        } else if (urlUsername) {
+          // Guest/visitor view — trigger a public background sync for the profile owner
+          triggerPublicSync(urlUsername);
         }
-        // Do NOT set isGithubConnected from someone else's profile data
 
       } catch (e) {
         console.error("Profile fetch failed", e);
@@ -199,21 +206,6 @@ export default function Profile() {
 
     fetchProfile();
   }, [urlUsername, sessionLoading, isOwnProfile]);
-
-  // ── Auto-sync: fires for every profile visit ──────────────────────────────
-  // Own profile → authenticated endpoint. Guest/other → public endpoint.
-  useEffect(() => {
-    if (isLoading) return; // wait until profile data is loaded first
-
-    if (isOwnProfile && isGithubConnected) {
-      // Own profile — use authenticated sync
-      syncGithubData(true);
-    } else if (urlUsername && profile.username && profile.username !== "...") {
-      // Viewing someone else's profile — trigger public background sync,
-      // then re-fetch their profile after a short delay to display fresh data.
-      triggerPublicSync(urlUsername);
-    }
-  }, [isLoading, isOwnProfile, isGithubConnected, urlUsername, profile.username]);
 
   const triggerPublicSync = async (username: string) => {
     try {
