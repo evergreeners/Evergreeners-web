@@ -142,12 +142,12 @@ export async function sendWelcomeEmail(to: string, name: string, githubConnected
                 </td>
                 <td>
                   <span class="text-body" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;color:#52525b;line-height:1.6;">
-                    Your streak and stats update automatically every hour
+                    Commits are detected automatically — your streak and stats always stay up to date
                   </span>
                 </td>
               </tr>
             </table>
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:16px;">
               <tr>
                 <td width="28" valign="top" style="padding-top:2px;">
                   <span style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;font-weight:700;color:#10b981;">03</span>
@@ -159,13 +159,25 @@ export async function sendWelcomeEmail(to: string, name: string, githubConnected
                 </td>
               </tr>
             </table>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td width="28" valign="top" style="padding-top:2px;">
+                  <span style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;font-weight:700;color:#10b981;">04</span>
+                </td>
+                <td>
+                  <span class="text-body" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;color:#52525b;line-height:1.6;">
+                    Hit milestones to earn badges and unlock rewards — the longer your streak, the more you collect
+                  </span>
+                </td>
+              </tr>
+            </table>
           </td>
         </tr>
 
         ${divider}
 
         <tr>
-          <td>
+          <td style="padding-bottom:20px;">
             <table role="presentation" cellpadding="0" cellspacing="0" border="0">
               <tr>
                 <td style="background-color:#10b981;border-radius:7px;">
@@ -182,6 +194,19 @@ export async function sendWelcomeEmail(to: string, name: string, githubConnected
             </table>
           </td>
         </tr>
+
+        <!-- Docs link — shown to all users -->
+        <tr>
+          <td>
+            <p class="text-muted" style="margin:0 0 10px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:13px;color:#71717a;line-height:1.6;">
+              New to Evergreeners? The docs have guides, videos, and everything you need to hit the ground running.
+            </p>
+            <a href="https://docs.evergreeners.dev/" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:13px;font-weight:600;color:#10b981;text-decoration:none;">
+              Read the docs &rarr;
+            </a>
+          </td>
+        </tr>
+
       </table>`;
 
     try {
