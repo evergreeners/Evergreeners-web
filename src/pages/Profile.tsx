@@ -4,22 +4,24 @@ import { Section } from "@/components/Section";
 import { ActivityGrid } from "@/components/ActivityGrid";
 import {
   Github, MapPin, Calendar, Link as LinkIcon,
-  Edit2, Share2, Check, Copy, Trophy, Flame, Target, GitCommit,
-  Eye, EyeOff, ExternalLink, RefreshCw
+  Edit2, Share2, Check, Trophy, Flame, Target, GitCommit,
+  Eye, EyeOff, ExternalLink, RefreshCw, Leaf, ArrowRight
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
-// import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog"; // Removed
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerFooter } from "@/components/ui/drawer";
+import { useState, useEffect } from "react";
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } from "@/components/ui/drawer";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { ProfileEditForm } from "@/components/ProfileEditForm";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams, Link } from "react-router-dom";
 import { toast } from "sonner";
 import { getApiUrl } from "@/lib/api-config";
+import NotFound from "./NotFound";
+import { useSession, signIn, authClient } from "@/lib/auth-client";
+import { Logo } from "@/components/Logo";
 
-
+// ─── Static data ─────────────────────────────────────────────────────────────
 
 const achievements = [
   { name: "Early Adopter", icon: "🌱", earned: true },
@@ -30,27 +32,56 @@ const achievements = [
   { name: "Contributor", icon: "🤝", earned: true },
 ];
 
+// ─── Public minimal header (for unauthenticated visitors) ────────────────────
 
+function PublicHeader() {
+  return (
+    <header className="fixed top-0 left-0 right-0 z-50 px-4 md:px-0">
+      <div className="glass-nav mt-4 rounded-2xl mx-auto max-w-5xl border border-primary/20 bg-primary/10">
+        <div className="flex items-center justify-between py-3 px-4">
+          <Link to="/" className="flex items-center gap-2">
+            <Logo className="w-6 h-6" />
+            <span className="font-semibold text-foreground hidden md:block">Evergreeners</span>
+          </Link>
+          <div className="flex items-center gap-2">
+            <Link to="/login">
+              <Button variant="ghost" size="sm" className="text-sm">Log In</Button>
+            </Link>
+            <Link to="/signup">
+              <Button size="sm" className="text-sm bg-primary text-primary-foreground hover:bg-primary/90">
+                Sign Up Free
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    </header>
+  );
+}
 
-import { useSession, signIn, authClient } from "@/lib/auth-client";
-import { useEffect } from "react";
+// ─── Main component ───────────────────────────────────────────────────────────
 
 export default function Profile() {
   const navigate = useNavigate();
-  const { data: session, isPending } = useSession();
+  const { username: urlUsername } = useParams();
+  const { data: session, isPending: sessionLoading } = useSession();
   const isMobile = useIsMobile();
 
+  // ── State ──────────────────────────────────────────────────────────────────
   const [isPublic, setIsPublic] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [isGithubConnected, setIsGithubConnected] = useState(false); // New state
+  const [isGithubConnected, setIsGithubConnected] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+  const [isPrivate, setIsPrivate] = useState(false);
 
   const [profile, setProfile] = useState({
     name: "Loading...",
     username: "...",
     bio: "",
-    location: "Earth",
+    location: "",
     website: "",
     joinDate: "Joined recently",
     image: "",
@@ -58,9 +89,24 @@ export default function Profile() {
     streak: 0,
     totalCommits: 0,
     todayCommits: 0,
-    bestRank: null as number | null, // Best leaderboard rank
+    bestRank: null as number | null,
     contributionData: [] as any[]
   });
+
+  const [editedProfile, setEditedProfile] = useState(profile);
+
+  // ── Derived state ──────────────────────────────────────────────────────────
+  // isOwnProfile: true when viewing /profile (no urlUsername) AND logged in,
+  //               OR when the urlUsername matches the logged-in user's username.
+  const isAuthenticated = !!session?.user && !sessionLoading;
+  const loggedInUsername = (session?.user as any)?.username;
+  const isOwnProfile = isAuthenticated && (
+    !urlUsername || loggedInUsername === urlUsername
+  );
+  // Viewing someone else while logged in
+  const isAuthenticatedGuest = isAuthenticated && !isOwnProfile;
+  // Completely unauthenticated visitor
+  const isUnauthenticatedGuest = !session?.user && !sessionLoading;
 
   const stats = [
     { label: "Current Streak", value: profile.streak?.toString() || "0", icon: Flame },
@@ -69,20 +115,52 @@ export default function Profile() {
     { label: "Best Rank", value: profile.bestRank ? `#${profile.bestRank}` : "—", icon: Target },
   ];
 
-  const [editedProfile, setEditedProfile] = useState(profile);
-
-  /* Effect: Load session data into state and check connections */
+  // ── Data fetching ──────────────────────────────────────────────────────────
   useEffect(() => {
-    const initProfile = async () => {
-      if (session?.user) {
-        const user = session.user as any;
+    // Don't fetch until we know whether the user is logged in
+    if (sessionLoading) return;
 
-        setProfile(prev => ({
-          ...prev,
+    const fetchProfile = async () => {
+      setIsLoading(true);
+      setNotFound(false);
+      setIsPrivate(false);
+
+      try {
+        let url: string;
+        let options: RequestInit;
+
+        if (isOwnProfile && !urlUsername) {
+          // /profile — fetch own authenticated profile
+          url = getApiUrl("/api/user/profile");
+          options = { credentials: "include" };
+        } else if (urlUsername) {
+          // /:username — fetch public profile (no auth needed)
+          url = getApiUrl(`/api/user/profile/${urlUsername}`);
+          options = { credentials: "include" }; // include anyway for any future personalisation
+        } else {
+          // /profile but not logged in — redirect to login
+          navigate("/login");
+          return;
+        }
+
+        const res = await fetch(url, options);
+
+        if (res.status === 404) { setNotFound(true); return; }
+        if (res.status === 403) { setIsPrivate(true); return; }
+        if (res.status === 401) {
+          // Needed session but none found — send to login
+          navigate("/login");
+          return;
+        }
+        if (!res.ok) throw new Error("Failed to fetch profile");
+
+        const { user } = await res.json();
+
+        setProfile({
           name: user.name || "Tree Planter",
-          username: user.username || (user.email ? user.email.split('@')[0] : "user"),
-          bio: user.bio || "No bio yet.",
-          location: user.location || "Earth",
+          username: user.username || "user",
+          bio: user.bio || "",
+          location: user.location || "",
           website: user.website || "",
           joinDate: "Joined " + new Date(user.createdAt || Date.now()).toLocaleDateString(),
           image: user.image || "",
@@ -90,68 +168,78 @@ export default function Profile() {
           streak: user.streak || 0,
           totalCommits: user.totalCommits || 0,
           todayCommits: user.todayCommits || 0,
+          bestRank: user.bestRank || null,
           contributionData: user.contributionData || []
-        }));
+        });
+
+        setEditedProfile(user);
         setIsPublic(user.isPublic !== false);
 
-        try {
-          const url = getApiUrl('/api/user/profile');
-          const res = await fetch(url, { credentials: "include" });
-          if (res.ok) {
-            const { user: freshUser } = await res.json();
-            setProfile(prev => ({
-              ...prev,
-              name: freshUser.name || prev.name,
-              username: freshUser.username || prev.username,
-              bio: freshUser.bio || prev.bio,
-              location: freshUser.location || prev.location,
-              website: freshUser.website || prev.website,
-              image: freshUser.image || prev.image,
-              anonymousName: freshUser.anonymousName || prev.anonymousName,
-              streak: freshUser.streak,
-              totalCommits: freshUser.totalCommits,
-              todayCommits: freshUser.todayCommits,
-              bestRank: freshUser.bestRank || prev.bestRank,
-              contributionData: freshUser.contributionData || prev.contributionData
-            }));
-            setEditedProfile(prev => ({ ...prev, ...freshUser }));
-            setIsPublic(freshUser.isPublic !== false);
+        // Only check GitHub connection status for own profile — via better-auth
+        if (isOwnProfile) {
+          setIsGithubConnected(!!user.isGithubConnected);
+          try {
+            const accounts = await authClient.listAccounts();
+            if (accounts.data) {
+              const hasGithub = accounts.data.some((acc) => acc.providerId === "github");
+              setIsGithubConnected(hasGithub);
+            }
+          } catch {
+            // fall back to DB value already set above
           }
-        } catch (e) {
-          console.error("Failed to fetch fresh profile", e);
         }
+        // Do NOT set isGithubConnected from someone else's profile data
 
-        // Always use listAccounts for real-time status — session can be stale after OAuth
-        try {
-          const accounts = await authClient.listAccounts();
-          if (accounts.data) {
-            const hasGithub = accounts.data.some((acc) => acc.providerId === "github");
-            setIsGithubConnected(hasGithub);
-          }
-        } catch (error) {
-          console.error("Failed to list accounts", error);
-        }
+      } catch (e) {
+        console.error("Profile fetch failed", e);
+      } finally {
+        setIsLoading(false);
       }
     };
 
-    // Detect if we just returned from GitHub OAuth (?gh=1)
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("gh") === "1") {
-      window.history.replaceState({}, "", window.location.pathname);
-      // Re-run full init which will call listAccounts and pick up the new link
-      initProfile().then(async () => {
-        try {
-          const accounts = await authClient.listAccounts();
-          const hasGithub = accounts.data?.some((acc) => acc.providerId === "github") ?? false;
-          setIsGithubConnected(hasGithub);
-          if (hasGithub) toast.success("GitHub connected successfully");
-        } catch { }
-      });
-    } else {
-      initProfile();
-    }
-  }, [session]);
+    fetchProfile();
+  }, [urlUsername, sessionLoading, isOwnProfile]);
 
+  // ── Auto-sync: fires for every profile visit ──────────────────────────────
+  // Own profile → authenticated endpoint. Guest/other → public endpoint.
+  useEffect(() => {
+    if (isLoading) return; // wait until profile data is loaded first
+
+    if (isOwnProfile && isGithubConnected) {
+      // Own profile — use authenticated sync
+      syncGithubData(true);
+    } else if (urlUsername && profile.username && profile.username !== "...") {
+      // Viewing someone else's profile — trigger public background sync,
+      // then re-fetch their profile after a short delay to display fresh data.
+      triggerPublicSync(urlUsername);
+    }
+  }, [isLoading, isOwnProfile, isGithubConnected, urlUsername, profile.username]);
+
+  const triggerPublicSync = async (username: string) => {
+    try {
+      await fetch(getApiUrl(`/api/user/sync-github/${username}`), { method: "POST" });
+      // Server responds immediately (fire-and-forget internally).
+      // Wait a moment then re-fetch the profile so updated stats show.
+      setTimeout(async () => {
+        try {
+          const res = await fetch(getApiUrl(`/api/user/profile/${username}`), { credentials: "include" });
+          if (res.ok) {
+            const { user } = await res.json();
+            setProfile(prev => ({
+              ...prev,
+              streak: user.streak ?? prev.streak,
+              totalCommits: user.totalCommits ?? prev.totalCommits,
+              todayCommits: user.todayCommits ?? prev.todayCommits,
+              bestRank: user.bestRank ?? prev.bestRank,
+              contributionData: user.contributionData ?? prev.contributionData
+            }));
+          }
+        } catch { /* silent — not critical */ }
+      }, 3000);
+    } catch { /* silent — sync is best-effort */ }
+  };
+
+  // ── Handlers ───────────────────────────────────────────────────────────────
   const syncGithubData = async (silent = false) => {
     try {
       if (!silent) toast.info("Syncing GitHub data...");
@@ -159,7 +247,6 @@ export default function Profile() {
         method: "POST",
         credentials: "include"
       });
-
       if (res.ok) {
         const data = await res.json();
         setProfile(prev => ({
@@ -172,22 +259,13 @@ export default function Profile() {
           contributionData: data.contributionData || []
         }));
         if (!silent) toast.success("GitHub data synced!");
-      } else {
-        console.error("Sync failed with status:", res.status);
       }
     } catch (e) {
       console.error("Sync failed", e);
     }
   };
 
-  // Auto-sync effect: Always sync on load if connected (Real-time feel)
-  useEffect(() => {
-    if (isGithubConnected) {
-      syncGithubData(true);
-    }
-  }, [isGithubConnected]);
-
-  const publicUrl = `evergreeners.dev/${isPublic ? profile.username : profile.anonymousName || 'anonymous'}`;
+  const publicUrl = `evergreeners.dev/${profile.username}`;
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(`https://${publicUrl}`);
@@ -196,27 +274,20 @@ export default function Profile() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  /* Save Profile Function */
   const handleSaveProfile = async () => {
     setIsSaving(true);
     try {
-      const url = getApiUrl('/api/user/profile');
-      const res = await fetch(url, {
+      const res = await fetch(getApiUrl("/api/user/profile"), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        credentials: "include", // Important for sending cookies!
-        body: JSON.stringify({
-          ...editedProfile,
-          ...({ isPublic } as any) // send current public state too, though separate toggle exists
-        })
+        credentials: "include",
+        body: JSON.stringify({ ...editedProfile, isPublic })
       });
-
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.message || "Failed to update profile");
       }
-
-      setProfile(editedProfile);
+      setProfile(prev => ({ ...prev, ...editedProfile }));
       setIsEditing(false);
       toast.success("Profile updated!");
     } catch (e: any) {
@@ -226,65 +297,85 @@ export default function Profile() {
     }
   };
 
-  /* Toggle Public/Private Function */
   const handleTogglePublic = async () => {
     const newStatus = !isPublic;
-    // Optimistic update
     setIsPublic(newStatus);
-
     try {
-      const url = getApiUrl('/api/user/profile');
-      const res = await fetch(url, {
+      const res = await fetch(getApiUrl("/api/user/profile"), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        credentials: "include", // Important for sending cookies!
-        body: JSON.stringify({
-          isPublic: newStatus
-        })
+        credentials: "include",
+        body: JSON.stringify({ isPublic: newStatus })
       });
-
       const data = await res.json();
       if (data.anonymousName) {
         setProfile(prev => ({ ...prev, anonymousName: data.anonymousName }));
       }
-
       toast.success(newStatus ? "Profile is now public" : "Profile is now private");
-    } catch (e) {
-      setIsPublic(!newStatus); // Revert
+    } catch {
+      setIsPublic(!newStatus);
       toast.error("Failed to update visibility");
     }
   };
 
-  // Connect GitHub — use linkSocial (correct API for linking to existing account)
-  // ?gh=1 lets us detect the return and update UI immediately without a refresh
   const handleConnectGithub = async () => {
     try {
       await authClient.linkSocial({
         provider: "github",
         callbackURL: `${window.location.origin}/profile?gh=1`
       });
-    } catch (err: any) {
-      // Fallback for older better-auth versions
+    } catch {
       try {
         await signIn.social({
           provider: "github",
           callbackURL: `${window.location.origin}/profile?gh=1`
         });
-      } catch (fallbackErr) {
-        console.error(fallbackErr);
+      } catch {
         toast.error("Failed to initiate GitHub connection");
       }
     }
   };
 
+  // ── Early returns ──────────────────────────────────────────────────────────
+  if (sessionLoading || isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
+
+  if (notFound) return <NotFound />;
+
+  if (isPrivate) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 gap-4">
+        {isUnauthenticatedGuest ? <PublicHeader /> : <Header />}
+        <EyeOff className="w-12 h-12 text-muted-foreground mt-20" />
+        <h1 className="text-2xl font-bold">Private Profile</h1>
+        <p className="text-muted-foreground text-center max-w-sm">
+          This adventurer has chosen to keep their progress private.
+        </p>
+        <Button onClick={() => navigate(isAuthenticated ? "/dashboard" : "/")}>
+          Go Home
+        </Button>
+      </div>
+    );
+  }
+
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-background custom-scrollbar">
-      <Header />
+
+      {/* Header: show minimal public one for guests, full app header for logged-in */}
+      {isUnauthenticatedGuest ? <PublicHeader /> : <Header />}
 
       <main className="container pt-24 pb-32 md:pb-12 space-y-8">
-        {/* Profile Header */}
+
+        {/* ── Profile Hero ──────────────────────────────────────────────────── */}
         <section className="animate-fade-in">
           <div className="flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-6">
+
             {/* Avatar */}
             <div className="relative group">
               <div className="w-24 h-24 rounded-2xl bg-secondary border border-border overflow-hidden">
@@ -294,47 +385,72 @@ export default function Profile() {
                   className="w-full h-full object-cover"
                 />
               </div>
-              <button
-                className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                onClick={() => setIsEditing(true)}
-              >
-                <Edit2 className="w-4 h-4" />
-              </button>
+              {isOwnProfile && (
+                <button
+                  className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={() => setIsEditing(true)}
+                >
+                  <Edit2 className="w-4 h-4" />
+                </button>
+              )}
             </div>
 
-            {/* Info */}
             {/* Info */}
             <div className="flex-1 w-full">
               <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-4 sm:gap-0">
                 <div className="text-center sm:text-left">
                   <h1 className="text-2xl font-bold">{profile.name}</h1>
-                  <p className="text-muted-foreground">{isPublic ? `@${profile.username}` : `(Private • Playing as ${profile.anonymousName || "..."})`}</p>
+                  <p className="text-muted-foreground">@{profile.username}</p>
+                  {isOwnProfile && !isPublic && (
+                    <p className="text-xs text-primary mt-1">
+                      (Private • Playing as {profile.anonymousName || "..."})
+                    </p>
+                  )}
                 </div>
+
                 <div className="flex items-center justify-center gap-2">
-                  <button
-                    className="p-2 rounded-xl border border-border hover:bg-secondary transition-colors"
-                    onClick={() => setIsEditing(true)}
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
+                  {/* Edit button — own profile only */}
+                  {isOwnProfile && (
+                    <button
+                      className="p-2 rounded-xl border border-border hover:bg-secondary transition-colors"
+                      onClick={() => setIsEditing(true)}
+                      title="Edit profile"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                  )}
+                  {/* Share button — always shown */}
                   <button
                     className="p-2 rounded-xl border border-border hover:bg-secondary transition-colors"
                     onClick={handleCopyLink}
+                    title="Copy profile link"
                   >
                     {copied ? <Check className="w-4 h-4 text-primary" /> : <Share2 className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
 
-              <p className="text-sm text-muted-foreground mt-3 max-w-md text-center sm:text-left mx-auto sm:mx-0">{profile.bio}</p>
+              {profile.bio && (
+                <p className="text-sm text-muted-foreground mt-3 max-w-md text-center sm:text-left mx-auto sm:mx-0">
+                  {profile.bio}
+                </p>
+              )}
 
               <div className="flex flex-wrap justify-center sm:justify-start gap-4 mt-4 text-sm text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <MapPin className="w-4 h-4" /> {profile.location}
-                </span>
+                {profile.location && (
+                  <span className="flex items-center gap-1">
+                    <MapPin className="w-4 h-4" /> {profile.location}
+                  </span>
+                )}
                 {profile.website && (
-                  <a href={profile.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-primary transition-colors">
-                    <LinkIcon className="w-4 h-4" /> {profile.website.replace("https://", "").replace("http://", "")}
+                  <a
+                    href={profile.website}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 hover:text-primary transition-colors"
+                  >
+                    <LinkIcon className="w-4 h-4" />
+                    {profile.website.replace("https://", "").replace("http://", "")}
                   </a>
                 )}
                 <span className="flex items-center gap-1">
@@ -345,7 +461,7 @@ export default function Profile() {
           </div>
         </section>
 
-        {/* Stats Grid */}
+        {/* ── Stats Grid ────────────────────────────────────────────────────── */}
         <Section className="animate-fade-up" style={{ animationDelay: "0.1s" }}>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {stats.map((stat) => (
@@ -357,12 +473,10 @@ export default function Profile() {
                 <p className="text-2xl font-bold">{stat.value}</p>
                 <p className="text-xs text-muted-foreground mt-1">{stat.label}</p>
 
-                {(stat.label === "Total Commits" || stat.label === "Commits Today") && isGithubConnected && (
+                {/* Sync button — own profile only */}
+                {isOwnProfile && (stat.label === "Total Commits" || stat.label === "Commits Today") && isGithubConnected && (
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      syncGithubData();
-                    }}
+                    onClick={(e) => { e.stopPropagation(); syncGithubData(); }}
                     className="absolute top-2 right-2 p-1 rounded-full hover:bg-background/50 opacity-0 group-hover:opacity-100 transition-opacity"
                     title="Refresh Data"
                   >
@@ -374,70 +488,75 @@ export default function Profile() {
           </div>
         </Section>
 
-        {/* Visibility Toggle */}
-        <Section className="animate-fade-up" style={{ animationDelay: "0.15s" }}>
-          <div className="flex items-center justify-between p-4 rounded-xl border border-border bg-secondary/30">
-            <div className="flex items-center gap-3">
-              {isPublic ? <Eye className="w-5 h-5 text-primary" /> : <EyeOff className="w-5 h-5 text-muted-foreground" />}
-              <div>
-                <p className="font-medium">{isPublic ? "Public Profile" : "Private Profile"}</p>
-                <p className="text-sm text-muted-foreground">
-                  {isPublic ? "Others can see your progress" : `You appear as "${profile.anonymousName || '...'}" on leaderboards`}
-                </p>
+        {/* ── Visibility Toggle — OWN PROFILE ONLY ─────────────────────────── */}
+        {isOwnProfile && (
+          <Section className="animate-fade-up" style={{ animationDelay: "0.15s" }}>
+            <div className="flex items-center justify-between p-4 rounded-xl border border-border bg-secondary/30">
+              <div className="flex items-center gap-3">
+                {isPublic
+                  ? <Eye className="w-5 h-5 text-primary" />
+                  : <EyeOff className="w-5 h-5 text-muted-foreground" />}
+                <div>
+                  <p className="font-medium">{isPublic ? "Public Profile" : "Private Profile"}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {isPublic
+                      ? "Others can see your progress"
+                      : `You appear as "${profile.anonymousName || "..."}" on leaderboards`}
+                  </p>
+                </div>
               </div>
-            </div>
-            <button
-              onClick={handleTogglePublic}
-              className={cn(
-                "w-12 h-6 rounded-full p-1 transition-colors duration-300",
-                isPublic ? "bg-primary" : "bg-secondary"
-              )}
-            >
-              <div className={cn(
-                "w-4 h-4 rounded-full bg-white transition-transform duration-300",
-                isPublic ? "translate-x-6" : "translate-x-0"
-              )} />
-            </button>
-          </div>
-        </Section>
-
-        {/* GitHub Connection */}
-        <Section className="animate-fade-up" style={{ animationDelay: "0.2s" }}>
-          <div className={`flex items-center justify-between p-4 rounded-xl border ${isGithubConnected ? "border-primary/30 bg-primary/10" : "border-zinc-800 bg-zinc-900/50"}`}>
-            <div className="flex items-center gap-3">
-              <Github className={`w-6 h-6 ${isGithubConnected ? "text-primary" : "text-zinc-400"}`} />
-              <div>
-                <p className="font-medium">{isGithubConnected ? "GitHub Connected" : "Connect GitHub"}</p>
-                <p className="text-sm text-muted-foreground">
-                  {isGithubConnected ? `@${profile.username}` : "Link your account to track contributions"}
-                </p>
-              </div>
-            </div>
-            {isGithubConnected ? (
-              <a
-                href={`https://github.com/${profile.username}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-2 rounded-xl hover:bg-primary/20 transition-colors"
-                title="View GitHub Profile"
+              <button
+                onClick={handleTogglePublic}
+                className={cn(
+                  "w-12 h-6 rounded-full p-1 transition-colors duration-300",
+                  isPublic ? "bg-primary" : "bg-secondary"
+                )}
               >
-                <ExternalLink className="w-4 h-4 text-primary" />
-              </a>
-            ) : (
-              <Button variant="outline" size="sm" onClick={handleConnectGithub}>
-                Connect
-              </Button>
-            )}
-          </div>
-        </Section>
+                <div className={cn(
+                  "w-4 h-4 rounded-full bg-white transition-transform duration-300",
+                  isPublic ? "translate-x-6" : "translate-x-0"
+                )} />
+              </button>
+            </div>
+          </Section>
+        )}
 
-        {/* Activity Grid */}
+        {/* ── GitHub Connection — OWN PROFILE ONLY ─────────────────────────── */}
+        {isOwnProfile && (
+          <Section className="animate-fade-up" style={{ animationDelay: "0.2s" }}>
+            <div className={`flex items-center justify-between p-4 rounded-xl border ${isGithubConnected ? "border-primary/30 bg-primary/10" : "border-zinc-800 bg-zinc-900/50"}`}>
+              <div className="flex items-center gap-3">
+                <Github className={`w-6 h-6 ${isGithubConnected ? "text-primary" : "text-zinc-400"}`} />
+                <div>
+                  <p className="font-medium">{isGithubConnected ? "GitHub Connected" : "Connect GitHub"}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {isGithubConnected ? `@${profile.username}` : "Link your account to track contributions"}
+                  </p>
+                </div>
+              </div>
+              {isGithubConnected ? (
+                <a
+                  href={`https://github.com/${profile.username}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-2 rounded-xl hover:bg-primary/20 transition-colors"
+                  title="View GitHub Profile"
+                >
+                  <ExternalLink className="w-4 h-4 text-primary" />
+                </a>
+              ) : (
+                <Button variant="outline" size="sm" onClick={handleConnectGithub}>Connect</Button>
+              )}
+            </div>
+          </Section>
+        )}
+
+        {/* ── Activity Grid ─────────────────────────────────────────────────── */}
         <Section title="Recent Activity" className="animate-fade-up" style={{ animationDelay: "0.25s" }}>
           <ActivityGrid data={profile.contributionData} weeks={57} />
-
         </Section>
 
-        {/* Achievements */}
+        {/* ── Achievements ──────────────────────────────────────────────────── */}
         <Section title="Achievements" className="animate-fade-up" style={{ animationDelay: "0.3s" }}>
           <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
             {achievements.map((achievement) => (
@@ -457,36 +576,81 @@ export default function Profile() {
           </div>
         </Section>
 
-        {/* Quick Actions */}
-        <Section title="Quick Actions" className="animate-fade-up" style={{ animationDelay: "0.35s" }}>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={() => navigate('/settings')}
-              className="p-4 rounded-xl border border-border bg-secondary/30 hover:bg-secondary/50 transition-all duration-300 text-left"
-            >
-              <p className="font-medium">Settings</p>
-              <p className="text-xs text-muted-foreground mt-1">Manage your account</p>
-            </button>
-            <button
-              onClick={() => navigate('/leaderboard')}
-              className="p-4 rounded-xl border border-border bg-secondary/30 hover:bg-secondary/50 transition-all duration-300 text-left"
-            >
-              <p className="font-medium">Leaderboard</p>
-              <p className="text-xs text-muted-foreground mt-1">See how you rank</p>
-            </button>
+        {/* ── Quick Actions — OWN PROFILE ONLY ─────────────────────────────── */}
+        {isOwnProfile && (
+          <Section title="Quick Actions" className="animate-fade-up" style={{ animationDelay: "0.35s" }}>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => navigate("/settings")}
+                className="p-4 rounded-xl border border-border bg-secondary/30 hover:bg-secondary/50 transition-all duration-300 text-left"
+              >
+                <p className="font-medium">Settings</p>
+                <p className="text-xs text-muted-foreground mt-1">Manage your account</p>
+              </button>
+              <button
+                onClick={() => navigate("/leaderboard")}
+                className="p-4 rounded-xl border border-border bg-secondary/30 hover:bg-secondary/50 transition-all duration-300 text-left"
+              >
+                <p className="font-medium">Leaderboard</p>
+                <p className="text-xs text-muted-foreground mt-1">See how you rank</p>
+              </button>
+            </div>
+          </Section>
+        )}
+
+        {/* ── Join CTA — UNAUTHENTICATED GUESTS ONLY ───────────────────────── */}
+        {isUnauthenticatedGuest && (
+          <div className="animate-fade-up rounded-2xl border border-primary/30 bg-primary/5 p-6 flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
+            <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+              <Leaf className="w-6 h-6 text-primary" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-lg">Track your own consistency</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Join Evergreeners to build streaks, track commits, and climb the leaderboard — for free.
+              </p>
+            </div>
+            <Link to="/signup">
+              <Button className="shrink-0 gap-2">
+                Get Started <ArrowRight className="w-4 h-4" />
+              </Button>
+            </Link>
           </div>
-        </Section>
+        )}
+
       </main>
 
-      {/* Responsive Edit Profile Modal */}
-      {isMobile ? (
-        <Drawer open={isEditing} onOpenChange={setIsEditing}>
-          <DrawerContent>
-            <DrawerHeader className="text-left">
-              <DrawerTitle>Edit Profile</DrawerTitle>
-              <DrawerDescription>Update your public profile details.</DrawerDescription>
-            </DrawerHeader>
-            <div className="px-4 pb-4">
+      {/* Edit profile — own profile only */}
+      {isOwnProfile && (
+        isMobile ? (
+          <Drawer open={isEditing} onOpenChange={setIsEditing}>
+            <DrawerContent>
+              <DrawerHeader className="text-left">
+                <DrawerTitle>Edit Profile</DrawerTitle>
+                <DrawerDescription>Update your public profile details.</DrawerDescription>
+              </DrawerHeader>
+              <div className="px-4 pb-4">
+                <ProfileEditForm
+                  editedProfile={editedProfile}
+                  setEditedProfile={setEditedProfile}
+                  handleSaveProfile={handleSaveProfile}
+                  handleCopyLink={handleCopyLink}
+                  copied={copied}
+                  isSaving={isSaving}
+                />
+                <Button variant="outline" className="w-full mt-2" onClick={() => setIsEditing(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </DrawerContent>
+          </Drawer>
+        ) : (
+          <Sheet open={isEditing} onOpenChange={setIsEditing}>
+            <SheetContent side="right" className="overflow-y-auto mb-16 sm:mb-0">
+              <SheetHeader>
+                <SheetTitle>Edit Profile</SheetTitle>
+                <SheetDescription>Update your public profile details.</SheetDescription>
+              </SheetHeader>
               <ProfileEditForm
                 editedProfile={editedProfile}
                 setEditedProfile={setEditedProfile}
@@ -495,30 +659,13 @@ export default function Profile() {
                 copied={copied}
                 isSaving={isSaving}
               />
-              <Button variant="outline" className="w-full mt-2" onClick={() => setIsEditing(false)}>Cancel</Button>
-            </div>
-          </DrawerContent>
-        </Drawer>
-      ) : (
-        <Sheet open={isEditing} onOpenChange={setIsEditing}>
-          <SheetContent side="right" className="overflow-y-auto mb-16 sm:mb-0">
-            <SheetHeader>
-              <SheetTitle>Edit Profile</SheetTitle>
-              <SheetDescription>Update your public profile details.</SheetDescription>
-            </SheetHeader>
-            <ProfileEditForm
-              editedProfile={editedProfile}
-              setEditedProfile={setEditedProfile}
-              handleSaveProfile={handleSaveProfile}
-              handleCopyLink={handleCopyLink}
-              copied={copied}
-              isSaving={isSaving}
-            />
-          </SheetContent>
-        </Sheet>
+            </SheetContent>
+          </Sheet>
+        )
       )}
 
-      <FloatingNav />
+      {/* Floating nav — authenticated users only */}
+      {isAuthenticated && <FloatingNav />}
     </div>
   );
 }

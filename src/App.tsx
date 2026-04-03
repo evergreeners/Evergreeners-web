@@ -99,6 +99,7 @@ const AppContents = () => {
           <Route path="/repo/:owner/:repo" element={<RepoDetail />} />
         </Route>
 
+        <Route path="/:username" element={<Profile />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>
