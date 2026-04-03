@@ -29,6 +29,9 @@ export const auth = betterAuth({
         enabled: true,
     },
     trustedOrigins: [
+        "https://www.evergreeners.dev",
+        "https://evergreeners.dev",
+        "https://evergreeners.vercel.app",
         "http://localhost:5173",
         "http://localhost:8080",
         "http://127.0.0.1:5173",

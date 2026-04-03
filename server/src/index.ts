@@ -96,18 +96,30 @@ const getBaseURL = (url: string | undefined) => {
 
 const finalBaseURL = getBaseURL(process.env.BETTER_AUTH_URL);
 const allowedOrigins = [
+    "https://www.evergreeners.dev",
+    "https://evergreeners.dev",
+    "https://evergreeners.vercel.app",
     "http://localhost:5173",
     "http://localhost:8080",
     "http://127.0.0.1:5173",
     "http://127.0.0.1:8080",
-    "https://www.evergreeners.dev",
-    "https://evergreeners.dev",
-    "https://evergreeners.vercel.app",
     ...(finalBaseURL ? [finalBaseURL] : []),
     ...(process.env.ALLOWED_ORIGINS 
         ? process.env.ALLOWED_ORIGINS.split(",").map(o => o.trim().replace(/["']/g, "")) 
         : [])
 ].filter(Boolean);
+
+const isOriginAllowed = (origin: string) => {
+    if (!origin) return false;
+    const lowerOrigin = origin.toLowerCase();
+    // Check exact list
+    if (allowedOrigins.some(o => o.toLowerCase() === lowerOrigin)) return true;
+    // Check regex patterns for evergreeners and vercel
+    if (lowerOrigin.match(/^https?:\/\/(.*\.)?evergreeners\.dev$/)) return true;
+    if (lowerOrigin.match(/^https?:\/\/.*\.vercel\.app$/)) return true;
+    if (lowerOrigin.match(/^https?:\/\/localhost(:\d+)?$/)) return true;
+    return false;
+};
 
 server.register(cors, {
     origin: allowedOrigins,
@@ -144,14 +156,10 @@ server.register(async (instance) => {
         reply.raw.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Cookie");
 
         // Set origin header if allowed
-        if (origin) {
-            const isAllowed = allowedOrigins.some(o => o.toLowerCase() === origin.toLowerCase());
-            if (isAllowed) {
-                reply.raw.setHeader("Access-Control-Allow-Origin", origin);
-                reply.raw.setHeader("Access-Control-Allow-Credentials", "true");
-            }
-        } else {
-            // For requests without origin (like server-to-server), allow all
+        if (origin && isOriginAllowed(origin)) {
+            reply.raw.setHeader("Access-Control-Allow-Origin", origin);
+            reply.raw.setHeader("Access-Control-Allow-Credentials", "true");
+        } else if (!origin) {
             reply.raw.setHeader("Access-Control-Allow-Origin", "*");
         }
 
