@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "./db/index.js"; // Drizzle instance
 import * as schema from "./db/schema.js"; // Schema definition
+import { sendWelcomeEmail } from "./lib/email.js";
 
 const getBaseURL = (url: string | undefined) => {
     if (!url) return undefined;
@@ -81,6 +82,21 @@ export const auth = betterAuth({
         defaultCookieAttributes: {
             sameSite: "none",
             secure: true
+        }
+    },
+    databaseHooks: {
+        user: {
+            create: {
+                after: async (user) => {
+                    // Fire-and-forget welcome email for ALL signup methods (email + GitHub OAuth)
+                    if (user.email) {
+                        sendWelcomeEmail(
+                            user.email,
+                            user.name || (user as any).username || "Developer"
+                        ).catch(err => console.error("Welcome email failed:", err));
+                    }
+                }
+            }
         }
     }
 });
