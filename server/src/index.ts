@@ -90,6 +90,8 @@ const server = fastify({
 const allowedOrigins = [
     "http://localhost:5173",
     "http://localhost:8080",
+    "https://www.evergreeners.dev",
+    "https://evergreeners.dev",
     ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(",") : [])
 ];
 
@@ -125,6 +127,8 @@ server.register(async (instance) => {
         const allowedOrigins = [
             "http://localhost:5173",
             "http://localhost:8080",
+            "https://www.evergreeners.dev",
+            "https://evergreeners.dev",
             ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(",") : [])
         ];
 

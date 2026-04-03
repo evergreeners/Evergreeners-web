@@ -141,6 +141,7 @@ export default function Signup() {
                                 <Input
                                     id="password"
                                     type="password"
+                                    autoComplete="new-password"
                                     className="bg-secondary/30 border-border focus:border-primary/50 h-11"
                                     required
                                     value={password}
