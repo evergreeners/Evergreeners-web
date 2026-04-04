@@ -115,6 +115,9 @@ export default function Profile() {
     isLoading: badgesLoading,
     refetch: badgesRefetch
   } = useBadges(badgeUsername ?? null);
+
+  const isGoat = badgeData.some(b => b.id === 'the_goat' && b.earned);
+
   const stats = [
     { label: "Current Streak", value: profile.streak?.toString() || "0", icon: Flame },
     { label: "Commits Today", value: (profile.todayCommits || 0).toString(), icon: GitCommit },
@@ -382,13 +385,26 @@ export default function Profile() {
 
             {/* Avatar */}
             <div className="relative group">
-              <div className="w-24 h-24 rounded-2xl bg-secondary border border-border overflow-hidden">
+              <div className={cn(
+                "w-24 h-24 rounded-2xl bg-secondary border overflow-hidden transition-all duration-500",
+                isGoat ? "border-yellow-500/50 shadow-[0_0_15px_rgba(234,179,8,0.3)]" : "border-border"
+              )}>
                 <img
                   src={profile.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name)}&background=random`}
                   alt={profile.name}
                   className="w-full h-full object-cover"
                 />
               </div>
+              
+              {/* The GOAT Seal */}
+              {isGoat && (
+                <div 
+                  className="absolute -top-3 -right-3 w-8 h-8 bg-gradient-to-br from-yellow-300 via-amber-500 to-yellow-600 rounded-full flex items-center justify-center shadow-lg border-2 border-background z-10 animate-pulse-slow"
+                  title="The GOAT - Absolute Legend"
+                >
+                  <span className="text-sm shadow-black drop-shadow-md">🐐</span>
+                </div>
+              )}
               {isOwnProfile && (
                 <button
                   className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"

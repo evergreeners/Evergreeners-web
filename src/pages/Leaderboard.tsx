@@ -19,6 +19,7 @@ interface LeaderboardEntry {
   totalCommits: number;
   weeklyCommits: number;
   yesterdayCommits: number;
+  bestRank?: number;
   isCurrentUser?: boolean;
 }
 
@@ -79,6 +80,7 @@ export default function Leaderboard() {
     totalCommits: user.totalCommits || 0,
     weeklyCommits: user.weeklyCommits || 0,
     yesterdayCommits: user.yesterdayCommits || 0,
+    bestRank: (user as any)?.bestRank,
     isCurrentUser: true
   } : null);
 
@@ -173,9 +175,15 @@ export default function Leaderboard() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       <div className="relative">
-                        <div className="w-12 h-12 rounded-full border-2 border-primary overflow-hidden">
+
+                        <div className={cn("w-12 h-12 rounded-full border-2 overflow-hidden", currentUser.bestRank === 1 ? "border-yellow-500/50 shadow-[0_0_10px_rgba(234,179,8,0.4)]" : "border-primary")}>
                           <img src={currentUser.avatar || ""} alt={currentUser.username} className="w-full h-full object-cover" />
                         </div>
+                        {currentUser.bestRank === 1 && (
+                          <div className="absolute -top-1 -right-1 w-4 h-4 bg-gradient-to-br from-yellow-300 via-amber-500 to-yellow-600 rounded-full flex items-center justify-center shadow-lg border border-background z-10">
+                            <span className="text-[8px]">🐐</span>
+                          </div>
+                        )}
                         {currentUser.rank > 0 && (
                           <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center">
                             #{currentUser.rank}
@@ -251,8 +259,15 @@ export default function Leaderboard() {
                   {/* 2nd Place */}
                   {topThree[1] && (
                     <div className="flex flex-col items-center z-10">
-                      <div className="w-16 h-16 rounded-full border-2 border-gray-400 overflow-hidden mb-2">
-                        <img src={topThree[1].avatar || ""} alt={topThree[1].username} className="w-full h-full object-cover" />
+                      <div className="relative mb-2">
+                        <div className={cn("w-16 h-16 rounded-full border-2 overflow-hidden", topThree[1].bestRank === 1 ? "border-yellow-500/50 shadow-[0_0_12px_rgba(234,179,8,0.4)]" : "border-gray-400")}>
+                          <img src={topThree[1].avatar || ""} alt={topThree[1].username} className="w-full h-full object-cover" />
+                        </div>
+                        {topThree[1].bestRank === 1 && (
+                          <div className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-br from-yellow-300 via-amber-500 to-yellow-600 rounded-full flex items-center justify-center shadow-lg border-2 border-background z-10">
+                            <span className="text-[10px]">🐐</span>
+                          </div>
+                        )}
                       </div>
                       <p className="text-sm font-medium truncate max-w-[80px] text-center">{topThree[1].username}</p>
                       <p className="text-xs text-muted-foreground">
@@ -270,11 +285,16 @@ export default function Leaderboard() {
                   {/* 1st Place */}
                   {topThree[0] && (
                     <div className="flex flex-col items-center -mt-8 z-20">
-                      <div className="relative">
-                        <div className="w-20 h-20 rounded-full border-2 border-yellow-400 overflow-hidden mb-2 ring-4 ring-yellow-400/20">
+                      <div className="relative mb-2">
+                        <div className="w-20 h-20 rounded-full border-2 border-yellow-400 overflow-hidden ring-4 ring-yellow-400/20">
                           <img src={topThree[0].avatar || ""} alt={topThree[0].username} className="w-full h-full object-cover" />
                         </div>
                         <Crown className="w-6 h-6 text-yellow-400 absolute -top-3 left-1/2 -translate-x-1/2" />
+                        {topThree[0].bestRank === 1 && (
+                          <div className="absolute -top-1 -right-1 w-6 h-6 bg-gradient-to-br from-yellow-300 via-amber-500 to-yellow-600 rounded-full flex items-center justify-center shadow-lg border-2 border-background z-10 animate-pulse-slow">
+                            <span className="text-[12px]">🐐</span>
+                          </div>
+                        )}
                       </div>
                       <p className="text-sm font-medium truncate max-w-[100px] text-center">{topThree[0].username}</p>
                       <p className="text-xs text-primary font-bold">
@@ -292,8 +312,15 @@ export default function Leaderboard() {
                   {/* 3rd Place */}
                   {topThree[2] && (
                     <div className="flex flex-col items-center z-10">
-                      <div className="w-16 h-16 rounded-full border-2 border-amber-600 overflow-hidden mb-2">
-                        <img src={topThree[2].avatar || ""} alt={topThree[2].username} className="w-full h-full object-cover" />
+                      <div className="relative mb-2">
+                        <div className={cn("w-16 h-16 rounded-full border-2 overflow-hidden", topThree[2].bestRank === 1 ? "border-yellow-500/50 shadow-[0_0_12px_rgba(234,179,8,0.4)]" : "border-amber-600")}>
+                          <img src={topThree[2].avatar || ""} alt={topThree[2].username} className="w-full h-full object-cover" />
+                        </div>
+                        {topThree[2].bestRank === 1 && (
+                          <div className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-br from-yellow-300 via-amber-500 to-yellow-600 rounded-full flex items-center justify-center shadow-lg border-2 border-background z-10">
+                            <span className="text-[10px]">🐐</span>
+                          </div>
+                        )}
                       </div>
                       <p className="text-sm font-medium truncate max-w-[80px] text-center">{topThree[2].username}</p>
                       <p className="text-xs text-muted-foreground">
@@ -333,8 +360,15 @@ export default function Leaderboard() {
                         <div className="w-8 text-center flex-shrink-0">
                           {getRankBadge(entry.rank)}
                         </div>
-                        <div className="w-10 h-10 rounded-full border border-border overflow-hidden flex-shrink-0">
-                          <img src={entry.avatar || ""} alt={entry.username} className="w-full h-full object-cover" />
+                        <div className="relative flex-shrink-0">
+                          <div className={cn("w-10 h-10 rounded-full border overflow-hidden", entry.bestRank === 1 ? "border-yellow-500/50 shadow-[0_0_8px_rgba(234,179,8,0.4)]" : "border-border")}>
+                            <img src={entry.avatar || ""} alt={entry.username} className="w-full h-full object-cover" />
+                          </div>
+                          {entry.bestRank === 1 && (
+                            <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-gradient-to-br from-yellow-300 via-amber-500 to-yellow-600 rounded-full flex items-center justify-center shadow-[0_2px_4px_rgba(0,0,0,0.4)] border border-background z-10">
+                              <span className="text-[6px]">🐐</span>
+                            </div>
+                          )}
                         </div>
                         <div className="min-w-0 flex-1 pr-2">
                           <p className={cn("font-medium truncate", isUser && "text-primary")}>
