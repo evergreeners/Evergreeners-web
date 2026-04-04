@@ -7,9 +7,9 @@ export default function ProtectedRoute() {
     // Show minimal loading UI - the initial-loader will still be visible
     // This prevents returning null which causes a blank screen
     if (isPending) {
-        // Return minimal structure so React has something to render
-        // Initial loader from HTML will stay visible until session resolves
-        return <div />;
+        // Return null so React doesn't render anything into #root yet
+        // This keeps the high-quality initial-loader from index.html visible
+        return null;
     }
 
     if (!session) {

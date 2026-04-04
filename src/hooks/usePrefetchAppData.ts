@@ -31,34 +31,17 @@ export function usePrefetchAppData(token: string | undefined) {
                     staleTime: 5 * 60 * 1000, // 5 minutes
                 });
 
-                // Prefetch user profile data
+                // Prefetch user profile data (used by Profile page and Dashboard)
                 await queryClient.prefetchQuery({
-                    queryKey: ['userProfile'],
+                    queryKey: ['userProfile', 'me'],
                     queryFn: async () => {
                         const res = await fetch(getApiUrl('/api/user/profile'), {
-                            headers: {
-                                Authorization: `Bearer ${token}`
-                            }
-                        });
-                        if (!res.ok) throw new Error('Failed to fetch profile');
-                        const data = await res.json();
-                        return data.user;
-                    },
-                    staleTime: 5 * 60 * 1000,
-                });
-
-                // Prefetch dashboard profile (same endpoint, different query key for Index page)
-                await queryClient.prefetchQuery({
-                    queryKey: ['dashboardProfile'],
-                    queryFn: async () => {
-                        const url = getApiUrl('/api/user/profile');
-                        const res = await fetch(url, {
                             credentials: "include",
                             headers: {
                                 Authorization: `Bearer ${token}`
                             }
                         });
-                        if (!res.ok) throw new Error('Failed to fetch dashboard profile');
+                        if (!res.ok) throw new Error('Failed to fetch profile');
                         const data = await res.json();
                         return data.user;
                     },

@@ -23,6 +23,8 @@ import { Logo } from "@/components/Logo";
 import { BadgeWall } from "@/components/badges/BadgeWall";
 import { BadgeToast } from "@/components/badges/BadgeToast";
 import { useBadges } from "@/hooks/useBadges";
+import { Loader } from "@/components/ui/loader";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 // ─── Static data (legacy — now replaced by live badge system) ────────────────
 // Kept only for reference; BadgeWall renders the real data below.
@@ -126,96 +128,85 @@ export default function Profile() {
   ];
 
   // ── Data fetching ──────────────────────────────────────────────────────────
+
+  // Use React Query for caching — hits the prefetch cache on /profile 
+  const { data: qProfile, isLoading: qLoading, isFetching } = useQuery({
+    queryKey: ['userProfile', urlUsername || 'me'],
+    queryFn: async () => {
+      const url = urlUsername
+        ? getApiUrl(`/api/user/profile/${urlUsername}`)
+        : getApiUrl("/api/user/profile");
+
+      const res = await fetch(url, {
+        credentials: "include",
+        headers: {
+          ...(session?.session?.token ? { Authorization: `Bearer ${session.session.token}` } : {})
+        }
+      });
+
+      if (res.status === 404) { setNotFound(true); throw new Error("Not Found"); }
+      if (res.status === 403) { setIsPrivate(true); throw new Error("Private"); }
+      if (!res.ok) throw new Error("Fetch failed");
+
+      const data = await res.json();
+      return data.user;
+    },
+    // Use session user as initial data for own profile to render instantly
+    // Set initialDataUpdatedAt: 0 so React Query knows this partial data is "stale"
+    // and immediately fetches the full rich profile (like contribution arrays) in the background.
+    initialData: isOwnProfile && !urlUsername && session?.user ? {
+      ...session.user,
+      contributionData: (session.user as any).contributionData || []
+    } : undefined,
+    initialDataUpdatedAt: 0,
+
+    // Keep data fresh but allow prefetch to work
+    staleTime: 5 * 60 * 1000,
+    enabled: !sessionLoading && (!!urlUsername || isOwnProfile),
+  });
+
+  // Sync React Query data to local state for compatibility with legacy handlers
   useEffect(() => {
-    // Don't fetch until we know whether the user is logged in
-    if (sessionLoading) return;
+    if (qProfile) {
+      setProfile({
+        name: qProfile.name || "Tree Planter",
+        username: qProfile.username || "user",
+        bio: qProfile.bio || "",
+        location: qProfile.location || "",
+        website: qProfile.website || "",
+        joinDate: "Joined " + new Date(qProfile.createdAt || Date.now()).toLocaleDateString(),
+        image: qProfile.image || "",
+        anonymousName: qProfile.anonymousName || "",
+        streak: qProfile.streak || 0,
+        totalCommits: qProfile.totalCommits || 0,
+        todayCommits: qProfile.todayCommits || 0,
+        bestRank: qProfile.bestRank || null,
+        contributionData: qProfile.contributionData || []
+      });
+      setEditedProfile(qProfile);
+      setIsPublic(qProfile.isPublic !== false);
+      setIsLoading(false);
 
-    const fetchProfile = async () => {
-      setIsLoading(true);
-      setNotFound(false);
-      setIsPrivate(false);
-
-      try {
-        let url: string;
-        let options: RequestInit;
-
-        if (isOwnProfile && !urlUsername) {
-          // /profile — fetch own authenticated profile
-          url = getApiUrl("/api/user/profile");
-          options = { credentials: "include" };
-        } else if (urlUsername) {
-          // /:username — fetch public profile (no auth needed)
-          url = getApiUrl(`/api/user/profile/${urlUsername}`);
-          options = { credentials: "include" }; // include anyway for any future personalisation
-        } else {
-          // /profile but not logged in — redirect to login
-          navigate("/login");
-          return;
-        }
-
-        const res = await fetch(url, options);
-
-        if (res.status === 404) { setNotFound(true); return; }
-        if (res.status === 403) { setIsPrivate(true); return; }
-        if (res.status === 401) {
-          // Needed session but none found — send to login
-          navigate("/login");
-          return;
-        }
-        if (!res.ok) throw new Error("Failed to fetch profile");
-
-        const { user } = await res.json();
-
-        setProfile({
-          name: user.name || "Tree Planter",
-          username: user.username || "user",
-          bio: user.bio || "",
-          location: user.location || "",
-          website: user.website || "",
-          joinDate: "Joined " + new Date(user.createdAt || Date.now()).toLocaleDateString(),
-          image: user.image || "",
-          anonymousName: user.anonymousName || "",
-          streak: user.streak || 0,
-          totalCommits: user.totalCommits || 0,
-          todayCommits: user.todayCommits || 0,
-          bestRank: user.bestRank || null,
-          contributionData: user.contributionData || []
-        });
-
-        setEditedProfile(user);
-        setIsPublic(user.isPublic !== false);
-
-        // Only check GitHub connection status for own profile — via better-auth
-        if (isOwnProfile) {
-          let githubConnected = !!user.isGithubConnected;
-          try {
-            const accounts = await authClient.listAccounts();
-            if (accounts.data) {
-              githubConnected = accounts.data.some((acc) => acc.providerId === "github");
-            }
-          } catch {
-            // fall back to DB value
-          }
-          setIsGithubConnected(githubConnected);
-
-          // Kick off authenticated sync ONCE, right here after we have the data
-          if (githubConnected) {
-            syncGithubData(true);
-          }
-        } else if (urlUsername) {
-          // Guest/visitor view — trigger a public background sync for the profile owner
-          triggerPublicSync(urlUsername);
-        }
-
-      } catch (e) {
-        console.error("Profile fetch failed", e);
-      } finally {
-        setIsLoading(false);
+      if (isOwnProfile && !urlUsername) {
+        // Auth check connection status
+        refreshConnection();
+      } else if (urlUsername) {
+        triggerPublicSync(urlUsername);
       }
-    };
+    }
+  }, [qProfile, urlUsername, isOwnProfile]);
 
-    fetchProfile();
-  }, [urlUsername, sessionLoading, isOwnProfile]);
+  const refreshConnection = async () => {
+    let githubConnected = !!qProfile?.isGithubConnected;
+    try {
+      const accounts = await authClient.listAccounts();
+      if (accounts.data) {
+        githubConnected = accounts.data.some((acc) => acc.providerId === "github");
+      }
+    } catch { /* sink */ }
+    setIsGithubConnected(githubConnected);
+    if (githubConnected) syncGithubData(true);
+  };
 
   const triggerPublicSync = async (username: string) => {
     try {
@@ -344,10 +335,10 @@ export default function Profile() {
   };
 
   // ── Early returns ──────────────────────────────────────────────────────────
-  if (sessionLoading || isLoading) {
+  if (sessionLoading || (isLoading && !qProfile)) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
+        <Loader />
       </div>
     );
   }
@@ -422,10 +413,10 @@ export default function Profile() {
                   className="w-full h-full object-cover"
                 />
               </div>
-              
+
               {/* The GOAT Seal */}
               {isGoat && (
-                <div 
+                <div
                   className="absolute -top-3 -right-3 w-8 h-8 bg-gradient-to-br from-yellow-300 via-amber-500 to-yellow-600 rounded-full flex items-center justify-center shadow-lg border-2 border-background z-10 animate-pulse-slow"
                   title="The GOAT - Absolute Legend"
                 >
@@ -570,14 +561,20 @@ export default function Profile() {
 
         {/* ── Activity Grid ─────────────────────────────────────────────────── */}
         <Section title="Recent Activity" className="animate-fade-up" style={{ animationDelay: "0.25s" }}>
-          <ActivityGrid data={profile.contributionData} weeks={57} />
+          <ActivityGrid
+            data={qProfile?.contributionData || profile.contributionData}
+            loading={(qLoading || isFetching) && !qProfile}
+            weeks={57}
+          />
         </Section>
 
         {/* ── Badges ────────────────────────────────────────────────────────── */}
         <Section title="Badges" className="animate-fade-up" style={{ animationDelay: "0.3s" }}>
           {badgesLoading ? (
             <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
+              <div className="scale-75">
+                <Loader />
+              </div>
             </div>
           ) : (
             <BadgeWall
