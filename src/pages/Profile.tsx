@@ -20,17 +20,12 @@ import { getApiUrl } from "@/lib/api-config";
 import NotFound from "./NotFound";
 import { useSession, signIn, authClient } from "@/lib/auth-client";
 import { Logo } from "@/components/Logo";
+import { BadgeWall } from "@/components/badges/BadgeWall";
+import { BadgeToast } from "@/components/badges/BadgeToast";
+import { useBadges } from "@/hooks/useBadges";
 
-// ─── Static data ─────────────────────────────────────────────────────────────
-
-const achievements = [
-  { name: "Early Adopter", icon: "🌱", earned: true },
-  { name: "30-Day Streak", icon: "🔥", earned: true },
-  { name: "60-Day Streak", icon: "⚡", earned: true },
-  { name: "100-Day Streak", icon: "💎", earned: false },
-  { name: "Top 10", icon: "🏆", earned: false },
-  { name: "Contributor", icon: "🤝", earned: true },
-];
+// ─── Static data (legacy — now replaced by live badge system) ────────────────
+// Kept only for reference; BadgeWall renders the real data below.
 
 // ─── Public minimal header (for unauthenticated visitors) ────────────────────
 
@@ -76,6 +71,8 @@ export default function Profile() {
   const [isLoading, setIsLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [isPrivate, setIsPrivate] = useState(false);
+  // New: tracks newly-awarded badges to show toast notifications
+  const [pendingToasts, setPendingToasts] = useState<{ id: string; name: string; rarity: 'common' | 'rare' | 'epic' | 'legendary'; category: string }[]>([]);
 
   const [profile, setProfile] = useState({
     name: "Loading...",
@@ -108,6 +105,16 @@ export default function Profile() {
   // Completely unauthenticated visitor
   const isUnauthenticatedGuest = !session?.user && !sessionLoading;
 
+  // ── Badge data ───────────────────────────────────────────────────────────────
+  // Fetch from /api/users/:username/badges once we know the profile username
+  const badgeUsername = urlUsername || (isOwnProfile ? loggedInUsername : null);
+  const {
+    badges: badgeData,
+    earnedCount,
+    totalCount,
+    isLoading: badgesLoading,
+    refetch: badgesRefetch
+  } = useBadges(badgeUsername ?? null);
   const stats = [
     { label: "Current Streak", value: profile.streak?.toString() || "0", icon: Flame },
     { label: "Commits Today", value: (profile.todayCommits || 0).toString(), icon: GitCommit },
@@ -251,6 +258,11 @@ export default function Profile() {
           contributionData: data.contributionData || []
         }));
         if (!silent) toast.success("GitHub data synced!");
+        // Show badge toast notifications for newly earned badges
+        if (data.newBadges?.length > 0) {
+          setPendingToasts(prev => [...prev, ...data.newBadges]);
+          badgesRefetch();
+        }
       }
     } catch (e) {
       console.error("Sync failed", e);
@@ -548,24 +560,19 @@ export default function Profile() {
           <ActivityGrid data={profile.contributionData} weeks={57} />
         </Section>
 
-        {/* ── Achievements ──────────────────────────────────────────────────── */}
-        <Section title="Achievements" className="animate-fade-up" style={{ animationDelay: "0.3s" }}>
-          <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
-            {achievements.map((achievement) => (
-              <div
-                key={achievement.name}
-                className={cn(
-                  "flex flex-col items-center p-3 rounded-xl border transition-all duration-300 cursor-default",
-                  achievement.earned
-                    ? "border-primary/30 bg-primary/10"
-                    : "border-border bg-secondary/30 opacity-50"
-                )}
-              >
-                <span className="text-2xl mb-1">{achievement.icon}</span>
-                <span className="text-[10px] text-center text-muted-foreground">{achievement.name}</span>
-              </div>
-            ))}
-          </div>
+        {/* ── Badges ────────────────────────────────────────────────────────── */}
+        <Section title="Badges" className="animate-fade-up" style={{ animationDelay: "0.3s" }}>
+          {badgesLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
+            </div>
+          ) : (
+            <BadgeWall
+              badges={badgeData}
+              earnedCount={earnedCount}
+              totalCount={totalCount}
+            />
+          )}
         </Section>
 
         {/* ── Quick Actions — OWN PROFILE ONLY ─────────────────────────────── */}
@@ -658,6 +665,12 @@ export default function Profile() {
 
       {/* Floating nav — authenticated users only */}
       {isAuthenticated && <FloatingNav />}
+
+      {/* Badge toast notifications for newly awarded badges */}
+      <BadgeToast
+        badges={pendingToasts}
+        onDismiss={(id) => setPendingToasts(prev => prev.filter(b => b.id !== id))}
+      />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { pgSchema, serial, text, timestamp, boolean, jsonb, integer } from 'drizzle-orm/pg-core';
+import { pgSchema, serial, text, timestamp, boolean, jsonb, integer, uuid, unique } from 'drizzle-orm/pg-core';
 
 export const mySchema = pgSchema('evergreeners');
 
@@ -163,3 +163,15 @@ export const userQuests = mySchema.table('user_quests', {
     completedAt: timestamp('completed_at'),
     forkUrl: text('fork_url'),
 });
+
+// ─── Badge System ───────────────────────────────────────────────────────────────
+
+export const userBadges = mySchema.table('user_badges', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    badgeId: text('badge_id').notNull(),
+    earnedAt: timestamp('earned_at').defaultNow().notNull(),
+}, (table) => ({
+    // Ensure a user can't earn the same badge twice
+    uniqueUserBadge: unique('user_badges_user_id_badge_id_unique').on(table.userId, table.badgeId),
+}));
