@@ -170,6 +170,13 @@ server.register(async (instance) => {
             return reply.status(204).send();
         }
 
+        // Extremely crucial for Vercel Rewrites & better-auth cross-origin oauth fix
+        // Ensure better-auth uses the x-forwarded-host to generate the correct redirect_uri
+        const forwardedHost = req.headers['x-forwarded-host'];
+        if (typeof forwardedHost === 'string' && forwardedHost) {
+            req.raw.headers.host = forwardedHost;
+        }
+
         return toNodeHandler(auth)(req.raw, reply.raw);
     });
 });
