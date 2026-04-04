@@ -5,6 +5,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface ContributionDay {
   contributionCount: number;
@@ -94,26 +95,40 @@ export function ActivityGrid({ data, loading, weeks: weekCount }: ActivityGridPr
       <div className="flex flex-col gap-4">
         <div className="overflow-x-auto pb-2 custom-scrollbar">
           <div className="flex gap-1.5 min-w-max mx-auto">
-            {displayWeeks.map((week, weekIndex) => (
-              <div key={weekIndex} className="flex flex-col gap-1.5">
-                {week.contributionDays.map((day, dayIndex) => (
-                  <TooltipProvider key={`${weekIndex}-${dayIndex}`} delayDuration={0}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div
-                          className={cn(
-                            "w-3.5 h-3.5 rounded-sm transition-all duration-300",
-                            getIntensityClass(day.contributionCount),
-                            "border border-white/5"
-                          )}
-                        />
-                      </TooltipTrigger>
-                      <TooltipContentSide day={day} />
-                    </Tooltip>
-                  </TooltipProvider>
-                ))}
-              </div>
-            ))}
+            {loading ? (
+              // Enhanced Loading Skeleton — matches the actual grid layout
+              Array.from({ length: countToUse }).map((_, weekIndex) => (
+                <div key={weekIndex} className="flex flex-col gap-1.5">
+                  {Array.from({ length: 7 }).map((_, dayIndex) => (
+                    <Skeleton 
+                      key={`${weekIndex}-${dayIndex}`} 
+                      className="w-3.5 h-3.5 rounded-none bg-zinc-800/40" 
+                    />
+                  ))}
+                </div>
+              ))
+            ) : (
+              displayWeeks.map((week, weekIndex) => (
+                <div key={weekIndex} className="flex flex-col gap-1.5">
+                  {week.contributionDays.map((day, dayIndex) => (
+                    <TooltipProvider key={`${weekIndex}-${dayIndex}`} delayDuration={0}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div
+                            className={cn(
+                              "w-3.5 h-3.5 rounded-sm transition-all duration-300",
+                              getIntensityClass(day.contributionCount),
+                              "border border-white/5"
+                            )}
+                          />
+                        </TooltipTrigger>
+                        <TooltipContentSide day={day} />
+                      </Tooltip>
+                    </TooltipProvider>
+                  ))}
+                </div>
+              ))
+            )}
           </div>
         </div>
 

@@ -46,7 +46,7 @@ export default function Index() {
 
   // Use React Query for caching and instant data on navigation
   const { data: profile } = useQuery({
-    queryKey: ['dashboardProfile'],
+    queryKey: ['userProfile', 'me'],
     queryFn: async () => {
       // Even if we have initial data, we might want to fetch fresh
       const url = getApiUrl('/api/user/profile');
