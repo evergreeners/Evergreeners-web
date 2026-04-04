@@ -1,6 +1,6 @@
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const getResend = () => new Resend(process.env.RESEND_API_KEY);
 
 const FROM_EMAIL = process.env.EMAIL_FROM || 'Evergreeners <noreply@yourdomain.com>';
 const APP_URL = process.env.APP_URL || 'https://evergreeners.dev';
@@ -210,7 +210,7 @@ export async function sendWelcomeEmail(to: string, name: string, githubConnected
       </table>`;
 
     try {
-        const result = await resend.emails.send({
+        const result = await getResend().emails.send({
             from: FROM_EMAIL,
             to,
             subject: 'Welcome to Evergreeners',
@@ -395,7 +395,7 @@ export async function sendDailyDigestEmail(opts: DailyDigestOptions) {
       </table>`;
 
     try {
-        const result = await resend.emails.send({
+        const result = await getResend().emails.send({
             from: FROM_EMAIL,
             to,
             subject,
@@ -519,7 +519,7 @@ export async function sendStreakBrokenEmail(opts: StreakBrokenEmailOptions) {
       </table>`;
 
     try {
-        const result = await resend.emails.send({
+        const result = await getResend().emails.send({
             from: FROM_EMAIL,
             to,
             subject,
@@ -604,7 +604,7 @@ export async function sendNewQuestEmail(opts: NewQuestEmailOptions) {
       </table>`;
 
     try {
-        const result = await resend.emails.send({
+        const result = await getResend().emails.send({
             from: FROM_EMAIL,
             to,
             subject,
@@ -668,7 +668,7 @@ export async function sendStoryPublishedEmail(to: string, name: string) {
       </table>`;
 
     try {
-        const result = await resend.emails.send({
+        const result = await getResend().emails.send({
             from: FROM_EMAIL,
             to,
             subject,
@@ -730,7 +730,7 @@ export async function sendAdminStorySubmittedEmail(to: string[], storyAuthor: st
       </table>`;
 
     try {
-        const result = await resend.emails.send({
+        const result = await getResend().emails.send({
             from: FROM_EMAIL,
             to,
             subject,
@@ -741,5 +741,97 @@ export async function sendAdminStorySubmittedEmail(to: string[], storyAuthor: st
     } catch (err) {
         console.error(`Failed to send admin story notification:`, err);
         throw err;
+    }
+}
+
+// ─── Badge Awarded Email ───────────────────────────────────────────────────────
+export interface BadgeAwardedEmailOptions {
+    to: string;
+    name: string;
+    badgeName: string;
+    badgeDescription: string;
+    badgeRarity: string;
+}
+
+export async function sendBadgeAwardedEmail(opts: BadgeAwardedEmailOptions) {
+    const { to, name, badgeName, badgeDescription, badgeRarity } = opts;
+    const displayName = name?.split(' ')[0] || 'there';
+
+    const subject = `You've earned a new badge: ${badgeName}! 🏆`;
+    
+    // Rarity colors mirroring the UI
+    const rarityColors: Record<string, string> = {
+        'common': '#A1A1AA',
+        'rare': '#3B82F6',
+        'epic': '#A855F7',
+        'legendary': '#EAB308'
+    };
+    const color = rarityColors[badgeRarity.toLowerCase()] || '#10b981';
+
+    const body = `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td style="padding-bottom:12px;">
+             <span style="display:inline-block;padding:4px 10px;border-radius:12px;background-color:#fafafa;border:1px solid ${color}40;font-family:ui-monospace,'SF Mono',monospace;font-size:11px;font-weight:700;color:${color};letter-spacing:0.05em;text-transform:uppercase;">
+              ${badgeRarity} Achievement
+            </span>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding-bottom:12px;">
+            <h1 class="text-heading" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',Helvetica,Arial,sans-serif;font-size:26px;font-weight:700;color:#09090b;letter-spacing:-0.4px;line-height:1.3;">
+              Nice work, ${displayName}.
+            </h1>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding-bottom:20px;">
+            <p class="text-body" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:16px;color:#52525b;line-height:1.75;">
+              You've officially unlocked the <strong>${badgeName}</strong> badge on Evergreeners.
+            </p>
+          </td>
+        </tr>
+
+        <tr>
+          <td class="stat-box" style="padding:24px;background-color:#fafafa;border:1px solid #e4e4e7;border-radius:12px;text-align:center;">
+             <div style="font-size:48px;margin-bottom:16px;">🏆</div>
+             <h2 style="margin:0 0 8px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:20px;font-weight:700;color:#09090b;">${badgeName}</h2>
+             <p style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;color:#71717a;line-height:1.5;">${badgeDescription}</p>
+          </td>
+        </tr>
+
+        ${divider}
+
+        <tr>
+          <td style="padding-bottom:20px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="background-color:#10b981;border-radius:7px;">
+                  <a href="${APP_URL}/profile" style="display:inline-block;padding:11px 22px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;color:#ffffff;text-decoration:none;letter-spacing:-0.1px;">
+                    View Badge Wall
+                  </a>
+                </td>
+                <td style="padding-left:20px;">
+                  <a href="${APP_URL}/profile" class="cta-secondary" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;color:#71717a;text-decoration:none;">
+                    View Profile &rarr;
+                  </a>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>`;
+
+    try {
+        const result = await getResend().emails.send({
+            from: FROM_EMAIL,
+            to,
+            subject,
+            html: emailShell(body),
+        });
+        console.log(`Badge award email sent to ${to} for [${badgeName}]:`, result.data?.id);
+        return result;
+    } catch (err) {
+        console.error(`Failed to send badge email to ${to}:`, err);
     }
 }
