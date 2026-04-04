@@ -11,9 +11,8 @@ export function StreakDisplay({ current, longest }: StreakDisplayProps) {
       <div className="flex flex-col items-center justify-center py-12">
         {/* Main streak number */}
         <div className="relative">
-          <div className="absolute inset-0 blur-3xl bg-primary/20 rounded-full scale-150" />
           <div className="relative flex items-center gap-4">
-            <Flame className="w-12 h-12 text-primary animate-pulse-slow" />
+            <Flame className="w-12 h-12 text-primary" />
             <span className="text-8xl font-bold tracking-tight text-gradient">
               {current}
             </span>

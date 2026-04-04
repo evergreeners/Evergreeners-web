@@ -57,10 +57,9 @@ export default function Streaks() {
         {/* Hero Section */}
         <section className="animate-fade-in text-center py-8">
           <div className="relative inline-block">
-            <div className="absolute inset-0 blur-3xl bg-primary/30 rounded-full scale-150 animate-pulse-slow" />
             <div className="relative">
               <div className="flex items-center justify-center gap-4">
-                <Flame className="w-16 h-16 text-primary animate-pulse-slow" />
+                <Flame className="w-16 h-16 text-primary" />
                 <span className="text-9xl font-bold text-gradient">{currentStreak}</span>
               </div>
               <p className="text-xl text-muted-foreground mt-4">day streak</p>
