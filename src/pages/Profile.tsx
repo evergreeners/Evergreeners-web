@@ -115,6 +115,9 @@ export default function Profile() {
     isLoading: badgesLoading,
     refetch: badgesRefetch
   } = useBadges(badgeUsername ?? null);
+
+  const isGoat = badgeData.some(b => b.id === 'the_goat' && b.earned);
+
   const stats = [
     { label: "Current Streak", value: profile.streak?.toString() || "0", icon: Flame },
     { label: "Commits Today", value: (profile.todayCommits || 0).toString(), icon: GitCommit },
@@ -374,75 +377,85 @@ export default function Profile() {
       {/* Header: show minimal public one for guests, full app header for logged-in */}
       {isUnauthenticatedGuest ? <PublicHeader /> : <Header />}
 
-      <main className="container pt-24 pb-32 md:pb-12 space-y-8">
+      <main className="container pt-32 pb-32 md:pb-12 space-y-8">
 
         {/* ── Profile Hero ──────────────────────────────────────────────────── */}
-        <section className="animate-fade-in">
-          <div className="flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-6">
+        <section className="animate-fade-in relative py-12">
+          {/* Watermark Background Name */}
+          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none select-none overflow-hidden -z-10 opacity-[0.03] dark:opacity-[0.05]">
+            <span className="text-[14vw] font-black uppercase tracking-tighter whitespace-nowrap">
+              {profile.name}
+            </span>
+          </div>
+
+          {/* Action Buttons - Restored to top right */}
+          <div className="absolute top-0 right-0 flex items-center gap-2">
+            {isOwnProfile && (
+              <button
+                className="p-2 rounded-xl border border-border hover:bg-secondary transition-colors"
+                onClick={() => setIsEditing(true)}
+                title="Edit profile"
+              >
+                <Edit2 className="w-4 h-4" />
+              </button>
+            )}
+            <button
+              className="p-2 rounded-xl border border-border hover:bg-secondary transition-colors"
+              onClick={handleCopyLink}
+              title="Copy profile link"
+            >
+              {copied ? <Check className="w-4 h-4 text-primary" /> : <Share2 className="w-4 h-4" />}
+            </button>
+          </div>
+
+          <div className="flex flex-col items-center text-center gap-6">
 
             {/* Avatar */}
             <div className="relative group">
-              <div className="w-24 h-24 rounded-2xl bg-secondary border border-border overflow-hidden">
+              <div className={cn(
+                "w-24 h-24 rounded-2xl bg-secondary border overflow-hidden transition-all duration-500",
+                isGoat ? "border-yellow-500/50 shadow-[0_0_15px_rgba(234,179,8,0.3)]" : "border-border"
+              )}>
                 <img
                   src={profile.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name)}&background=random`}
                   alt={profile.name}
                   className="w-full h-full object-cover"
                 />
               </div>
-              {isOwnProfile && (
-                <button
-                  className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={() => setIsEditing(true)}
+              
+              {/* The GOAT Seal */}
+              {isGoat && (
+                <div 
+                  className="absolute -top-3 -right-3 w-8 h-8 bg-gradient-to-br from-yellow-300 via-amber-500 to-yellow-600 rounded-full flex items-center justify-center shadow-lg border-2 border-background z-10 animate-pulse-slow"
+                  title="The GOAT - Absolute Legend"
                 >
-                  <Edit2 className="w-4 h-4" />
-                </button>
+                  <span className="text-sm shadow-black drop-shadow-md">🐐</span>
+                </div>
               )}
             </div>
 
             {/* Info */}
-            <div className="flex-1 w-full">
-              <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-4 sm:gap-0">
-                <div className="text-center sm:text-left">
-                  <h1 className="text-2xl font-bold">{profile.name}</h1>
-                  <p className="text-muted-foreground">@{profile.username}</p>
+            <div className="flex-1 w-full flex flex-col items-center">
+              <div className="flex flex-col items-center justify-center gap-2">
+                <div className="text-center">
+                  <p className="text-lg font-medium text-muted-foreground tracking-wide">@{profile.username}</p>
                   {isOwnProfile && !isPublic && (
-                    <p className="text-xs text-primary mt-1">
+                    <p className="text-xs text-primary mt-1 font-semibold uppercase tracking-widest">
                       (Private • Playing as {profile.anonymousName || "..."})
                     </p>
                   )}
                 </div>
-
-                <div className="flex items-center justify-center gap-2">
-                  {/* Edit button — own profile only */}
-                  {isOwnProfile && (
-                    <button
-                      className="p-2 rounded-xl border border-border hover:bg-secondary transition-colors"
-                      onClick={() => setIsEditing(true)}
-                      title="Edit profile"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                  )}
-                  {/* Share button — always shown */}
-                  <button
-                    className="p-2 rounded-xl border border-border hover:bg-secondary transition-colors"
-                    onClick={handleCopyLink}
-                    title="Copy profile link"
-                  >
-                    {copied ? <Check className="w-4 h-4 text-primary" /> : <Share2 className="w-4 h-4" />}
-                  </button>
-                </div>
               </div>
 
               {profile.bio && (
-                <p className="text-sm text-muted-foreground mt-3 max-w-md text-center sm:text-left mx-auto sm:mx-0">
+                <p className="text-base text-muted-foreground mt-4 max-w-lg text-center mx-auto">
                   {profile.bio}
                 </p>
               )}
 
-              <div className="flex flex-wrap justify-center sm:justify-start gap-4 mt-4 text-sm text-muted-foreground">
+              <div className="flex flex-wrap justify-center gap-6 mt-6 text-sm text-muted-foreground">
                 {profile.location && (
-                  <span className="flex items-center gap-1">
+                  <span className="flex items-center gap-1.5">
                     <MapPin className="w-4 h-4" /> {profile.location}
                   </span>
                 )}
@@ -451,13 +464,13 @@ export default function Profile() {
                     href={profile.website}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1 hover:text-primary transition-colors"
+                    className="flex items-center gap-1.5 hover:text-primary transition-colors"
                   >
                     <LinkIcon className="w-4 h-4" />
                     {profile.website.replace("https://", "").replace("http://", "")}
                   </a>
                 )}
-                <span className="flex items-center gap-1">
+                <span className="flex items-center gap-1.5">
                   <Calendar className="w-4 h-4" /> {profile.joinDate}
                 </span>
               </div>
@@ -575,27 +588,6 @@ export default function Profile() {
           )}
         </Section>
 
-        {/* ── Quick Actions — OWN PROFILE ONLY ─────────────────────────────── */}
-        {isOwnProfile && (
-          <Section title="Quick Actions" className="animate-fade-up" style={{ animationDelay: "0.35s" }}>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={() => navigate("/settings")}
-                className="p-4 rounded-xl border border-border bg-secondary/30 hover:bg-secondary/50 transition-all duration-300 text-left"
-              >
-                <p className="font-medium">Settings</p>
-                <p className="text-xs text-muted-foreground mt-1">Manage your account</p>
-              </button>
-              <button
-                onClick={() => navigate("/leaderboard")}
-                className="p-4 rounded-xl border border-border bg-secondary/30 hover:bg-secondary/50 transition-all duration-300 text-left"
-              >
-                <p className="font-medium">Leaderboard</p>
-                <p className="text-xs text-muted-foreground mt-1">See how you rank</p>
-              </button>
-            </div>
-          </Section>
-        )}
 
         {/* ── Join CTA — UNAUTHENTICATED GUESTS ONLY ───────────────────────── */}
         {isUnauthenticatedGuest && (

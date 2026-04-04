@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { cn, triggerHaptic } from "@/lib/utils";
 import { signOut, useSession } from "@/lib/auth-client";
+import { useBadges } from "@/hooks/useBadges";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -46,6 +47,10 @@ export function Header() {
   const location = useLocation();
   const currentPath = location.pathname;
   const { data: session } = useSession();
+  const loggedInUsername = (session?.user as any)?.username;
+  const { badges } = useBadges(loggedInUsername ?? null);
+  const isGoat = badges?.some((b) => b.id === 'the_goat' && b.earned);
+  
   const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
 
   return (
@@ -97,16 +102,28 @@ export function Header() {
             {/* Profile Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button
-                  onClick={() => triggerHaptic()}
-                  className="ml-2 w-8 h-8 rounded-full bg-secondary border border-primary overflow-hidden hover:border-primary transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50"
-                >
-                  <img
-                    src={session?.user?.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(session?.user?.name || "User")}&background=random`}
-                    alt="User"
-                    className="w-full h-full object-cover"
-                  />
-                </button>
+                <div className="relative ml-2 cursor-pointer">
+                  <button
+                    onClick={() => triggerHaptic()}
+                    className={cn(
+                      "w-8 h-8 rounded-full bg-secondary border overflow-hidden transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 block",
+                      isGoat ? "border-yellow-500/50 shadow-[0_0_10px_rgba(234,179,8,0.4)]" : "border-primary hover:border-primary"
+                    )}
+                  >
+                    <img
+                      src={session?.user?.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(session?.user?.name || "User")}&background=random`}
+                      alt="User"
+                      className="w-full h-full object-cover"
+                    />
+                  </button>
+                  {isGoat && (
+                    <div 
+                      className="absolute -top-1 -right-1 w-[14px] h-[14px] bg-gradient-to-br from-yellow-300 via-amber-500 to-yellow-600 rounded-full flex items-center justify-center shadow-lg border border-background z-10 pointer-events-none animate-pulse-slow"
+                    >
+                      <span className="text-[7px]">🐐</span>
+                    </div>
+                  )}
+                </div>
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 align="end"
