@@ -16,6 +16,8 @@ import { getGithubContributions, checkQuestProgress } from './lib/github.js';
 import { setupCronJobs } from './cron.js';
 import { updateUserGoals } from './lib/goals.js';
 import { sendWelcomeEmail } from './lib/email.js';
+import { checkAndAwardBadges } from './badges/award-badges.js';
+import { BADGES, getBadgeById } from './badges/badge-definitions.js';
 
 /**
  * Helper function to get session from request.
@@ -334,6 +336,48 @@ server.register(async (instance) => {
                 contributionCalendar
             });
 
+            // 5b. Check and award badges
+            const currentUser = await db.select().from(schema.users).where(eq(schema.users.id, userId)).limit(1);
+            const syncedUser = currentUser[0];
+            const questCompletedRows = await db.select().from(schema.userQuests)
+                .where(and(eq(schema.userQuests.userId, userId), eq(schema.userQuests.status, 'completed')));
+            const questAcceptedRows = await db.select().from(schema.userQuests)
+                .where(eq(schema.userQuests.userId, userId));
+            const goalRows = await db.select().from(schema.goals).where(eq(schema.goals.userId, userId));
+            const completedGoals = goalRows.filter(g => g.completed);
+            const accountCreated = syncedUser?.createdAt ? new Date(syncedUser.createdAt) : new Date();
+            const accountAgeDays = Math.floor((Date.now() - accountCreated.getTime()) / 86_400_000);
+            const now = new Date();
+            const isNewYear = now.getMonth() === 0 && now.getDate() === 1;
+            const isAnniversary = accountAgeDays > 0 && accountAgeDays % 365 === 0;
+
+            const badgeStats = {
+                totalCommits,
+                lateNightCommits: 0, // tracked separately via contribution analysis
+                currentStreak,
+                longestStreak: currentStreak, // best approximation from sync data
+                hadBrokenStreak: false,
+                questsCompleted: questCompletedRows.length,
+                questsAccepted: questAcceptedRows.length,
+                overachieverQuests: 0,
+                goalsCompleted: completedGoals.length,
+                goalsCompletedEarly: 0,
+                accountAgeDays,
+                totalActiveDays: activeDays,
+                isFirstDay: accountAgeDays === 0,
+                isProfilePublic: syncedUser?.isPublic ?? false,
+                isGithubConnected: true,
+                leaderboardRank: null,
+                profileViews: 0,
+                fullYearGreen: false,
+                isNewYearsCommit: isNewYear,
+                isLunchBreakCommit: false, // TODO: detect from commit timestamps
+                isFourAmCommit: false,
+                hasSpeedRunnerQuest: false,
+                isCountryLeader: false,
+            };
+            const newBadges = await checkAndAwardBadges(userId, badgeStats);
+
             // 6. Calculate and update user's rank
             let currentRank: number | null = null;
             let bestRank: number | null = null;
@@ -375,7 +419,8 @@ server.register(async (instance) => {
                 projectsData: projects,
                 contributionData: contributionCalendar,
                 currentRank,
-                bestRank
+                bestRank,
+                newBadges: newBadges.map(b => ({ id: b.id, name: b.name, rarity: b.rarity, category: b.category })),
             };
         } catch (error) {
             console.error(error);
@@ -923,6 +968,53 @@ server.register(async (instance) => {
                     .set({ status: 'completed', completedAt: new Date(), forkUrl: progress.forkUrl })
                     .where(and(eq(schema.userQuests.userId, userId), eq(schema.userQuests.questId, parseInt(id))));
 
+                // Check for speed-runner badge (completed in < 1 hour)
+                const myQuestRow = await db.select().from(schema.userQuests)
+                    .where(and(eq(schema.userQuests.userId, userId), eq(schema.userQuests.questId, parseInt(id))))
+                    .limit(1);
+                const isSpeedRunner = myQuestRow[0]?.startedAt
+                    ? (Date.now() - new Date(myQuestRow[0].startedAt).getTime()) < 3_600_000
+                    : false;
+
+                // Award badges after quest completion
+                const completedQuestRows = await db.select().from(schema.userQuests)
+                    .where(and(eq(schema.userQuests.userId, userId), eq(schema.userQuests.status, 'completed')));
+                const acceptedQuestRows = await db.select().from(schema.userQuests)
+                    .where(eq(schema.userQuests.userId, userId));
+                const goalRows = await db.select().from(schema.goals).where(eq(schema.goals.userId, userId));
+                const completedGoals = goalRows.filter(g => g.completed);
+                const userProfile = await db.select().from(schema.users).where(eq(schema.users.id, userId)).limit(1);
+                const profile = userProfile[0];
+                const accountCreated = profile?.createdAt ? new Date(profile.createdAt) : new Date();
+                const accountAgeDays = Math.floor((Date.now() - accountCreated.getTime()) / 86_400_000);
+
+                const badgeStats = {
+                    totalCommits: profile?.totalCommits ?? 0,
+                    lateNightCommits: 0,
+                    currentStreak: profile?.streak ?? 0,
+                    longestStreak: profile?.streak ?? 0,
+                    hadBrokenStreak: false,
+                    questsCompleted: completedQuestRows.length,
+                    questsAccepted: acceptedQuestRows.length,
+                    overachieverQuests: 0,
+                    goalsCompleted: completedGoals.length,
+                    goalsCompletedEarly: 0,
+                    accountAgeDays,
+                    totalActiveDays: profile?.activeDays ?? 0,
+                    isFirstDay: accountAgeDays === 0,
+                    isProfilePublic: profile?.isPublic ?? false,
+                    isGithubConnected: profile?.isGithubConnected ?? false,
+                    leaderboardRank: null,
+                    profileViews: 0,
+                    fullYearGreen: false,
+                    isNewYearsCommit: false,
+                    isLunchBreakCommit: false,
+                    isFourAmCommit: false,
+                    hasSpeedRunnerQuest: isSpeedRunner,
+                    isCountryLeader: false,
+                };
+                await checkAndAwardBadges(userId, badgeStats);
+
                 // Award points/streak? For now just mark complete.
             } else if (progress.status !== 'error') {
                 // status could be 'in_progress', 'not_started'
@@ -1328,6 +1420,46 @@ server.register(async (instance) => {
                 .where(eq(schema.goals.id, parseInt(id)))
                 .returning();
 
+            // Award badges after goal update
+            const allGoalRows = await db.select().from(schema.goals).where(eq(schema.goals.userId, userId));
+            const completedGoals = allGoalRows.filter(g => g.completed);
+            const isCompletedEarly = updateData.completed && goal.dueDate
+                ? new Date() < new Date(goal.dueDate)
+                : false;
+            const userProfileRows = await db.select().from(schema.users).where(eq(schema.users.id, userId)).limit(1);
+            const userProfile = userProfileRows[0];
+            const accountCreated = userProfile?.createdAt ? new Date(userProfile.createdAt) : new Date();
+            const accountAgeDays = Math.floor((Date.now() - accountCreated.getTime()) / 86_400_000);
+            const questRows = await db.select().from(schema.userQuests).where(eq(schema.userQuests.userId, userId));
+            const completedQuestRows = questRows.filter(q => q.status === 'completed');
+
+            const goalBadgeStats = {
+                totalCommits: userProfile?.totalCommits ?? 0,
+                lateNightCommits: 0,
+                currentStreak: userProfile?.streak ?? 0,
+                longestStreak: userProfile?.streak ?? 0,
+                hadBrokenStreak: false,
+                questsCompleted: completedQuestRows.length,
+                questsAccepted: questRows.length,
+                overachieverQuests: 0,
+                goalsCompleted: completedGoals.length,
+                goalsCompletedEarly: isCompletedEarly ? 1 : 0,
+                accountAgeDays,
+                totalActiveDays: userProfile?.activeDays ?? 0,
+                isFirstDay: accountAgeDays === 0,
+                isProfilePublic: userProfile?.isPublic ?? false,
+                isGithubConnected: userProfile?.isGithubConnected ?? false,
+                leaderboardRank: null,
+                profileViews: 0,
+                fullYearGreen: false,
+                isNewYearsCommit: false,
+                isLunchBreakCommit: false,
+                isFourAmCommit: false,
+                hasSpeedRunnerQuest: false,
+                isCountryLeader: false,
+            };
+            await checkAndAwardBadges(userId, goalBadgeStats);
+
             return { goal: updatedGoal[0] };
         } catch (error) {
             console.error("Update goal error:", error);
@@ -1354,6 +1486,105 @@ server.register(async (instance) => {
         } catch (error) {
             console.error("Delete goal error:", error);
             return reply.status(500).send({ message: "Failed to delete goal" });
+        }
+    });
+
+    // ─── Badge Endpoints ──────────────────────────────────────────────────────────
+
+    // GET /api/badges — all badge definitions
+    // Secret badges are hidden unless the requesting user has earned them.
+    instance.get('/api/badges', async (req, reply) => {
+        const session = await getSessionFromRequest(req);
+        let earnedSecretIds = new Set<string>();
+
+        if (session) {
+            const earned = await db.select({ badgeId: schema.userBadges.badgeId })
+                .from(schema.userBadges)
+                .where(eq(schema.userBadges.userId, session.session.userId));
+            earnedSecretIds = new Set(earned.map(r => r.badgeId));
+        }
+
+        const badges = BADGES.map(badge => {
+            if (badge.isSecret && !earnedSecretIds.has(badge.id)) {
+                // Redact secret badge details for unearned badges
+                return {
+                    id: badge.id,
+                    name: '???',
+                    description: '???',
+                    rarity: badge.rarity,
+                    category: badge.category,
+                    isSecret: true,
+                };
+            }
+            const { check: _check, ...rest } = badge;
+            return rest;
+        });
+
+        return { badges };
+    });
+
+    // GET /api/users/:username/badges — all badges a user has earned
+    instance.get('/api/users/:username/badges', async (req, reply) => {
+        const { username } = req.params as { username: string };
+
+        try {
+            // Resolve user
+            const userRows = await db.select({ id: schema.users.id, isPublic: schema.users.isPublic })
+                .from(schema.users)
+                .where(eq(schema.users.username, username))
+                .limit(1);
+
+            if (!userRows.length) {
+                return reply.status(404).send({ message: 'User not found' });
+            }
+
+            const targetUser = userRows[0];
+
+            // Allow the owner to see their own badges even if profile is private
+            const session = await getSessionFromRequest(req);
+            const isOwner = session?.session.userId === targetUser.id;
+
+            if (!targetUser.isPublic && !isOwner) {
+                return reply.status(403).send({ message: 'Profile is private' });
+            }
+
+            // Fetch earned badge rows
+            const earnedRows = await db.select()
+                .from(schema.userBadges)
+                .where(eq(schema.userBadges.userId, targetUser.id));
+
+            const earnedIds = new Set(earnedRows.map(r => r.badgeId));
+
+            // Hydrate with badge definition data; redact unearned secrets
+            const badges = BADGES.map(badge => {
+                const row = earnedRows.find(r => r.badgeId === badge.id);
+                const earned = !!row;
+
+                if (badge.isSecret && !earned) {
+                    return {
+                        id: badge.id,
+                        name: '???',
+                        description: '???',
+                        rarity: badge.rarity,
+                        category: badge.category,
+                        isSecret: true,
+                        earned: false,
+                        earnedAt: null,
+                    };
+                }
+
+                const { check: _check, ...rest } = badge;
+                return {
+                    ...rest,
+                    earned,
+                    earnedAt: row?.earnedAt ?? null,
+                };
+            });
+
+            return { badges, earnedCount: earnedIds.size, totalCount: BADGES.length };
+        } catch (error) {
+            console.error('Fetch user badges error:', error);
+            return reply.status(500).send({ message: 'Failed to fetch badges' });
         }
     });
 

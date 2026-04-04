@@ -96,7 +96,18 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+
+  /* Slow pulse for legendary badge glow */
+  .animate-pulse-slow {
+    animation: pulse-slow 3s ease-in-out infinite;
+  }
 }
+
+@keyframes pulse-slow {
+  0%, 100% { box-shadow: 0 0 12px 2px hsla(45, 93%, 58%, 0.25); }
+  50%       { box-shadow: 0 0 28px 6px hsla(45, 93%, 58%, 0.5); }
+}
+
 
 /* Custom Scrollbar */
 .custom-scrollbar::-webkit-scrollbar {
