@@ -7,6 +7,7 @@ import { db } from '../db/index.js';
 import * as schema from '../db/schema.js';
 import { eq, inArray } from 'drizzle-orm';
 import { BADGES, type BadgeDefinition, type UserStats } from './badge-definitions.js';
+import { sendBadgeAwardedEmail } from '../lib/email.js';
 
 export type { UserStats } from './badge-definitions.js';
 
@@ -53,6 +54,35 @@ export async function checkAndAwardBadges(
             })),
         )
         .onConflictDoNothing();
+
+    // 4. Send email notifications (Async, non-blocking)
+    (async () => {
+        try {
+            // Get user email and notification preference
+            const user = await db.query.users.findFirst({
+                where: eq(schema.users.id, userId),
+                columns: {
+                    email: true,
+                    name: true,
+                    emailNotifications: true,
+                }
+            });
+
+            if (user?.email && user.emailNotifications) {
+                for (const badge of newlyQualified) {
+                    await sendBadgeAwardedEmail({
+                        to: user.email,
+                        name: user.name,
+                        badgeName: badge.name,
+                        badgeDescription: badge.description,
+                        badgeRarity: badge.rarity,
+                    });
+                }
+            }
+        } catch (err) {
+            console.error('Error sending badge award emails:', err);
+        }
+    })();
 
     return newlyQualified;
 }
