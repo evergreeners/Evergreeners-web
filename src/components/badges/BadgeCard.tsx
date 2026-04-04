@@ -63,10 +63,10 @@ export function BadgeCard({ badge, earned, earnedAt }: BadgeCardProps) {
                 </p>
             )}
 
-            {/* Secret lock overlay */}
-            {isSecret && (
+            {/* Lock overlay for unearned badges */}
+            {!earned && (
                 <div className="absolute inset-0 rounded-2xl flex items-center justify-center">
-                    <span className="text-2xl">🔒</span>
+                    <span className="text-2xl pt-8 opacity-70">🔒</span>
                 </div>
             )}
         </motion.div>

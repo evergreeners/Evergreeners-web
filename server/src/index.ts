@@ -367,6 +367,8 @@ server.register(async (instance) => {
                 isFirstDay: accountAgeDays === 0,
                 isProfilePublic: syncedUser?.isPublic ?? false,
                 isGithubConnected: true,
+                hasBio: !!syncedUser?.bio,
+                hasLocation: !!syncedUser?.location,
                 leaderboardRank: null,
                 profileViews: 0,
                 fullYearGreen: false,
@@ -1004,6 +1006,8 @@ server.register(async (instance) => {
                     isFirstDay: accountAgeDays === 0,
                     isProfilePublic: profile?.isPublic ?? false,
                     isGithubConnected: profile?.isGithubConnected ?? false,
+                    hasBio: !!profile?.bio,
+                    hasLocation: !!profile?.location,
                     leaderboardRank: null,
                     profileViews: 0,
                     fullYearGreen: false,
@@ -1449,6 +1453,8 @@ server.register(async (instance) => {
                 isFirstDay: accountAgeDays === 0,
                 isProfilePublic: userProfile?.isPublic ?? false,
                 isGithubConnected: userProfile?.isGithubConnected ?? false,
+                hasBio: !!userProfile?.bio,
+                hasLocation: !!userProfile?.location,
                 leaderboardRank: null,
                 profileViews: 0,
                 fullYearGreen: false,
@@ -1546,6 +1552,46 @@ server.register(async (instance) => {
 
             if (!targetUser.isPublic && !isOwner) {
                 return reply.status(403).send({ message: 'Profile is private' });
+            }
+
+            if (isOwner) {
+                const userProfileRows = await db.select().from(schema.users).where(eq(schema.users.id, targetUser.id)).limit(1);
+                const profile = userProfileRows[0];
+                const questRows = await db.select().from(schema.userQuests).where(eq(schema.userQuests.userId, targetUser.id));
+                const completedQuestRows = questRows.filter(q => q.status === 'completed');
+                const goalRows = await db.select().from(schema.goals).where(eq(schema.goals.userId, targetUser.id));
+                const completedGoals = goalRows.filter(g => g.completed);
+                const accountCreated = profile?.createdAt ? new Date(profile.createdAt) : new Date();
+                const accountAgeDays = Math.floor((Date.now() - accountCreated.getTime()) / 86_400_000);
+                
+                const badgeStats = {
+                    totalCommits: profile?.totalCommits ?? 0,
+                    lateNightCommits: 0,
+                    currentStreak: profile?.streak ?? 0,
+                    longestStreak: profile?.streak ?? 0,
+                    hadBrokenStreak: false,
+                    questsCompleted: completedQuestRows.length,
+                    questsAccepted: questRows.length,
+                    overachieverQuests: 0,
+                    goalsCompleted: completedGoals.length,
+                    goalsCompletedEarly: 0,
+                    accountAgeDays,
+                    totalActiveDays: profile?.activeDays ?? 0,
+                    isFirstDay: accountAgeDays === 0,
+                    isProfilePublic: profile?.isPublic ?? false,
+                    isGithubConnected: profile?.isGithubConnected ?? false,
+                    hasBio: !!profile?.bio,
+                    hasLocation: !!profile?.location,
+                    leaderboardRank: profile?.bestRank ?? null,
+                    profileViews: 0,
+                    fullYearGreen: false,
+                    isNewYearsCommit: false,
+                    isLunchBreakCommit: false,
+                    isFourAmCommit: false,
+                    hasSpeedRunnerQuest: false,
+                    isCountryLeader: false,
+                };
+                await checkAndAwardBadges(targetUser.id, badgeStats);
             }
 
             // Fetch earned badge rows

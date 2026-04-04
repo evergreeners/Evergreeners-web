@@ -28,6 +28,8 @@ export interface UserStats {
     isFirstDay: boolean;        // account created today
     isProfilePublic: boolean;
     isGithubConnected: boolean;
+    hasBio: boolean;
+    hasLocation: boolean;
     leaderboardRank: number | null;
     profileViews: number;
     fullYearGreen: boolean;     // had contributions every day for a full calendar year
@@ -61,7 +63,7 @@ export const BADGES: BadgeDefinition[] = [
         description: 'You planted your first seed. Welcome to Evergreeners!',
         rarity: 'common',
         category: 'Onboarding',
-        check: (s) => s.isFirstDay,
+        check: () => true, // Everyone gets this just by having an account
     },
     {
         id: 'root_system',
@@ -98,7 +100,7 @@ export const BADGES: BadgeDefinition[] = [
         description: 'Profile fully filled — name, bio, location, and website all set.',
         rarity: 'common',
         category: 'Onboarding',
-        check: (s) => s.isProfilePublic && s.isGithubConnected && s.totalActiveDays >= 1,
+        check: (s) => s.isProfilePublic && s.isGithubConnected && s.hasBio && s.hasLocation,
     },
 
     // ── Streaks (5) ──────────────────────────────────────────────────────────────
