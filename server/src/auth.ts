@@ -15,7 +15,8 @@ const finalBaseURL = getBaseURL(process.env.BETTER_AUTH_URL);
 console.log("Better Auth Base URL:", finalBaseURL); // Debugging line
 
 export const auth = betterAuth({
-    baseURL: finalBaseURL,
+    // baseURL is dynamically inferred from request headers automatically (trustProxy forwards this).
+    // baseURL: finalBaseURL,
     database: drizzleAdapter(db, {
         provider: "pg", // or "mysql", "sqlite"
         schema: {

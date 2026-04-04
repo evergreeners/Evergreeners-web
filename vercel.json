@@ -1,8 +1,8 @@
 {
-    "rewrites": [
-        {
-            "source": "/(.*)",
-            "destination": "/index.html"
-        }
-    ]
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "https://evergreeners-web-production.up.railway.app/api/$1"
+    }
+  ]
 }
