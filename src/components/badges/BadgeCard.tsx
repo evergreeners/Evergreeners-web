@@ -65,8 +65,8 @@ export function BadgeCard({ badge, earned, earnedAt }: BadgeCardProps) {
 
             {/* Lock overlay for unearned badges */}
             {!earned && (
-                <div className="absolute inset-0 rounded-2xl flex items-center justify-center">
-                    <span className="text-2xl pt-8 opacity-70">🔒</span>
+                <div className="absolute top-3 right-3 flex items-center justify-center">
+                    <span className="text-sm opacity-70">🔒</span>
                 </div>
             )}
         </motion.div>

@@ -89,43 +89,57 @@ export function BadgeWall({ badges, earnedCount, totalCount, className }: BadgeW
             </div>
 
             <div className="space-y-6">
-                {CATEGORY_ORDER.map((category) => {
-                    let categoryBadges = grouped[category] ?? [];
-                    if (!categoryBadges.length) return null;
-                    if (activeCategory !== 'Earned' && activeCategory !== category) return null;
+                {activeCategory === 'Earned' ? (
+                    (() => {
+                        const earnedBadges = badges.filter(b => b.earned);
+                        if (!earnedBadges.length) return <p className="text-sm text-muted-foreground">No badges earned yet. Complete quests or edit your profile!</p>;
 
-                    if (activeCategory === 'Earned') {
-                        categoryBadges = categoryBadges.filter(b => b.earned);
+                        const RARITY_WEIGHT: Record<string, number> = {
+                            legendary: 4,
+                            epic: 3,
+                            rare: 2,
+                            common: 1
+                        };
+
+                        const sorted = [...earnedBadges].sort((a, b) => RARITY_WEIGHT[b.rarity] - RARITY_WEIGHT[a.rarity]);
+
+                        return (
+                            <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 cursor-default">
+                                {sorted.map((badge) => (
+                                    <BadgeCard
+                                        key={badge.id}
+                                        badge={badge}
+                                        earned={badge.earned}
+                                        earnedAt={badge.earnedAt ? new Date(badge.earnedAt) : null}
+                                    />
+                                ))}
+                            </div>
+                        );
+                    })()
+                ) : (
+                    (() => {
+                        const categoryBadges = grouped[activeCategory] ?? [];
                         if (!categoryBadges.length) return null;
-                    }
 
-                    // Earned first within each category
-                    const sorted = activeCategory === 'Earned' ? categoryBadges : [
-                        ...categoryBadges.filter((b) => b.earned),
-                        ...categoryBadges.filter((b) => !b.earned),
-                    ];
+                        const sorted = [
+                            ...categoryBadges.filter((b) => b.earned),
+                            ...categoryBadges.filter((b) => !b.earned),
+                        ];
 
-                    return (
-                        <section key={category}>
-                        <h3 className={cn(
-                            'text-sm font-semibold uppercase tracking-widest mb-3',
-                            category === 'Secret' ? 'text-amber-500' : 'text-muted-foreground',
-                        )}>
-                            {category}
-                        </h3>
-                        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                            {sorted.map((badge) => (
-                                <BadgeCard
-                                    key={badge.id}
-                                    badge={badge}
-                                    earned={badge.earned}
-                                    earnedAt={badge.earnedAt ? new Date(badge.earnedAt) : null}
-                                />
-                            ))}
-                        </div>
-                    </section>
-                );
-            })}
+                        return (
+                            <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 cursor-default">
+                                {sorted.map((badge) => (
+                                    <BadgeCard
+                                        key={badge.id}
+                                        badge={badge}
+                                        earned={badge.earned}
+                                        earnedAt={badge.earnedAt ? new Date(badge.earnedAt) : null}
+                                    />
+                                ))}
+                            </div>
+                        );
+                    })()
+                )}
             </div>
         </div>
     );

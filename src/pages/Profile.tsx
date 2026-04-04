@@ -575,27 +575,6 @@ export default function Profile() {
           )}
         </Section>
 
-        {/* ── Quick Actions — OWN PROFILE ONLY ─────────────────────────────── */}
-        {isOwnProfile && (
-          <Section title="Quick Actions" className="animate-fade-up" style={{ animationDelay: "0.35s" }}>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={() => navigate("/settings")}
-                className="p-4 rounded-xl border border-border bg-secondary/30 hover:bg-secondary/50 transition-all duration-300 text-left"
-              >
-                <p className="font-medium">Settings</p>
-                <p className="text-xs text-muted-foreground mt-1">Manage your account</p>
-              </button>
-              <button
-                onClick={() => navigate("/leaderboard")}
-                className="p-4 rounded-xl border border-border bg-secondary/30 hover:bg-secondary/50 transition-all duration-300 text-left"
-              >
-                <p className="font-medium">Leaderboard</p>
-                <p className="text-xs text-muted-foreground mt-1">See how you rank</p>
-              </button>
-            </div>
-          </Section>
-        )}
 
         {/* ── Join CTA — UNAUTHENTICATED GUESTS ONLY ───────────────────────── */}
         {isUnauthenticatedGuest && (
