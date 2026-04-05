@@ -26,6 +26,11 @@ export default defineConfig(({ mode }) => ({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.png', 'favicon.ico', 'robots.txt', 'icon.png'],
+      workbox: {
+        // Exclude all /api routes from the Service Worker's navigation fallback
+        // This ensures the browser actually hits the network for auth callbacks
+        navigateFallbackDenylist: [/^\/api/],
+      },
       manifest: {
         name: 'Evergreeners',
         short_name: 'Evergreeners',
