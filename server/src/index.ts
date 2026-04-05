@@ -186,11 +186,6 @@ server.register(async (instance) => {
         done(null);
     });
 
-    // Dedicated Alias for GitHub Callback to ensure it's captured by the Vercel proxy
-    instance.get('/api/auth/gh', async (req, reply) => {
-        console.log(`[GH-CALLBACK-ALIAS] Hit! Method: ${req.method}, URL: ${req.url}`);
-        return await toNodeHandler(auth)(req.raw, reply.raw);
-    });
 
     instance.get('/api/auth/callback/github', async (req, reply) => {
         console.log(`[CALLBACK DEBUG] Hit! Method: ${req.method}, URL: ${req.url}`);
