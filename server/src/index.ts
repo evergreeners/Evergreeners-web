@@ -130,6 +130,21 @@ server.register(cors, {
     allowedHeaders: ["Content-Type", "Authorization", "Cookie"],
 });
 
+// Extremely crucial for Vercel Rewrites & cross-origin authentication
+// This ensures that for ALL requests, better-auth and session handlers see the public host (e.g. evergreeners.dev)
+// and NOT the internal Railway host. This fixes 401s during sync and OAuth redirect issues.
+server.addHook('onRequest', async (req, reply) => {
+    const forwardedHost = req.headers['x-forwarded-host'];
+    if (typeof forwardedHost === 'string' && forwardedHost) {
+        // We only overwrite if it's not a localhost origin request
+        const origin = req.headers.origin;
+        if (!origin?.includes('localhost') && !origin?.includes('127.0.0.1')) {
+            req.headers.host = forwardedHost;
+            req.raw.headers.host = forwardedHost;
+        }
+    }
+});
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -168,17 +183,6 @@ server.register(async (instance) => {
         // Handle preflight request
         if (req.method === 'OPTIONS') {
             return reply.status(204).send();
-        }
-
-        // Extremely crucial for Vercel Rewrites & better-auth cross-origin oauth fix
-        // Ensure better-auth uses the x-forwarded-host to generate the correct redirect_uri
-        // BUT only do this if we're not on localhost to avoid breaking local dev
-        const forwardedHost = req.headers['x-forwarded-host'];
-        const isLocalOrigin = requestOrigin && (requestOrigin.includes('localhost') || requestOrigin.includes('127.0.0.1'));
-
-        if (typeof forwardedHost === 'string' && forwardedHost && !isLocalOrigin) {
-            console.log(`Overwriting host with x-forwarded-host: ${forwardedHost}`);
-            req.raw.headers.host = forwardedHost;
         }
 
         return toNodeHandler(auth)(req.raw, reply.raw);
