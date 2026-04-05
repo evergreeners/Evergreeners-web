@@ -65,8 +65,6 @@ export const auth = betterAuth({
         github: {
             clientId: process.env.GITHUB_CLIENT_ID!,
             clientSecret: process.env.GITHUB_CLIENT_SECRET!,
-            // ENFORCE A NON-API PATH TO BYPASS VERCEL HIJACKING
-            redirectURI: "https://www.evergreeners.dev/auth-callback/github",
             mapProfileToUser: (profile) => {
                 // This only runs for NEW user signups - existing users are not affected
                 // Users can manually update their profile anytime via Settings

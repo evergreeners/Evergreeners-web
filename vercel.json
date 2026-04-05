@@ -1,4 +1,11 @@
 {
+  "redirects": [
+    {
+      "source": "/api/auth/callback/github",
+      "destination": "/auth-callback/github",
+      "permanent": false
+    }
+  ],
   "rewrites": [
     {
       "source": "/auth-callback/github",
