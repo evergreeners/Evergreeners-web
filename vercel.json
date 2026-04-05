@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/api/auth/callback/github",
+      "destination": "https://evergreeners-web-production.up.railway.app/api/auth/callback/github"
+    },
+    {
       "source": "/api/auth/(.*)",
       "destination": "https://evergreeners-web-production.up.railway.app/api/auth/$1"
     },

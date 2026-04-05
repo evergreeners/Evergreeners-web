@@ -45,6 +45,11 @@ const queryClient = new QueryClient({
 const AppContents = () => {
   const { data: session } = useSession();
 
+  useEffect(() => {
+    console.log(`[FRONTEND ROUTING] Current URL: ${window.location.href}`);
+    console.log(`[FRONTEND ROUTING] Pathname: ${window.location.pathname}`);
+  }, []);
+
   // Prefetch all app data immediately when user logs in
   usePrefetchAppData(session?.session?.token);
 

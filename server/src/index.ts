@@ -141,12 +141,8 @@ server.addHook('onRequest', async (req, reply) => {
 
     const forwardedHost = req.headers['x-forwarded-host'];
     if (typeof forwardedHost === 'string' && forwardedHost) {
-        // We only overwrite if it's not a localhost origin request
-        const origin = req.headers.origin;
-        if (!origin?.includes('localhost') && !origin?.includes('127.0.0.1')) {
-            req.headers.host = forwardedHost;
-            req.raw.headers.host = forwardedHost;
-        }
+        req.headers.host = forwardedHost;
+        req.raw.headers.host = forwardedHost;
     }
 });
 
@@ -178,6 +174,15 @@ server.register(async (instance) => {
     instance.removeContentTypeParser('application/json');
     instance.addContentTypeParser('application/json', (req, payload, done) => {
         done(null);
+    });
+
+    instance.get('/api/auth/callback/github', async (req, reply) => {
+        console.log(`[CALLBACK DEBUG] Hit! Method: ${req.method}, URL: ${req.url}`);
+        console.log(`[CALLBACK DEBUG] Queries: ${JSON.stringify(req.query)}`);
+        console.log(`[CALLBACK DEBUG] Headers: ${JSON.stringify(req.headers)}`);
+        
+        // Pass to better-auth manually
+        return await toNodeHandler(auth)(req.raw, reply.raw);
     });
 
     instance.all('/api/auth/*', async (req, reply) => {
