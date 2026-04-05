@@ -50,7 +50,12 @@ export default function Index() {
     queryFn: async () => {
       // Even if we have initial data, we might want to fetch fresh
       const url = getApiUrl('/api/user/profile');
-      const res = await fetch(url, { credentials: "include" });
+      const res = await fetch(url, { 
+        credentials: "include",
+        headers: {
+          ...(session?.session?.token ? { Authorization: `Bearer ${session.session.token}` } : {})
+        }
+      });
       if (!res.ok) throw new Error("Failed to fetch fresh profile");
       const data = await res.json();
       return data.user;
@@ -83,7 +88,10 @@ export default function Index() {
       const fetchGoals = async () => {
         try {
           const res = await fetch(getApiUrl("/api/goals"), {
-            credentials: "include"
+            credentials: "include",
+            headers: {
+              ...(session?.session?.token ? { Authorization: `Bearer ${session.session.token}` } : {})
+            }
           });
           if (res.ok) {
             const data = await res.json();

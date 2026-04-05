@@ -16,7 +16,7 @@ console.log("Better Auth Base URL:", finalBaseURL); // Debugging line
 
 export const auth = betterAuth({
     // baseURL is dynamically inferred from request headers automatically (trustProxy forwards this).
-    // baseURL: finalBaseURL,
+    baseURL: finalBaseURL,
     database: drizzleAdapter(db, {
         provider: "pg", // or "mysql", "sqlite"
         schema: {
@@ -39,8 +39,8 @@ export const auth = betterAuth({
         "http://127.0.0.1:5173",
         "http://127.0.0.1:8080",
         ...(finalBaseURL ? [finalBaseURL] : []),
-        ...(process.env.ALLOWED_ORIGINS 
-            ? process.env.ALLOWED_ORIGINS.split(",").map(o => o.trim().replace(/["']/g, "")) 
+        ...(process.env.ALLOWED_ORIGINS
+            ? process.env.ALLOWED_ORIGINS.split(",").map(o => o.trim().replace(/["']/g, ""))
             : [])
     ],
     // Add other plugins or providers here (e.g., GitHub)
@@ -82,7 +82,7 @@ export const auth = betterAuth({
     advanced: {
         defaultCookieAttributes: {
             sameSite: "none",
-            secure: true
+            secure: finalBaseURL?.startsWith("https://") ? true : false
         }
     },
     databaseHooks: {

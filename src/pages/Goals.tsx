@@ -11,6 +11,7 @@ import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { getApiUrl } from "@/lib/api-config";
 import { authClient } from "@/lib/auth-client";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } from "@/components/ui/drawer";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
@@ -131,7 +132,13 @@ export default function Goals() {
       fetchGoals();
 
       // Background sync GitHub data
-      fetch(`${API_URL}/api/user/sync-github`, { method: "POST", credentials: "include" })
+      fetch(getApiUrl("/api/user/sync-github"), {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          ...(session?.session?.token ? { Authorization: `Bearer ${session.session.token}` } : {})
+        }
+      })
         .catch(console.error);
 
       // Fetch user profile for projects data

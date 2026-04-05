@@ -59,7 +59,7 @@ const AppContents = () => {
             method: "POST",
             credentials: "include",
             headers: {
-              Authorization: `Bearer ${session.session.token}`
+              ...(session?.session?.token ? { Authorization: `Bearer ${session.session.token}` } : {})
             }
           });
 

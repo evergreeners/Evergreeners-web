@@ -80,7 +80,10 @@ export default function Settings() {
     const fetchSettings = async () => {
       try {
         const res = await fetch(getApiUrl("/api/user/profile"), {
-          credentials: "include"
+          credentials: "include",
+          headers: {
+            ...(session?.session?.token ? { Authorization: `Bearer ${session.session.token}` } : {})
+          }
         });
         if (res.ok) {
           const data = await res.json();
@@ -107,7 +110,10 @@ export default function Settings() {
       const res = await fetch(getApiUrl("/api/user/notifications"), {
         method: "PUT",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          ...(session?.session?.token ? { Authorization: `Bearer ${session.session.token}` } : {})
+        },
         body: JSON.stringify({ emailNotifications: value }),
       });
       if (!res.ok) throw new Error("Failed");
@@ -137,7 +143,10 @@ export default function Settings() {
       (async () => {
         const res = await fetch(getApiUrl("/api/user/sync-github"), {
           method: "POST",
-          credentials: "include"
+          credentials: "include",
+          headers: {
+            ...(session?.session?.token ? { Authorization: `Bearer ${session.session.token}` } : {})
+          }
         });
         if (!res.ok) {
           const err = await res.json();
@@ -199,6 +208,9 @@ export default function Settings() {
       const res = await fetch(getApiUrl("/api/user/account"), {
         method: "DELETE",
         credentials: "include",
+        headers: {
+          ...(session?.session?.token ? { Authorization: `Bearer ${session.session.token}` } : {})
+        },
       });
 
       if (!res.ok) {

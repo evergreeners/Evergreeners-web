@@ -238,7 +238,10 @@ export default function Profile() {
       if (!silent) toast.info("Syncing GitHub data...");
       const res = await fetch(getApiUrl("/api/user/sync-github"), {
         method: "POST",
-        credentials: "include"
+        credentials: "include",
+        headers: {
+          ...(session?.session?.token ? { Authorization: `Bearer ${session.session.token}` } : {})
+        }
       });
       if (res.ok) {
         const data = await res.json();

@@ -106,8 +106,8 @@ const allowedOrigins = [
     "http://127.0.0.1:5173",
     "http://127.0.0.1:8080",
     ...(finalBaseURL ? [finalBaseURL] : []),
-    ...(process.env.ALLOWED_ORIGINS 
-        ? process.env.ALLOWED_ORIGINS.split(",").map(o => o.trim().replace(/["']/g, "")) 
+    ...(process.env.ALLOWED_ORIGINS
+        ? process.env.ALLOWED_ORIGINS.split(",").map(o => o.trim().replace(/["']/g, ""))
         : [])
 ].filter(Boolean);
 
@@ -151,17 +151,17 @@ server.register(async (instance) => {
     });
 
     instance.all('/api/auth/*', async (req, reply) => {
-        const origin = req.headers.origin;
+        const requestOrigin = req.headers.origin;
 
         // Always set CORS headers for preflight and actual requests
         reply.raw.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
         reply.raw.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Cookie");
 
         // Set origin header if allowed
-        if (origin && isOriginAllowed(origin)) {
-            reply.raw.setHeader("Access-Control-Allow-Origin", origin);
+        if (requestOrigin && isOriginAllowed(requestOrigin)) {
+            reply.raw.setHeader("Access-Control-Allow-Origin", requestOrigin);
             reply.raw.setHeader("Access-Control-Allow-Credentials", "true");
-        } else if (!origin) {
+        } else if (!requestOrigin) {
             reply.raw.setHeader("Access-Control-Allow-Origin", "*");
         }
 
@@ -172,8 +172,12 @@ server.register(async (instance) => {
 
         // Extremely crucial for Vercel Rewrites & better-auth cross-origin oauth fix
         // Ensure better-auth uses the x-forwarded-host to generate the correct redirect_uri
+        // BUT only do this if we're not on localhost to avoid breaking local dev
         const forwardedHost = req.headers['x-forwarded-host'];
-        if (typeof forwardedHost === 'string' && forwardedHost) {
+        const isLocalOrigin = requestOrigin && (requestOrigin.includes('localhost') || requestOrigin.includes('127.0.0.1'));
+
+        if (typeof forwardedHost === 'string' && forwardedHost && !isLocalOrigin) {
+            console.log(`Overwriting host with x-forwarded-host: ${forwardedHost}`);
             req.raw.headers.host = forwardedHost;
         }
 
@@ -226,10 +230,10 @@ server.register(async (instance) => {
             (async () => {
                 try {
                     console.log(`Background sync started for user ${userId} via webhook`);
-                    const { 
-                        totalCommits, currentStreak, todayCommits, yesterdayCommits, 
-                        weeklyCommits, activeDays, totalProjects, projects, 
-                        contributionCalendar, totalPullRequests, languages 
+                    const {
+                        totalCommits, currentStreak, todayCommits, yesterdayCommits,
+                        weeklyCommits, activeDays, totalProjects, projects,
+                        contributionCalendar, totalPullRequests, languages
                     } = await getGithubContributions(githubUsername, account[0].accessToken!);
 
                     await db.update(schema.users)
@@ -252,7 +256,7 @@ server.register(async (instance) => {
                     await updateUserGoals(userId, {
                         currentStreak, weeklyCommits, activeDays, totalProjects, contributionCalendar
                     });
-                    
+
                     console.log(`Background sync complete for ${githubUsername}`);
                 } catch (err) {
                     console.error(`Background sync failed for ${githubUsername}:`, err);
@@ -305,13 +309,45 @@ server.register(async (instance) => {
             if (!ghRes.ok) {
                 const errText = await ghRes.text();
                 console.error("GitHub Profile Fetch Failed:", errText);
-                throw new Error("Failed to fetch from GitHub");
+
+                // If token is revoked/expired, update DB and ask user to reconnect
+                if (ghRes.status === 401 || ghRes.status === 403) {
+                    await db.update(schema.users)
+                        .set({ isGithubConnected: false })
+                        .where(eq(schema.users.id, userId));
+                    return reply.status(401).send({ message: "GitHub token expired or revoked. Please reconnect your account." });
+                }
+
+                throw new Error(`Failed to fetch from GitHub: ${ghRes.status} ${errText}`);
             }
             const ghUser = await ghRes.json();
             console.log("GitHub user found:", ghUser.login);
 
             // 3. Fetch Contributions (Streak & Total Commits)
-            const { totalCommits, currentStreak, todayCommits, yesterdayCommits, weeklyCommits, activeDays, totalProjects, projects, contributionCalendar, totalPullRequests, languages } = await getGithubContributions(ghUser.login, account[0].accessToken);
+            let contribStats;
+            try {
+                if (!ghUser.login) {
+                    return reply.status(400).send({ message: "GitHub user login missing." });
+                }
+                contribStats = await getGithubContributions(ghUser.login, account[0].accessToken);
+            } catch (err: any) {
+                const errMsg = err.message || String(err);
+                console.error("Contributions Fetch Failed:", errMsg);
+
+                if (errMsg.toLowerCase().includes('token') || errMsg.toLowerCase().includes('bad credentials')) {
+                    await db.update(schema.users)
+                        .set({ isGithubConnected: false })
+                        .where(eq(schema.users.id, userId));
+                    return reply.status(401).send({ message: "GitHub token expired or invalid. Please reconnect." });
+                }
+
+                if (errMsg.includes('Could not resolve to a User')) {
+                    return reply.status(404).send({ message: `GitHub user "${ghUser.login}" not found.` });
+                }
+
+                throw err;
+            }
+            const { totalCommits, currentStreak, todayCommits, yesterdayCommits, weeklyCommits, activeDays, totalProjects, projects, contributionCalendar, totalPullRequests, languages } = contribStats;
 
             // 4. Update User Profile
             console.log("Updating DB with streak:", currentStreak, "commits:", totalCommits);
@@ -596,7 +632,7 @@ server.register(async (instance) => {
     // GET Public User Profile by Username
     instance.get('/api/user/profile/:username', async (req, reply) => {
         const { username } = req.params as { username: string };
-        
+
         try {
             const userRecord = await db.select()
                 .from(schema.users)
@@ -614,12 +650,12 @@ server.register(async (instance) => {
             }
 
             // Define which fields to exclude for the public view
-            const { 
-                email, 
-                emailVerified, 
-                role, 
+            const {
+                email,
+                emailVerified,
+                role,
                 emailNotifications,
-                ...publicData 
+                ...publicData
             } = userData;
 
             return { user: publicData };
@@ -868,7 +904,7 @@ server.register(async (instance) => {
                 if (existingActive[0].userId === userId) {
                     return { success: true, status: 'active' };
                 }
-                
+
                 // If it's not an Open Quest, block others from accepting it
                 if (!quest[0].isOpenQuest) {
                     return reply.status(400).send({ message: "This quest is already taken by another adventurer." });
@@ -1089,7 +1125,7 @@ server.register(async (instance) => {
                     // (Assuming defaults are stored as true or null if missing)
                     const usersToNotify = await db.select().from(schema.users).where(eq(schema.users.emailNotifications, true));
                     const githubAccounts = await db.select({ userId: schema.accounts.userId }).from(schema.accounts).where(eq(schema.accounts.providerId, 'github'));
-                    
+
                     // Send emails sequentially with a 600ms gap to stay under
                     // Resend's rate limit of 2 requests/second.
                     const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -1570,7 +1606,7 @@ server.register(async (instance) => {
                 const completedGoals = goalRows.filter(g => g.completed);
                 const accountCreated = profile?.createdAt ? new Date(profile.createdAt) : new Date();
                 const accountAgeDays = Math.floor((Date.now() - accountCreated.getTime()) / 86_400_000);
-                
+
                 const badgeStats = {
                     totalCommits: profile?.totalCommits ?? 0,
                     lateNightCommits: 0,
@@ -1699,7 +1735,8 @@ server.register(async (instance) => {
 });
 
 server.get('/', async (request, reply) => {
-    return { hello: 'world' };
+    const appUrl = process.env.APP_URL || 'https://evergreeners.dev';
+    return reply.redirect(appUrl);
 });
 
 // ─── Dev-only email test routes ───────────────────────────────────────────────
@@ -1834,7 +1871,7 @@ server.register(async (instance) => {
             }
 
             const query = db.select().from(schema.communityStories);
-            
+
             if (!isAdmin) {
                 query.where(eq(schema.communityStories.approved, true));
             }
@@ -1894,9 +1931,9 @@ server.register(async (instance) => {
                 const admins = await db.select({ email: schema.users.email })
                     .from(schema.users)
                     .where(eq(schema.users.role, 'admin'));
-                
+
                 const adminEmails = admins.map(a => a.email).filter(Boolean) as string[];
-                
+
                 if (adminEmails.length > 0) {
                     const { sendAdminStorySubmittedEmail } = await import('./lib/email.js');
                     await sendAdminStorySubmittedEmail(adminEmails, body.name, body.quote);
@@ -1917,7 +1954,7 @@ server.register(async (instance) => {
         adminInstance.addHook('preHandler', async (req, reply) => {
             const session = await getSessionFromRequest(req);
             if (!session) return reply.status(401).send({ message: "Unauthorized" });
-            
+
             const [user] = await db.select().from(schema.users).where(eq(schema.users.id, session.session.userId)).limit(1);
             if (user?.role !== 'admin') return reply.status(403).send({ message: "Forbidden" });
         });
@@ -1949,7 +1986,7 @@ server.register(async (instance) => {
             try {
                 const id = parseInt(req.params.id);
                 const [story] = await db.select().from(schema.communityStories).where(eq(schema.communityStories.id, id)).limit(1);
-                
+
                 if (!story) return reply.status(404).send({ message: "Story not found" });
 
                 const [updated] = await db.update(schema.communityStories)
@@ -1969,7 +2006,7 @@ server.register(async (instance) => {
             try {
                 const id = parseInt(req.params.id);
                 const [story] = await db.select().from(schema.communityStories).where(eq(schema.communityStories.id, id)).limit(1);
-                
+
                 if (!story) return reply.status(404).send({ message: "Story not found" });
 
                 const [updated] = await db.update(schema.communityStories)
@@ -2041,13 +2078,13 @@ server.register(async (instance) => {
                 image: schema.communityStories.image,
                 name: schema.communityStories.name
             })
-            .from(schema.communityStories)
-            .where(and(
-                eq(schema.communityStories.approved, true),
-                eq(schema.communityStories.heroFeatured, true)
-            ))
-            .limit(8);
-            
+                .from(schema.communityStories)
+                .where(and(
+                    eq(schema.communityStories.approved, true),
+                    eq(schema.communityStories.heroFeatured, true)
+                ))
+                .limit(8);
+
             return { avatars };
         } catch (error) {
             console.error("Fetch hero avatars error:", error);
@@ -2069,10 +2106,10 @@ server.register(async (instance) => {
 
             // Get base URL for static files
             const isLocal = req.hostname.includes('localhost') || req.hostname.includes('127.0.0.1');
-            const baseUrl = isLocal ? `http://${req.hostname}:3000` : ''; 
+            const baseUrl = isLocal ? `http://${req.hostname}:3000` : '';
 
-            return { 
-                url: `${baseUrl}/public/uploads/${filename}` 
+            return {
+                url: `${baseUrl}/public/uploads/${filename}`
             };
         } catch (error) {
             console.error("Upload error:", error);
