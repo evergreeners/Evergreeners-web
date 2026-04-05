@@ -150,9 +150,6 @@ server.addHook('onRequest', async (req, reply) => {
     }
 });
 
-// Health check to verify proxying
-server.get('/api/health', async () => ({ status: 'ok', time: new Date().toISOString() }));
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
