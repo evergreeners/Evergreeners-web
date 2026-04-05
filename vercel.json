@@ -2,11 +2,15 @@
   "redirects": [
     {
       "source": "/api/auth/callback/github",
-      "destination": "https://evergreeners-web-production.up.railway.app/api/auth/callback/github",
+      "destination": "/auth-callback/github",
       "permanent": false
     }
   ],
   "rewrites": [
+    {
+      "source": "/auth-callback/github",
+      "destination": "https://evergreeners-web-production.up.railway.app/api/auth/callback/github"
+    },
     {
       "source": "/api/(.*)",
       "destination": "https://evergreeners-web-production.up.railway.app/api/$1"
