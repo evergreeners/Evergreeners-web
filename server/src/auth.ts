@@ -80,6 +80,7 @@ export const auth = betterAuth({
         }
     },
     advanced: {
+        allowedHosts: ["evergreeners.dev", "www.evergreeners.dev", "evergreeners.vercel.app"],
         defaultCookieAttributes: {
             sameSite: "none",
             secure: finalBaseURL?.startsWith("https://") ? true : false
