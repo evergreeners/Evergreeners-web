@@ -65,7 +65,7 @@ export const auth = betterAuth({
         github: {
             clientId: process.env.GITHUB_CLIENT_ID!,
             clientSecret: process.env.GITHUB_CLIENT_SECRET!,
-            redirectURI: `${finalBaseURL}/gh-callback`,
+            redirectURI: `${finalBaseURL}/api/auth/gh`,
             mapProfileToUser: (profile) => {
                 // This only runs for NEW user signups - existing users are not affected
                 // Users can manually update their profile anytime via Settings

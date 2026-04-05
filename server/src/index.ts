@@ -134,10 +134,11 @@ server.register(cors, {
 // This ensures that for ALL requests, better-auth and session handlers see the public host (e.g. evergreeners.dev)
 // and NOT the internal Railway host. This fixes 401s during sync and OAuth redirect issues.
 server.addHook('onRequest', async (req, reply) => {
-    // Debug logging for API requests in production
-    if (req.url.startsWith('/api')) {
-        console.log(`[REQUEST] ${req.method} ${req.url}`);
-        console.log(`[HEADERS] ${JSON.stringify(req.headers)}`);
+    // Comprehensive debug logging for ALL incoming requests to help diagnose proxy issues
+    console.log(`[RAW REQUEST] ${req.method} ${req.url} (Host: ${req.headers.host})`);
+    if (req.url.includes('callback') || req.url.includes('gh-')) {
+        console.log(`[OAUTH DEBUG] Full Params: ${JSON.stringify(req.query)}`);
+        console.log(`[OAUTH DEBUG] Detailed Headers: ${JSON.stringify(req.headers)}`);
     }
 
     const forwardedHost = req.headers['x-forwarded-host'] || req.headers['host'];
@@ -183,6 +184,12 @@ server.register(async (instance) => {
     instance.removeContentTypeParser('application/json');
     instance.addContentTypeParser('application/json', (req, payload, done) => {
         done(null);
+    });
+
+    // Dedicated Alias for GitHub Callback to ensure it's captured by the Vercel proxy
+    instance.get('/api/auth/gh', async (req, reply) => {
+        console.log(`[GH-CALLBACK-ALIAS] Hit! Method: ${req.method}, URL: ${req.url}`);
+        return await toNodeHandler(auth)(req.raw, reply.raw);
     });
 
     instance.get('/api/auth/callback/github', async (req, reply) => {
