@@ -136,10 +136,11 @@ server.register(cors, {
 server.addHook('onRequest', async (req, reply) => {
     // Debug logging for API requests in production
     if (req.url.startsWith('/api')) {
-        console.log(`[API REQUEST] ${req.method} ${req.url} (Host: ${req.headers.host})`);
+        console.log(`[REQUEST] ${req.method} ${req.url}`);
+        console.log(`[HEADERS] ${JSON.stringify(req.headers)}`);
     }
 
-    const forwardedHost = req.headers['x-forwarded-host'];
+    const forwardedHost = req.headers['x-forwarded-host'] || req.headers['host'];
     if (typeof forwardedHost === 'string' && forwardedHost) {
         req.headers.host = forwardedHost;
         req.raw.headers.host = forwardedHost;

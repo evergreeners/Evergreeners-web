@@ -15,6 +15,7 @@ const finalBaseURL = getBaseURL(process.env.BETTER_AUTH_URL);
 console.log("Better Auth Base URL:", finalBaseURL); // Debugging line
 
 export const auth = betterAuth({
+    baseURL: finalBaseURL,
     // baseURL is dynamically inferred from request headers automatically (trustProxy: true must be set).
     // This allows supporting both evergreeners.dev and evergreeners.vercel.app simultaneously.
     database: drizzleAdapter(db, {
@@ -82,8 +83,9 @@ export const auth = betterAuth({
     advanced: {
         allowedHosts: ["evergreeners.dev", "www.evergreeners.dev", "evergreeners.vercel.app"],
         defaultCookieAttributes: {
+            domain: ".evergreeners.dev",
             sameSite: "none",
-            secure: finalBaseURL?.startsWith("https://") ? true : false
+            secure: true
         }
     },
     databaseHooks: {
