@@ -84,9 +84,12 @@ export const auth = betterAuth({
     advanced: {
         allowedHosts: ["evergreeners.dev", "www.evergreeners.dev", "evergreeners.vercel.app"],
         defaultCookieAttributes: {
-            domain: ".evergreeners.dev",
-            sameSite: "none",
+            domain: "evergreeners.dev",
+            sameSite: "lax", // Better for standard redirects
             secure: true
+        },
+        cookieOptions: {
+            domain: "evergreeners.dev"
         }
     },
     databaseHooks: {
