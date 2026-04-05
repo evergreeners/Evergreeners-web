@@ -141,7 +141,12 @@ server.addHook('onRequest', async (req, reply) => {
     }
 
     const forwardedHost = req.headers['x-forwarded-host'] || req.headers['host'];
-    if (typeof forwardedHost === 'string' && forwardedHost) {
+    
+    // Proactively override host if it's from Vercel to ensure Better Auth matches its baseURL
+    if (req.headers['x-vercel-id']) {
+        req.headers.host = 'evergreeners.dev';
+        req.raw.headers.host = 'evergreeners.dev';
+    } else if (typeof forwardedHost === 'string' && forwardedHost && !forwardedHost.includes('railway')) {
         req.headers.host = forwardedHost;
         req.raw.headers.host = forwardedHost;
     }
