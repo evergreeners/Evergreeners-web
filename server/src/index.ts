@@ -134,6 +134,11 @@ server.register(cors, {
 // This ensures that for ALL requests, better-auth and session handlers see the public host (e.g. evergreeners.dev)
 // and NOT the internal Railway host. This fixes 401s during sync and OAuth redirect issues.
 server.addHook('onRequest', async (req, reply) => {
+    // Debug logging for API requests in production
+    if (req.url.startsWith('/api')) {
+        console.log(`[API REQUEST] ${req.method} ${req.url} (Host: ${req.headers.host})`);
+    }
+
     const forwardedHost = req.headers['x-forwarded-host'];
     if (typeof forwardedHost === 'string' && forwardedHost) {
         // We only overwrite if it's not a localhost origin request
@@ -144,6 +149,9 @@ server.addHook('onRequest', async (req, reply) => {
         }
     }
 });
+
+// Health check to verify proxying
+server.get('/api/health', async () => ({ status: 'ok', time: new Date().toISOString() }));
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
