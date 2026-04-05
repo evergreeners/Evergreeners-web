@@ -1,12 +1,12 @@
 {
   "rewrites": [
     {
-      "source": "/api/auth/:path*",
-      "destination": "https://evergreeners-web-production.up.railway.app/api/auth/:path*"
+      "source": "/api/auth/(.*)",
+      "destination": "https://evergreeners-web-production.up.railway.app/api/auth/$1"
     },
     {
-      "source": "/api/:path*",
-      "destination": "https://evergreeners-web-production.up.railway.app/api/:path*"
+      "source": "/api/(.*)",
+      "destination": "https://evergreeners-web-production.up.railway.app/api/$1"
     },
     {
       "source": "/(.*)",
