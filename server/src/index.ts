@@ -156,6 +156,16 @@ server.register(fastifyStatic, {
 
 // GitHub OAuth is handled by better-auth in separate adapter
 
+// Health check to verify Vercel -> Railway proxying
+server.get('/api/health', async (req, reply) => {
+    return { 
+        status: 'ok', 
+        host: req.headers.host,
+        forwardedHost: req.headers['x-forwarded-host'],
+        url: req.url
+    };
+});
+
 // Auth Routes Scope (No Body Parsing for better-auth)
 // Auth Routes Scope (No Body Parsing for better-auth)
 server.register(async (instance) => {
