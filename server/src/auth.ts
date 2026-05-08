@@ -13,6 +13,8 @@ const getBaseURL = (url: string | undefined) => {
 
 const finalBaseURL = getBaseURL(process.env.BETTER_AUTH_URL);
 console.log("Better Auth Base URL:", finalBaseURL); // Debugging line
+const isLocal = !finalBaseURL || finalBaseURL.includes("localhost") || finalBaseURL.includes("127.0.0.1");
+console.log("Better Auth isLocal:", isLocal);
 
 export const auth = betterAuth({
     baseURL: finalBaseURL,
@@ -81,15 +83,11 @@ export const auth = betterAuth({
             }
         }
     },
-    advanced: {
-        allowedHosts: ["evergreeners.dev", "www.evergreeners.dev", "evergreeners.vercel.app"],
+    advanced: isLocal ? undefined : {
         defaultCookieAttributes: {
             domain: "evergreeners.dev",
             sameSite: "lax", // Better for standard redirects
             secure: true
-        },
-        cookieOptions: {
-            domain: "evergreeners.dev"
         }
     },
     databaseHooks: {
