@@ -8,6 +8,7 @@ import logo from "@/assets/logo.png";
 import authBg from "@/assets/auth-bg.png";
 import { useState } from "react";
 import { signUp, signIn } from "@/lib/auth-client";
+import { API_BASE_URL } from "@/lib/api-config";
 import { Loader } from "@/components/ui/loader";
 import { Logo } from "@/components/Logo";
 import { Terminal } from "@/components/auth/Terminal";
@@ -36,7 +37,7 @@ export default function Signup() {
 
                 // Fire-and-forget welcome email (non-blocking)
                 try {
-                    const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3000";
+                    const apiUrl = API_BASE_URL;
                     await fetch(`${apiUrl}/api/user/welcome-email`, {
                         method: "POST",
                         credentials: "include",

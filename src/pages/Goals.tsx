@@ -11,7 +11,7 @@ import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { getApiUrl } from "@/lib/api-config";
+import { getApiUrl, API_BASE_URL } from "@/lib/api-config";
 import { authClient } from "@/lib/auth-client";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } from "@/components/ui/drawer";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
@@ -56,7 +56,7 @@ const goalTemplates = [
   { type: "projects", title: "Contribute to repos", icon: BookOpen, defaultTarget: 3, description: "Number of repositories you've contributed to" },
 ];
 
-const API_URL = import.meta.env.VITE_API_URL || "";
+const API_URL = API_BASE_URL;
 
 export default function Goals() {
   const [goals, setGoals] = useState<Goal[]>([]);

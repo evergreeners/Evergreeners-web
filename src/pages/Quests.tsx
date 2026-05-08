@@ -61,7 +61,9 @@ import {
     AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-const API_URL = import.meta.env.VITE_API_URL || "";
+import { API_BASE_URL } from "@/lib/api-config";
+
+const API_URL = API_BASE_URL;
 
 interface Quest {
     id: number;
@@ -1255,7 +1257,7 @@ function QuestDetailBody({ quest, session, handleCheckProgress, handleDropQuest,
 }
 
 // ─── Quest Participants (creator-only view) ───────────────────────────────────
-const API_URL_INNER = import.meta.env.VITE_API_URL || '';
+const API_URL_INNER = API_BASE_URL;
 
 interface Participant {
     userId: string;
