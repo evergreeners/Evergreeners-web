@@ -288,27 +288,38 @@ function ManageWatchlistSheet({ watchlist, onAdd, onRemove, adding, authToken, o
         </SheetContent>
       </Sheet>
 
-      {/* Remove confirmation dialog */}
+      {/* Remove confirmation dialog — Premium Glass Style */}
       <AlertDialog open={!!removeTarget} onOpenChange={o => !o && setRemoveTarget(null)}>
-        <AlertDialogContent className="bg-background border-border">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remove @{removeTarget}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will remove them from your watchlist. You can always add them back later.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => {
-                if (removeTarget) onRemove(removeTarget);
-                setRemoveTarget(null);
-              }}
-            >
-              Remove
-            </AlertDialogAction>
-          </AlertDialogFooter>
+        <AlertDialogContent className="bg-[#080808]/90 backdrop-blur-[32px] border border-white/10 rounded-[2rem] shadow-2xl overflow-hidden p-0 max-w-sm animate-in fade-in zoom-in-95">
+          <div className="relative h-20 bg-gradient-to-br from-destructive/20 to-transparent">
+            <div className="absolute inset-0 bg-grid-white/[0.01]" />
+          </div>
+          
+          <div className="px-6 pt-6 pb-8">
+            <AlertDialogHeader>
+              <div className="w-12 h-12 rounded-2xl bg-destructive/10 border border-destructive/20 flex items-center justify-center mb-4">
+                <Trash2 className="w-6 h-6 text-destructive" />
+              </div>
+              <AlertDialogTitle className="text-xl font-bold tracking-tight">
+                Remove @{removeTarget}?
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-muted-foreground leading-relaxed mt-2">
+                This user will be removed from your active tracking. You'll lose their current activity history in your dashboard.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            
+            <div className="mt-8 flex flex-col gap-2">
+              <AlertDialogAction 
+                onClick={() => { if (removeTarget) onRemove(removeTarget); setRemoveTarget(null); }}
+                className="w-full h-12 rounded-xl bg-destructive text-destructive-foreground font-bold hover:bg-destructive/90 shadow-[0_8px_20px_-4px_hsl(346_84%_49%/0.4)] transition-all active:scale-[0.98]"
+              >
+                Remove User
+              </AlertDialogAction>
+              <AlertDialogCancel className="w-full h-12 rounded-xl bg-white/[0.03] border-white/5 hover:bg-white/[0.08] text-muted-foreground transition-all">
+                Keep Watching
+              </AlertDialogCancel>
+            </div>
+          </div>
         </AlertDialogContent>
       </AlertDialog>
     </>
@@ -525,6 +536,7 @@ export function EyeSection({
             onRemove={removeFromWatchlist}
             adding={adding}
             authToken={authToken}
+            onRefreshList={loadWatchlist}
           />
         </div>
       ) : (

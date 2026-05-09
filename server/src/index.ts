@@ -2503,12 +2503,21 @@ Keep the total response under 300 words. Be like a hype coach mixed with a ruthl
         }
     });
 
+    // In-memory cache for suggestions to avoid hitting GitHub API on every refresh
+    const suggestionsCache = new Map<string, { data: any, ts: number }>();
+
     // GET /api/eye/suggestions — suggest users to watch based on who the user follows on GitHub
     instance.get('/api/eye/suggestions', async (req, reply) => {
         const session = await getSessionFromRequest(req);
         if (!session) return reply.status(401).send({ message: 'Unauthorized' });
 
         const userId = session.session.userId;
+
+        // Check cache (5 minute TTL)
+        const cached = suggestionsCache.get(userId);
+        if (cached && Date.now() - cached.ts < 5 * 60 * 1000) {
+            return cached.data;
+        }
 
         const account = await db.select().from(schema.accounts)
             .where(and(eq(schema.accounts.userId, userId), eq(schema.accounts.providerId, 'github')))
@@ -2546,14 +2555,13 @@ Keep the total response under 300 words. Be like a hype coach mixed with a ruthl
             const followers: any[] = followersRes.ok ? await followersRes.json() : [];
             const followerSet = new Set(followers.map((f: any) => f.login.toLowerCase()));
 
-            // Filter to real users only, exclude self and already-watched
             const candidates = following
                 .filter(u => u.type === 'User')
                 .filter(u => !watchedSet.has(u.login.toLowerCase()) && u.login.toLowerCase() !== myUsername);
 
             if (candidates.length === 0) return { suggestions: [] };
 
-            // Batch-fetch recent activity using GraphQL (up to 40 users per query)
+            // Batch-fetch recent activity using GraphQL
             const batch = candidates.slice(0, 40);
             const gqlHeaders: Record<string, string> = {
                 'Content-Type': 'application/json',
@@ -2561,8 +2569,13 @@ Keep the total response under 300 words. Be like a hype coach mixed with a ruthl
                 'Authorization': `Bearer ${token}`,
             };
 
+            // Fetch only last 30 days to keep payload light and fast
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            const fromDate = thirtyDaysAgo.toISOString();
+
             const userFragments = batch.map((u, i) =>
-                `u${i}: user(login: "${u.login}") { login contributionsCollection { contributionCalendar { totalContributions weeks { contributionDays { date contributionCount } } } } }`
+                `u${i}: user(login: "${u.login}") { login contributionsCollection(from: "${fromDate}") { contributionCalendar { weeks { contributionDays { contributionCount } } } } }`
             ).join('\n');
 
             const gqlQuery = `query { ${userFragments} }`;
@@ -2583,17 +2596,16 @@ Keep the total response under 300 words. Be like a hype coach mixed with a ruthl
                             if (u?.login && u?.contributionsCollection?.contributionCalendar) {
                                 const allWeeks = u.contributionsCollection.contributionCalendar.weeks || [];
                                 const allDays = allWeeks.flatMap((w: any) => w.contributionDays || []);
-                                // Take last 14 days
-                                const recent14 = allDays.slice(-14);
-                                const recentCount = recent14.reduce((acc: number, d: any) => acc + (d.contributionCount || 0), 0);
-                                const dailyCounts = recent14.map((d: any) => d.contributionCount || 0);
+                                // Use all fetched days (30 days)
+                                const recentCount = allDays.reduce((acc: number, d: any) => acc + (d.contributionCount || 0), 0);
+                                const dailyCounts = allDays.map((d: any) => d.contributionCount || 0);
                                 activityMap.set(u.login.toLowerCase(), { count: recentCount, days: dailyCounts });
                             }
                         }
                     }
                 }
-            } catch {
-                // GraphQL failed, fall back to no activity data
+            } catch (e) {
+                console.error("GraphQL suggestions fetch error:", e);
             }
 
             const suggestions = candidates.map(u => {
@@ -2606,11 +2618,15 @@ Keep the total response under 300 words. Be like a hype coach mixed with a ruthl
                     activityDays: activity?.days ?? [],
                 };
             })
-            // Sort purely by activity — most active first
             .sort((a, b) => b.recentActivity - a.recentActivity);
 
-            return { suggestions };
-        } catch {
+            const response = { suggestions };
+            // Save to cache
+            suggestionsCache.set(userId, { data: response, ts: Date.now() });
+
+            return response;
+        } catch (e) {
+            console.error("Suggestions route error:", e);
             return { suggestions: [] };
         }
     });
