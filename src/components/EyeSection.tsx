@@ -16,6 +16,7 @@ import {
   AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import ReactMarkdown from "react-markdown";
+import { WatchlistSuggestions } from "@/components/WatchlistSuggestions";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -155,12 +156,13 @@ function WatchCard({ entry, myWeekly, myStreak }: {
 
 // ── Manage Watchlist Sheet ──────────────────────────────────────
 
-function ManageWatchlistSheet({ watchlist, onAdd, onRemove, adding, authToken }: {
+function ManageWatchlistSheet({ watchlist, onAdd, onRemove, adding, authToken, onRefreshList }: {
   watchlist: WatchedUser[];
   onAdd: (username: string) => Promise<void>;
   onRemove: (username: string) => void;
   adding: boolean;
   authToken?: string;
+  onRefreshList: () => void;
 }) {
   const [query, setQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
@@ -194,14 +196,14 @@ function ManageWatchlistSheet({ watchlist, onAdd, onRemove, adding, authToken }:
             <Settings2 className="w-3 h-3" /> Manage
           </Button>
         </SheetTrigger>
-        <SheetContent className="bg-background border-border w-full sm:max-w-md">
-          <SheetHeader>
+        <SheetContent className="bg-background border-border w-full sm:max-w-md flex flex-col h-full overflow-hidden">
+          <SheetHeader className="shrink-0">
             <SheetTitle className="text-left">Manage Watchlist</SheetTitle>
           </SheetHeader>
 
-          <div className="mt-6 space-y-5">
+          <div className="flex-1 overflow-y-auto mt-6 space-y-5 pr-1 custom-scrollbar">
             {/* Search & Add */}
-            <div className="relative">
+            <div className="relative shrink-0">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
               <input
                 type="text" value={query}
@@ -272,31 +274,52 @@ function ManageWatchlistSheet({ watchlist, onAdd, onRemove, adding, authToken }:
                 </p>
               )}
             </div>
+
+            {/* Suggestions — mobile only (desktop has sidebar) */}
+            <div className="md:hidden mt-4 pt-4 border-t border-border pb-8">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Suggested to Watch</p>
+              <WatchlistSuggestions 
+                authToken={authToken} 
+                inline 
+                onAdded={onRefreshList}
+              />
+            </div>
           </div>
         </SheetContent>
       </Sheet>
 
-      {/* Remove confirmation dialog */}
+      {/* Remove confirmation dialog — Premium Glass Style */}
       <AlertDialog open={!!removeTarget} onOpenChange={o => !o && setRemoveTarget(null)}>
-        <AlertDialogContent className="bg-background border-border">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remove @{removeTarget}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will remove them from your watchlist. You can always add them back later.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => {
-                if (removeTarget) onRemove(removeTarget);
-                setRemoveTarget(null);
-              }}
-            >
-              Remove
-            </AlertDialogAction>
-          </AlertDialogFooter>
+        <AlertDialogContent className="bg-[#080808]/90 backdrop-blur-[32px] border border-white/10 rounded-[2rem] shadow-2xl overflow-hidden p-0 max-w-sm animate-in fade-in zoom-in-95">
+          <div className="relative h-20 bg-gradient-to-br from-destructive/20 to-transparent">
+            <div className="absolute inset-0 bg-grid-white/[0.01]" />
+          </div>
+          
+          <div className="px-6 pt-6 pb-8">
+            <AlertDialogHeader>
+              <div className="w-12 h-12 rounded-2xl bg-destructive/10 border border-destructive/20 flex items-center justify-center mb-4">
+                <Trash2 className="w-6 h-6 text-destructive" />
+              </div>
+              <AlertDialogTitle className="text-xl font-bold tracking-tight">
+                Remove @{removeTarget}?
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-muted-foreground leading-relaxed mt-2">
+                This user will be removed from your active tracking. You'll lose their current activity history in your dashboard.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            
+            <div className="mt-8 flex flex-col gap-2">
+              <AlertDialogAction 
+                onClick={() => { if (removeTarget) onRemove(removeTarget); setRemoveTarget(null); }}
+                className="w-full h-12 rounded-xl bg-destructive text-destructive-foreground font-bold hover:bg-destructive/90 shadow-[0_8px_20px_-4px_hsl(346_84%_49%/0.4)] transition-all active:scale-[0.98]"
+              >
+                Remove User
+              </AlertDialogAction>
+              <AlertDialogCancel className="w-full h-12 rounded-xl bg-white/[0.03] border-white/5 hover:bg-white/[0.08] text-muted-foreground transition-all">
+                Keep Watching
+              </AlertDialogCancel>
+            </div>
+          </div>
         </AlertDialogContent>
       </AlertDialog>
     </>
@@ -309,10 +332,11 @@ interface EyeSectionProps {
   myWeekly: number; myStreak: number; myTodayCommits: number;
   myTotalCommits: number; myTotalPRs: number;
   myUsername: string; myAvatar: string; authToken?: string;
+  refreshTrigger?: number;
 }
 
 export function EyeSection({
-  myWeekly, myStreak, myTodayCommits, myTotalCommits, myTotalPRs, myUsername, myAvatar, authToken
+  myWeekly, myStreak, myTodayCommits, myTotalCommits, myTotalPRs, myUsername, myAvatar, authToken, refreshTrigger
 }: EyeSectionProps) {
   const authHeaders = authToken ? { Authorization: `Bearer ${authToken}` } : {};
 
@@ -345,7 +369,7 @@ export function EyeSection({
     finally { setLoadingList(false); }
   }, [authToken]);
 
-  useEffect(() => { loadWatchlist(); }, [loadWatchlist]);
+  useEffect(() => { loadWatchlist(); }, [loadWatchlist, refreshTrigger]);
 
   const addToWatchlist = async (username: string) => {
     setAdding(true);
@@ -438,6 +462,7 @@ export function EyeSection({
             onRemove={removeFromWatchlist}
             adding={adding}
             authToken={authToken}
+            onRefreshList={loadWatchlist}
           />
           {watchlist.length > 0 && (
             <>
@@ -511,6 +536,7 @@ export function EyeSection({
             onRemove={removeFromWatchlist}
             adding={adding}
             authToken={authToken}
+            onRefreshList={loadWatchlist}
           />
         </div>
       ) : (

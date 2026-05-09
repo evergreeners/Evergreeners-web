@@ -10,6 +10,7 @@ import { InsightCard } from "@/components/InsightCard";
 import { StatItem } from "@/components/StatItem";
 import { Section } from "@/components/Section";
 import { EyeSection } from "@/components/EyeSection";
+import { WatchlistSuggestions } from "@/components/WatchlistSuggestions";
 import { useEffect, useState, useMemo } from "react";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
@@ -70,6 +71,7 @@ export default function Index() {
 
   const [goals, setGoals] = useState<Goal[]>([]);
   const [isLoadingGoals, setIsLoadingGoals] = useState(true);
+  const [watchlistRefreshTrigger, setWatchlistRefreshTrigger] = useState(0);
 
   // Fetch goals separately (could also be a query, but keeping simple for now)
   useEffect(() => {
@@ -246,6 +248,7 @@ export default function Index() {
                 myUsername={sessionUser?.username || sessionUser?.name || "you"}
                 myAvatar={myAvatar}
                 authToken={authToken}
+                refreshTrigger={watchlistRefreshTrigger}
               />
             </Section>
           </div>
@@ -322,6 +325,20 @@ export default function Index() {
                 <InsightCard key={i} text={text} type={i === 0 ? "trend" : "achievement"} />
               ))}
             </Section>
+
+            {/* Watchlist Suggestions — desktop only (on mobile, shown in Manage sheet) */}
+            <div className="hidden md:block">
+              <Section
+                title="Suggested to Watch"
+                className="animate-fade-up"
+                style={{ animationDelay: "0.4s" }}
+              >
+                <WatchlistSuggestions 
+                  authToken={authToken} 
+                  onAdded={() => setWatchlistRefreshTrigger(prev => prev + 1)}
+                />
+              </Section>
+            </div>
           </div>
         </div>
       </main>
