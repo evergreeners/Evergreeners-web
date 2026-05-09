@@ -16,6 +16,7 @@ import {
   AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import ReactMarkdown from "react-markdown";
+import { WatchlistSuggestions } from "@/components/WatchlistSuggestions";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -155,12 +156,13 @@ function WatchCard({ entry, myWeekly, myStreak }: {
 
 // ── Manage Watchlist Sheet ──────────────────────────────────────
 
-function ManageWatchlistSheet({ watchlist, onAdd, onRemove, adding, authToken }: {
+function ManageWatchlistSheet({ watchlist, onAdd, onRemove, adding, authToken, onRefreshList }: {
   watchlist: WatchedUser[];
   onAdd: (username: string) => Promise<void>;
   onRemove: (username: string) => void;
   adding: boolean;
   authToken?: string;
+  onRefreshList: () => void;
 }) {
   const [query, setQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
@@ -194,14 +196,14 @@ function ManageWatchlistSheet({ watchlist, onAdd, onRemove, adding, authToken }:
             <Settings2 className="w-3 h-3" /> Manage
           </Button>
         </SheetTrigger>
-        <SheetContent className="bg-background border-border w-full sm:max-w-md">
-          <SheetHeader>
+        <SheetContent className="bg-background border-border w-full sm:max-w-md flex flex-col h-full overflow-hidden">
+          <SheetHeader className="shrink-0">
             <SheetTitle className="text-left">Manage Watchlist</SheetTitle>
           </SheetHeader>
 
-          <div className="mt-6 space-y-5">
+          <div className="flex-1 overflow-y-auto mt-6 space-y-5 pr-1 custom-scrollbar">
             {/* Search & Add */}
-            <div className="relative">
+            <div className="relative shrink-0">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
               <input
                 type="text" value={query}
@@ -272,6 +274,16 @@ function ManageWatchlistSheet({ watchlist, onAdd, onRemove, adding, authToken }:
                 </p>
               )}
             </div>
+
+            {/* Suggestions — mobile only (desktop has sidebar) */}
+            <div className="md:hidden mt-4 pt-4 border-t border-border pb-8">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Suggested to Watch</p>
+              <WatchlistSuggestions 
+                authToken={authToken} 
+                inline 
+                onAdded={onRefreshList}
+              />
+            </div>
           </div>
         </SheetContent>
       </Sheet>
@@ -309,10 +321,11 @@ interface EyeSectionProps {
   myWeekly: number; myStreak: number; myTodayCommits: number;
   myTotalCommits: number; myTotalPRs: number;
   myUsername: string; myAvatar: string; authToken?: string;
+  refreshTrigger?: number;
 }
 
 export function EyeSection({
-  myWeekly, myStreak, myTodayCommits, myTotalCommits, myTotalPRs, myUsername, myAvatar, authToken
+  myWeekly, myStreak, myTodayCommits, myTotalCommits, myTotalPRs, myUsername, myAvatar, authToken, refreshTrigger
 }: EyeSectionProps) {
   const authHeaders = authToken ? { Authorization: `Bearer ${authToken}` } : {};
 
@@ -345,7 +358,7 @@ export function EyeSection({
     finally { setLoadingList(false); }
   }, [authToken]);
 
-  useEffect(() => { loadWatchlist(); }, [loadWatchlist]);
+  useEffect(() => { loadWatchlist(); }, [loadWatchlist, refreshTrigger]);
 
   const addToWatchlist = async (username: string) => {
     setAdding(true);
@@ -438,6 +451,7 @@ export function EyeSection({
             onRemove={removeFromWatchlist}
             adding={adding}
             authToken={authToken}
+            onRefreshList={loadWatchlist}
           />
           {watchlist.length > 0 && (
             <>

@@ -2503,6 +2503,118 @@ Keep the total response under 300 words. Be like a hype coach mixed with a ruthl
         }
     });
 
+    // GET /api/eye/suggestions — suggest users to watch based on who the user follows on GitHub
+    instance.get('/api/eye/suggestions', async (req, reply) => {
+        const session = await getSessionFromRequest(req);
+        if (!session) return reply.status(401).send({ message: 'Unauthorized' });
+
+        const userId = session.session.userId;
+
+        const account = await db.select().from(schema.accounts)
+            .where(and(eq(schema.accounts.userId, userId), eq(schema.accounts.providerId, 'github')))
+            .limit(1);
+
+        const token = account[0]?.accessToken;
+        if (!token) return { suggestions: [] };
+
+        const currentWatchlist = await db.select({ githubUsername: schema.watchlist.githubUsername })
+            .from(schema.watchlist)
+            .where(eq(schema.watchlist.userId, userId));
+        const watchedSet = new Set(currentWatchlist.map(w => w.githubUsername.toLowerCase()));
+
+        const user = await db.select({ username: schema.users.username })
+            .from(schema.users)
+            .where(eq(schema.users.id, userId))
+            .limit(1);
+        const myUsername = user[0]?.username?.toLowerCase() || '';
+
+        try {
+            const headers: Record<string, string> = {
+                'User-Agent': 'Evergreeners-App',
+                'Accept': 'application/vnd.github+json',
+                'Authorization': `Bearer ${token}`,
+            };
+
+            const [followingRes, followersRes] = await Promise.all([
+                fetch('https://api.github.com/user/following?per_page=100', { headers }),
+                fetch('https://api.github.com/user/followers?per_page=100', { headers }),
+            ]);
+
+            if (!followingRes.ok) return { suggestions: [] };
+
+            const following: any[] = await followingRes.json();
+            const followers: any[] = followersRes.ok ? await followersRes.json() : [];
+            const followerSet = new Set(followers.map((f: any) => f.login.toLowerCase()));
+
+            // Filter to real users only, exclude self and already-watched
+            const candidates = following
+                .filter(u => u.type === 'User')
+                .filter(u => !watchedSet.has(u.login.toLowerCase()) && u.login.toLowerCase() !== myUsername);
+
+            if (candidates.length === 0) return { suggestions: [] };
+
+            // Batch-fetch recent activity using GraphQL (up to 40 users per query)
+            const batch = candidates.slice(0, 40);
+            const gqlHeaders: Record<string, string> = {
+                'Content-Type': 'application/json',
+                'User-Agent': 'Evergreeners-App',
+                'Authorization': `Bearer ${token}`,
+            };
+
+            const userFragments = batch.map((u, i) =>
+                `u${i}: user(login: "${u.login}") { login contributionsCollection { contributionCalendar { totalContributions weeks { contributionDays { date contributionCount } } } } }`
+            ).join('\n');
+
+            const gqlQuery = `query { ${userFragments} }`;
+            const activityMap = new Map<string, { count: number; days: number[] }>();
+
+            try {
+                const gqlRes = await fetch('https://api.github.com/graphql', {
+                    method: 'POST',
+                    headers: gqlHeaders,
+                    body: JSON.stringify({ query: gqlQuery }),
+                });
+
+                if (gqlRes.ok) {
+                    const gqlData: any = await gqlRes.json();
+                    if (gqlData.data) {
+                        for (const key of Object.keys(gqlData.data)) {
+                            const u = gqlData.data[key];
+                            if (u?.login && u?.contributionsCollection?.contributionCalendar) {
+                                const allWeeks = u.contributionsCollection.contributionCalendar.weeks || [];
+                                const allDays = allWeeks.flatMap((w: any) => w.contributionDays || []);
+                                // Take last 14 days
+                                const recent14 = allDays.slice(-14);
+                                const recentCount = recent14.reduce((acc: number, d: any) => acc + (d.contributionCount || 0), 0);
+                                const dailyCounts = recent14.map((d: any) => d.contributionCount || 0);
+                                activityMap.set(u.login.toLowerCase(), { count: recentCount, days: dailyCounts });
+                            }
+                        }
+                    }
+                }
+            } catch {
+                // GraphQL failed, fall back to no activity data
+            }
+
+            const suggestions = candidates.map(u => {
+                const activity = activityMap.get(u.login.toLowerCase());
+                return {
+                    login: u.login,
+                    avatarUrl: u.avatar_url,
+                    mutual: followerSet.has(u.login.toLowerCase()),
+                    recentActivity: activity?.count ?? 0,
+                    activityDays: activity?.days ?? [],
+                };
+            })
+            // Sort purely by activity — most active first
+            .sort((a, b) => b.recentActivity - a.recentActivity);
+
+            return { suggestions };
+        } catch {
+            return { suggestions: [] };
+        }
+    });
+
 });
 
 const start = async () => {
