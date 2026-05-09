@@ -2151,6 +2151,358 @@ server.register(async (instance) => {
             return reply.status(500).send({ message: "Upload failed" });
         }
     });
+
+    // ─── THE EYE: Watchlist Routes ────────────────────────────────────────────
+
+    // GET /api/eye/watchlist — fetch current user's watchlist
+    instance.get('/api/eye/watchlist', async (req, reply) => {
+        const session = await getSessionFromRequest(req);
+        if (!session) return reply.status(401).send({ message: 'Unauthorized' });
+
+        const userId = session.session.userId;
+        try {
+            const entries = await db.select()
+                .from(schema.watchlist)
+                .where(eq(schema.watchlist.userId, userId))
+                .orderBy(desc(schema.watchlist.addedAt));
+            return { watchlist: entries };
+        } catch (error) {
+            console.error('Eye watchlist fetch error:', error);
+            return reply.status(500).send({ message: 'Failed to fetch watchlist' });
+        }
+    });
+
+    // POST /api/eye/watchlist — add a GitHub user to watchlist
+    instance.post('/api/eye/watchlist', async (req, reply) => {
+        const session = await getSessionFromRequest(req);
+        if (!session) return reply.status(401).send({ message: 'Unauthorized' });
+
+        const userId = session.session.userId;
+        const { githubUsername } = req.body as { githubUsername: string };
+
+        if (!githubUsername) return reply.status(400).send({ message: 'githubUsername is required' });
+
+        // Check limit (max 10 per user)
+        const existing = await db.select().from(schema.watchlist).where(eq(schema.watchlist.userId, userId));
+        if (existing.length >= 10) {
+            return reply.status(400).send({ message: 'Watchlist is full (max 10). Remove someone first.' });
+        }
+
+        // Verify the GitHub user exists & fetch their public profile
+        try {
+            const ghRes = await fetch(`https://api.github.com/users/${encodeURIComponent(githubUsername)}`, {
+                headers: { 'User-Agent': 'Evergreeners-App', 'Accept': 'application/vnd.github+json' }
+            });
+
+            if (!ghRes.ok) {
+                if (ghRes.status === 404) return reply.status(404).send({ message: `GitHub user "${githubUsername}" not found.` });
+                return reply.status(400).send({ message: 'Could not verify GitHub user.' });
+            }
+
+            const ghUser = await ghRes.json() as any;
+
+            // Insert (upsert safe)
+            await db.insert(schema.watchlist).values({
+                userId,
+                githubUsername: ghUser.login,
+                displayName: ghUser.name || ghUser.login,
+                avatarUrl: ghUser.avatar_url,
+                addedAt: new Date(),
+            }).onConflictDoUpdate({
+                target: [schema.watchlist.userId, schema.watchlist.githubUsername],
+                set: {
+                    displayName: ghUser.name || ghUser.login,
+                    avatarUrl: ghUser.avatar_url,
+                }
+            });
+
+            return { success: true, user: { login: ghUser.login, name: ghUser.name, avatarUrl: ghUser.avatar_url } };
+        } catch (error) {
+            console.error('Eye add watchlist error:', error);
+            return reply.status(500).send({ message: 'Failed to add to watchlist' });
+        }
+    });
+
+    // DELETE /api/eye/watchlist/:username — remove from watchlist
+    instance.delete('/api/eye/watchlist/:username', async (req, reply) => {
+        const session = await getSessionFromRequest(req);
+        if (!session) return reply.status(401).send({ message: 'Unauthorized' });
+
+        const userId = session.session.userId;
+        const { username } = req.params as { username: string };
+
+        try {
+            await db.delete(schema.watchlist)
+                .where(and(
+                    eq(schema.watchlist.userId, userId),
+                    eq(schema.watchlist.githubUsername, username)
+                ));
+            return { success: true };
+        } catch (error) {
+            console.error('Eye delete watchlist error:', error);
+            return reply.status(500).send({ message: 'Failed to remove from watchlist' });
+        }
+    });
+
+    // GET /api/eye/stats/:username — fetch public GitHub stats for a watched user
+    // Uses the authenticated user's own token to avoid unauthenticated rate-limits
+    instance.get('/api/eye/stats/:username', async (req, reply) => {
+        const session = await getSessionFromRequest(req);
+        if (!session) return reply.status(401).send({ message: 'Unauthorized' });
+
+        const userId = session.session.userId;
+        const { username } = req.params as { username: string };
+
+        // Get the caller's GitHub token
+        const account = await db.select().from(schema.accounts)
+            .where(and(
+                eq(schema.accounts.userId, userId),
+                eq(schema.accounts.providerId, 'github')
+            ))
+            .limit(1);
+
+        const token = account[0]?.accessToken;
+
+        try {
+            // Use the GitHub GraphQL API to fetch public contribution stats
+            const query = `
+                query($username: String!) {
+                    user(login: $username) {
+                        login
+                        name
+                        avatarUrl
+                        bio
+                        followers { totalCount }
+                        following { totalCount }
+                        repositories(ownerAffiliations: OWNER, privacy: PUBLIC) { totalCount }
+                        pullRequests(first: 0) { totalCount }
+                        contributionsCollection {
+                            totalCommitContributions
+                            totalPullRequestContributions
+                            contributionCalendar {
+                                totalContributions
+                                weeks {
+                                    contributionDays {
+                                        contributionCount
+                                        date
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            `;
+
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+                'User-Agent': 'Evergreeners-App',
+            };
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+
+            const ghRes = await fetch('https://api.github.com/graphql', {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ query, variables: { username } }),
+            });
+
+            if (!ghRes.ok) {
+                return reply.status(502).send({ message: 'GitHub API error' });
+            }
+
+            const data: any = await ghRes.json();
+            if (data.errors) {
+                const msg = data.errors[0]?.message || 'GitHub GraphQL error';
+                if (msg.includes('Could not resolve')) return reply.status(404).send({ message: `User "${username}" not found on GitHub.` });
+                return reply.status(502).send({ message: msg });
+            }
+
+            const ghUser = data.data.user;
+            if (!ghUser) return reply.status(404).send({ message: `User "${username}" not found.` });
+
+            const cal = ghUser.contributionsCollection.contributionCalendar;
+            const allDays = cal.weeks.flatMap((w: any) => w.contributionDays).reverse();
+
+            const todayStr = new Date().toISOString().split('T')[0];
+            const sevenDaysAgo = new Date(Date.now() - 6 * 86400000).toISOString().split('T')[0];
+            const thirtyDaysAgo = new Date(Date.now() - 29 * 86400000).toISOString().split('T')[0];
+            const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+
+            const weeklyCommits = allDays
+                .filter((d: any) => d.date >= sevenDaysAgo && d.date <= todayStr)
+                .reduce((acc: number, d: any) => acc + d.contributionCount, 0);
+
+            const monthlyCommits = allDays
+                .filter((d: any) => d.date >= thirtyDaysAgo && d.date <= todayStr)
+                .reduce((acc: number, d: any) => acc + d.contributionCount, 0);
+
+            const todayCommits = allDays.find((d: any) => d.date === todayStr)?.contributionCount || 0;
+
+            // Streak
+            let currentStreak = 0;
+            const startIndex = allDays.findIndex((d: any) => d.contributionCount > 0);
+            if (startIndex !== -1) {
+                const lastDate = allDays[startIndex].date;
+                if (lastDate >= yesterdayStr) {
+                    for (let i = startIndex; i < allDays.length; i++) {
+                        if (allDays[i].contributionCount > 0) currentStreak++;
+                        else break;
+                    }
+                }
+            }
+
+            // Last 30 days for sparkline
+            const last30 = allDays
+                .filter((d: any) => d.date >= thirtyDaysAgo)
+                .reverse()
+                .map((d: any) => ({ date: d.date, count: d.contributionCount }));
+
+            const stats = {
+                login: ghUser.login,
+                name: ghUser.name,
+                avatarUrl: ghUser.avatarUrl,
+                bio: ghUser.bio,
+                followers: ghUser.followers.totalCount,
+                following: ghUser.following.totalCount,
+                publicRepos: ghUser.repositories.totalCount,
+                totalPRs: ghUser.pullRequests.totalCount,
+                totalContributions: cal.totalContributions,
+                weeklyCommits,
+                monthlyCommits,
+                todayCommits,
+                currentStreak,
+                last30,
+                fetchedAt: new Date().toISOString(),
+            };
+
+            // Cache the stats in the DB
+            await db.update(schema.watchlist)
+                .set({ cachedStats: stats, lastRefreshed: new Date() })
+                .where(and(
+                    eq(schema.watchlist.userId, userId),
+                    eq(schema.watchlist.githubUsername, username)
+                ));
+
+            return { stats };
+        } catch (error) {
+            console.error('Eye stats fetch error:', error);
+            return reply.status(500).send({ message: 'Failed to fetch GitHub stats' });
+        }
+    });
+
+    // POST /api/eye/analyze — AI analysis of watchlist vs user's own stats
+    instance.post('/api/eye/analyze', async (req, reply) => {
+        const session = await getSessionFromRequest(req);
+        if (!session) return reply.status(401).send({ message: 'Unauthorized' });
+
+        const userId = session.session.userId;
+        const { watchlistStats, myStats } = req.body as {
+            watchlistStats: any[];
+            myStats: {
+                username: string;
+                weeklyCommits: number;
+                monthlyCommits?: number;
+                streak: number;
+                totalCommits: number;
+                totalPullRequests: number;
+            };
+        };
+
+        if (!watchlistStats || watchlistStats.length === 0) {
+            return reply.status(400).send({ message: 'No watchlist stats provided for analysis.' });
+        }
+
+        const apiKey = process.env.GEMINI_API_KEY;
+        if (!apiKey) {
+            return reply.status(500).send({ message: 'AI analysis is not configured.' });
+        }
+
+        try {
+            const { GoogleGenerativeAI } = await import('@google/generative-ai');
+            const genAI = new GoogleGenerativeAI(apiKey);
+            const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+
+            const watchlistSummary = watchlistStats.map(w =>
+                `- @${w.login}: ${w.weeklyCommits} commits/week, ${w.monthlyCommits} commits/month, ${w.currentStreak}-day streak, ${w.totalPRs} total PRs`
+            ).join('\n');
+
+            const prompt = `You are an elite software engineering coach and competitive intelligence analyst for a developer productivity platform called Evergreeners.
+
+The user @${myStats.username} is watching these GitHub developers:
+${watchlistSummary}
+
+The user's own stats:
+- Weekly commits: ${myStats.weeklyCommits}
+- Streak: ${myStats.streak} days
+- Total commits: ${myStats.totalCommits}
+- Total PRs: ${myStats.totalPullRequests}
+
+Provide a sharp, motivating, brutally honest competitive analysis. Be direct, use personality, and make the user feel the heat of competition. Structure your response exactly like this (use markdown):
+
+## 🧠 The Eye's Read
+
+[1-2 sentences: Overall competitive situation - where does the user stand vs the watchlist?]
+
+## 🔥 Threats
+
+[Bullet points about users who are clearly outperforming or surging in activity. Be specific with numbers.]
+
+## 📊 Your Position
+
+[Honest assessment of the user's current momentum. Good AND bad.]
+
+## ⚡ Intel Report
+
+[2-3 specific, actionable things the user should do RIGHT NOW to compete. Be specific and motivating.]
+
+Keep the total response under 300 words. Be like a hype coach mixed with a ruthless analyst. Don't soften the truth.`;
+
+            const result = await model.generateContent(prompt);
+            const analysis = result.response.text();
+
+            return { analysis, generatedAt: new Date().toISOString() };
+        } catch (error) {
+            console.error('Eye AI analysis error:', error);
+            return reply.status(500).send({ message: 'AI analysis failed.' });
+        }
+    });
+
+    // GET /api/eye/github-search/:query — search GitHub users for autocomplete
+    instance.get('/api/eye/github-search/:query', async (req, reply) => {
+        const session = await getSessionFromRequest(req);
+        if (!session) return reply.status(401).send({ message: 'Unauthorized' });
+
+        const userId = session.session.userId;
+        const { query } = req.params as { query: string };
+        if (!query || query.length < 2) return { users: [] };
+
+        const account = await db.select().from(schema.accounts)
+            .where(and(eq(schema.accounts.userId, userId), eq(schema.accounts.providerId, 'github')))
+            .limit(1);
+
+        const token = account[0]?.accessToken;
+        const headers: Record<string, string> = {
+            'User-Agent': 'Evergreeners-App',
+            'Accept': 'application/vnd.github+json',
+        };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
+        try {
+            const searchRes = await fetch(
+                `https://api.github.com/search/users?q=${encodeURIComponent(query)}&per_page=5`,
+                { headers }
+            );
+            if (!searchRes.ok) return { users: [] };
+            const data: any = await searchRes.json();
+            const users = (data.items || []).map((u: any) => ({
+                login: u.login,
+                avatarUrl: u.avatar_url,
+            }));
+            return { users };
+        } catch {
+            return { users: [] };
+        }
+    });
+
 });
 
 const start = async () => {

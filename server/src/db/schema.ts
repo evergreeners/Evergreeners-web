@@ -175,3 +175,19 @@ export const userBadges = mySchema.table('user_badges', {
     // Ensure a user can't earn the same badge twice
     uniqueUserBadge: unique('user_badges_user_id_badge_id_unique').on(table.userId, table.badgeId),
 }));
+
+// ─── The Eye: Watchlist ────────────────────────────────────────────────────────
+
+export const watchlist = mySchema.table('watchlist', {
+    id: serial('id').primaryKey(),
+    userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    githubUsername: text('github_username').notNull(),
+    displayName: text('display_name'),
+    avatarUrl: text('avatar_url'),
+    addedAt: timestamp('added_at').defaultNow(),
+    // Cached stats (refreshed periodically)
+    cachedStats: jsonb('cached_stats'),
+    lastRefreshed: timestamp('last_refreshed'),
+}, (table) => ({
+    uniqueWatchlistEntry: unique('watchlist_user_id_github_username_unique').on(table.userId, table.githubUsername),
+}));
