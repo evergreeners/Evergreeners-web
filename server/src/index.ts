@@ -2514,7 +2514,7 @@ Keep the total response under 300 words. Be like a hype coach mixed with a ruthl
         const userId = session.session.userId;
 
         // Check cache (5 minute TTL)
-        const cached = suggestionsCache.get(userId);
+        const cached = suggestionsCache.get(`v2_${userId}`);
         if (cached && Date.now() - cached.ts < 5 * 60 * 1000) {
             return cached.data;
         }
@@ -2569,17 +2569,13 @@ Keep the total response under 300 words. Be like a hype coach mixed with a ruthl
                 'Authorization': `Bearer ${token}`,
             };
 
-            // Fetch only last 30 days to keep payload light and fast
-            const thirtyDaysAgo = new Date();
-            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-            const fromDate = thirtyDaysAgo.toISOString();
-
             const userFragments = batch.map((u, i) =>
-                `u${i}: user(login: "${u.login}") { login contributionsCollection(from: "${fromDate}") { contributionCalendar { weeks { contributionDays { contributionCount } } } } }`
+                `u${i}: user(login: "${u.login}") { login contributionsCollection { contributionCalendar { weeks { contributionDays { contributionCount } } } } }`
             ).join('\n');
 
             const gqlQuery = `query { ${userFragments} }`;
-            const activityMap = new Map<string, { count: number; days: number[] }>();
+            // Using a plain object instead of Map for safer serialization/access
+            const activityData: Record<string, { count: number; days: number[] }> = {};
 
             try {
                 const gqlRes = await fetch('https://api.github.com/graphql', {
@@ -2591,17 +2587,17 @@ Keep the total response under 300 words. Be like a hype coach mixed with a ruthl
                 if (gqlRes.ok) {
                     const gqlData: any = await gqlRes.json();
                     if (gqlData.data) {
-                        for (const key of Object.keys(gqlData.data)) {
-                            const u = gqlData.data[key];
+                        Object.values(gqlData.data).forEach((u: any) => {
                             if (u?.login && u?.contributionsCollection?.contributionCalendar) {
-                                const allWeeks = u.contributionsCollection.contributionCalendar.weeks || [];
-                                const allDays = allWeeks.flatMap((w: any) => w.contributionDays || []);
-                                // Use all fetched days (30 days)
-                                const recentCount = allDays.reduce((acc: number, d: any) => acc + (d.contributionCount || 0), 0);
-                                const dailyCounts = allDays.map((d: any) => d.contributionCount || 0);
-                                activityMap.set(u.login.toLowerCase(), { count: recentCount, days: dailyCounts });
+                                const weeks = u.contributionsCollection.contributionCalendar.weeks || [];
+                                const allDays = weeks.flatMap((w: any) => w.contributionDays || []);
+                                // Slice last 30 days from the full year
+                                const last30 = allDays.slice(-30);
+                                const counts: number[] = last30.map((d: any) => d.contributionCount || 0);
+                                const total = counts.reduce((a: number, b: number) => a + b, 0);
+                                activityData[u.login.toLowerCase()] = { count: total, days: counts };
                             }
-                        }
+                        });
                     }
                 }
             } catch (e) {
@@ -2609,20 +2605,20 @@ Keep the total response under 300 words. Be like a hype coach mixed with a ruthl
             }
 
             const suggestions = candidates.map(u => {
-                const activity = activityMap.get(u.login.toLowerCase());
+                const activity = activityData[u.login.toLowerCase()];
                 return {
                     login: u.login,
                     avatarUrl: u.avatar_url,
                     mutual: followerSet.has(u.login.toLowerCase()),
                     recentActivity: activity?.count ?? 0,
-                    activityDays: activity?.days ?? [],
+                    activityDays: activity?.days ?? Array(30).fill(0), // Fallback to zeros instead of empty to show 'low' state
                 };
             })
             .sort((a, b) => b.recentActivity - a.recentActivity);
 
             const response = { suggestions };
-            // Save to cache
-            suggestionsCache.set(userId, { data: response, ts: Date.now() });
+            // Save to cache with versioned key
+            suggestionsCache.set(`v2_${userId}`, { data: response, ts: Date.now() });
 
             return response;
         } catch (e) {

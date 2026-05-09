@@ -192,9 +192,9 @@ function ManageWatchlistSheet({ watchlist, onAdd, onRemove, adding, authToken, o
     <>
       <Sheet>
         <SheetTrigger asChild>
-          <Button variant="outline" size="sm" className="gap-2 h-8">
-            <Settings2 className="w-3 h-3" /> Manage
-          </Button>
+          <button className="inline-flex items-center gap-2 h-8 px-4 rounded-xl text-sm font-medium transition-all duration-300 bg-[hsl(0_0%_0%/0.5)] backdrop-blur-[20px] border border-border/50 text-foreground hover:border-primary/40 hover:bg-white/[0.03]">
+            <Settings2 className="w-3 h-3 text-muted-foreground" /> Manage
+          </button>
         </SheetTrigger>
         <SheetContent className="bg-background border-border w-full sm:max-w-md flex flex-col h-full overflow-hidden">
           <SheetHeader className="shrink-0">
@@ -450,12 +450,12 @@ export function EyeSection({
 
   return (
     <div className="space-y-6">
-      {/* Header row */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <p className="text-sm text-muted-foreground">
+      {/* Header row — centered on mobile */}
+      <div className="flex flex-col items-center sm:flex-row sm:items-center sm:justify-between gap-3 flex-wrap">
+        <p className="text-sm text-muted-foreground order-2 sm:order-1">
           Track competitors' public activity · {watchlist.length}/10 slots
         </p>
-        <div className="flex gap-2">
+        <div className="flex gap-2 order-1 sm:order-2">
           <ManageWatchlistSheet
             watchlist={watchlist}
             onAdd={addToWatchlist}
@@ -466,9 +466,12 @@ export function EyeSection({
           />
           {watchlist.length > 0 && (
             <>
-              <Button variant="outline" size="sm" className="gap-2 h-8" onClick={refreshAll}>
-                <RefreshCw className="w-3 h-3" /> Refresh All
-              </Button>
+              <button 
+                onClick={refreshAll}
+                className="inline-flex items-center gap-2 h-8 px-4 rounded-xl text-sm font-medium transition-all duration-300 bg-secondary/30 backdrop-blur-[10px] border border-border/50 hover:border-primary/40"
+              >
+                <RefreshCw className="w-3 h-3 text-muted-foreground" /> Refresh All
+              </button>
               <button
                 onClick={runAnalysis} disabled={analyzing}
                 className="inline-flex items-center gap-2 h-8 px-4 rounded-xl text-sm font-medium transition-all duration-300 bg-[hsl(0_0%_0%/0.5)] backdrop-blur-[20px] border border-primary/30 text-primary hover:border-primary/60 hover:shadow-[0_0_16px_hsl(142_71%_45%/0.15)] disabled:opacity-60 disabled:pointer-events-none"
