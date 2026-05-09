@@ -1,4 +1,4 @@
-import { BarChart3, Compass, Target, User, Trophy, Wand2 } from "lucide-react";
+import { BarChart3, Compass, Target, Trophy, Wand2 } from "lucide-react";
 import { cn, triggerHaptic } from "@/lib/utils";
 import { useLocation, Link } from "react-router-dom";
 

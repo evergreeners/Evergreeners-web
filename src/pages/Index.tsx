@@ -9,6 +9,7 @@ import { GoalProgress } from "@/components/GoalProgress";
 import { InsightCard } from "@/components/InsightCard";
 import { StatItem } from "@/components/StatItem";
 import { Section } from "@/components/Section";
+import { EyeSection } from "@/components/EyeSection";
 import { useEffect, useState, useMemo } from "react";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
@@ -16,7 +17,7 @@ import { useSession } from "@/lib/auth-client";
 import { getApiUrl } from "@/lib/api-config";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, Eye } from "lucide-react";
 
 interface Goal {
   id: number;
@@ -28,27 +29,15 @@ interface Goal {
   dueDate?: string;
 }
 
-interface UserProfile {
-  streak: number;
-  longestStreak: number;
-  todayCommits: number;
-  weeklyCommits: number;
-  activeDays: number;
-  totalProjects: number;
-  contributionData: any[];
-  yesterdayCommits: number; // For TodayStatus fallback logic compatibility
-  [key: string]: any;
-}
-
 export default function Index() {
   const { data: session } = useSession();
   const sessionUser = session?.user as any;
+  const authToken = (session?.session as any)?.token;
 
   // Use React Query for caching and instant data on navigation
   const { data: profile } = useQuery({
     queryKey: ['userProfile', 'me'],
     queryFn: async () => {
-      // Even if we have initial data, we might want to fetch fresh
       const url = getApiUrl('/api/user/profile');
       const res = await fetch(url, { 
         credentials: "include",
@@ -144,12 +133,8 @@ export default function Index() {
     const last7Days = profile.contributionData.slice(0, 7).reverse();
 
     return last7Days.map((d: any) => {
-      // If d.date is "YYYY-MM-DD", new Date(d.date) might be UTC or local depending on parsing.
-      // Usually strings like "2024-01-23" are parsed as UTC midnight.
-      // To get the day name correctly, we should trust the date string more than timezone offset if possible,
-      // but standard Date parsing usually works fine for "Day of week" unless we are on the edge.
       const date = new Date(d.date);
-      const dayName = date.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' }); // Force UTC to avoid timezone shifting date
+      const dayName = date.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' });
       return {
         day: dayName,
         value: d.contributionCount
@@ -189,6 +174,9 @@ export default function Index() {
 
     return arr.slice(0, 2); // Return top 2
   }, [profile, currentGoal]);
+
+  const myAvatar = sessionUser?.image ||
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(sessionUser?.name || "You")}&background=random`;
 
   return (
     <div className="min-h-screen bg-background overflow-x-hidden custom-scrollbar">
@@ -236,6 +224,29 @@ export default function Index() {
                 </div>
                 <span className="text-xs text-muted-foreground">More</span>
               </div>
+            </Section>
+
+            {/* ── The Eye ────────────────────────────────── */}
+            <Section className="animate-fade-up" style={{ animationDelay: "0.3s" }}>
+              <div className="flex items-center gap-3 mb-5">
+                <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 shrink-0">
+                  <Eye className="w-5 h-5 text-primary animate-pulse-primary" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg leading-tight">The Eye</h3>
+                  <p className="text-xs text-muted-foreground">Watch the competition. Get AI intel.</p>
+                </div>
+              </div>
+              <EyeSection
+                myWeekly={profile?.weeklyCommits || 0}
+                myStreak={profile?.streak || 0}
+                myTodayCommits={profile?.todayCommits || 0}
+                myTotalCommits={profile?.totalCommits || 0}
+                myTotalPRs={profile?.totalPullRequests || 0}
+                myUsername={sessionUser?.username || sessionUser?.name || "you"}
+                myAvatar={myAvatar}
+                authToken={authToken}
+              />
             </Section>
           </div>
 
