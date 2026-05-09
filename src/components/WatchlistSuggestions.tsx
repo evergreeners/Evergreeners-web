@@ -26,27 +26,19 @@ interface WatchlistSuggestionsProps {
   inline?: boolean;
 }
 
-// Mini sparkline bar chart for 30-day activity
-function MiniActivity({ days }: { days: number[] }) {
+// SVG sparkline — same proven approach as the watch card Sparkline in EyeSection
+function MiniActivity({ days, compact = false }: { days: number[]; compact?: boolean }) {
   if (!days || days.length === 0) return null;
-  const max = Math.max(...days, 1);
-  // Show last 20 days to keep it compact
-  const displayDays = days.slice(-20);
+  const filtered = compact ? days.slice(-12) : days.slice(-20);
+  if (filtered.every(d => d === 0)) return null;
+  const max = Math.max(...filtered, 1);
+  const w = compact ? 48 : 72;
+  const h = 22;
+  const pts = filtered.map((d, i) => `${(i / (filtered.length - 1)) * w},${h - (d / max) * h}`).join(" ");
   return (
-    <div className="flex items-end gap-[2px] h-5 px-1">
-      {displayDays.map((d, i) => (
-        <div
-          key={i}
-          className="w-[2px] rounded-full transition-all duration-500"
-          style={{
-            height: `${Math.max((d / max) * 100, 15)}%`,
-            backgroundColor: d === 0
-              ? "hsl(0 0% 100% / 0.05)"
-              : d >= 5 ? "hsl(142 71% 45%)" : "hsl(142 71% 45% / 0.4)",
-          }}
-        />
-      ))}
-    </div>
+    <svg width={w} height={h} style={{ flexShrink: 0, opacity: 0.8 }}>
+      <polyline fill="none" stroke="hsl(142 71% 45%)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" points={pts} />
+    </svg>
   );
 }
 
@@ -125,11 +117,11 @@ export function WatchlistSuggestions({ authToken, onAdded, inline }: WatchlistSu
           ? "bg-white/[0.03] backdrop-blur-xl border border-white/[0.06] hover:bg-white/[0.06] hover:border-primary/30" 
           : "hover:bg-white/[0.04]"}`}
     >
-      <div className="relative">
+      <div className="relative shrink-0">
         <img src={user.avatarUrl} alt={user.login}
           className="w-10 h-10 rounded-full border border-white/10 shrink-0 object-cover" />
         {user.recentActivity >= 50 && (
-          <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-background flex items-center justify-center">
+          <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-background flex items-center justify-center shadow-[0_0_10px_rgba(16,185,129,0.5)]">
             <Zap className="w-2.5 h-2.5 text-white fill-white" />
           </div>
         )}
@@ -141,21 +133,22 @@ export function WatchlistSuggestions({ authToken, onAdded, inline }: WatchlistSu
           {user.mutual && <UserCheck className="w-3 h-3 text-primary shrink-0" />}
         </div>
         <div className="flex items-center gap-2 mt-1">
-          <span className={`text-[10px] font-medium uppercase tracking-wider ${activityColor(user.recentActivity)}`}>
+          <span className={`text-[10px] font-bold uppercase tracking-wider ${activityColor(user.recentActivity)}`}>
             {activityLabel(user.recentActivity)}
           </span>
           <span className="text-[10px] text-muted-foreground/60">•</span>
-          <span className="text-[10px] text-muted-foreground">
+          <span className="text-[10px] text-muted-foreground font-medium">
             {user.recentActivity} in 30d
           </span>
         </div>
       </div>
 
-      <div className="hidden sm:block opacity-40 group-hover:opacity-100 transition-opacity">
-        <MiniActivity days={user.activityDays} />
+      {/* Sparkline — Bold and Vibrant */}
+      <div className="shrink-0">
+        <MiniActivity days={user.activityDays} compact={inline} />
       </div>
 
-      <button onClick={() => setConfirmUser(user)} disabled={adding === user.login}
+      <button onClick={(e) => { e.stopPropagation(); setConfirmUser(user); }} disabled={adding === user.login}
         className="flex items-center justify-center w-8 h-8 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 hover:border-primary/40 transition-all shrink-0 disabled:opacity-50">
         {adding === user.login ? (
           <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -166,75 +159,90 @@ export function WatchlistSuggestions({ authToken, onAdded, inline }: WatchlistSu
     </div>
   );
 
-  if (inline) {
-    return <div className="space-y-1.5">{suggestions.slice(0, 10).map(u => renderItem(u))}</div>;
-  }
-
-  const preview = suggestions.slice(0, 8);
-  const hasMore = suggestions.length > 8;
-
   return (
-    <div className="space-y-2.5">
-      {preview.map(u => renderItem(u, true))}
-
-      {hasMore && (
-        <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-          <DialogTrigger asChild>
-            <button className="w-full flex items-center justify-center gap-2 py-3 text-[11px] font-bold uppercase tracking-widest text-muted-foreground hover:text-primary transition-all rounded-2xl border border-white/5 hover:border-primary/20 hover:bg-primary/5 mt-1">
-              <ChevronDown className="w-3.5 h-3.5" />
-              View {suggestions.length - 8} more suggestions
-            </button>
-          </DialogTrigger>
-          <DialogContent className="bg-[#050505]/95 backdrop-blur-[40px] border border-white/10 rounded-[2rem] sm:rounded-3xl max-h-[85vh] overflow-hidden p-0 sm:max-w-3xl shadow-2xl">
-            <DialogHeader className="px-8 pt-8 pb-6 border-b border-white/5">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
-                  <Users className="w-6 h-6 text-primary" />
+    <div className="space-y-2.5 relative">
+      {inline ? (
+        <div className="space-y-1.5">
+          {suggestions.slice(0, 10).map(u => renderItem(u))}
+        </div>
+      ) : (
+        <>
+          {suggestions.slice(0, 8).map(u => renderItem(u, true))}
+          {suggestions.length > 8 && (
+            <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+              <DialogTrigger asChild>
+                <button className="w-full flex items-center justify-center gap-2 py-3 text-[11px] font-bold uppercase tracking-widest text-muted-foreground hover:text-primary transition-all rounded-2xl border border-white/5 hover:border-primary/20 hover:bg-primary/5 mt-1">
+                  <ChevronDown className="w-3.5 h-3.5" />
+                  View {suggestions.length - 8} more suggestions
+                </button>
+              </DialogTrigger>
+              <DialogContent className="bg-[#050505]/95 backdrop-blur-[40px] border border-white/10 rounded-[2rem] sm:rounded-3xl max-h-[85vh] overflow-hidden p-0 sm:max-w-3xl shadow-2xl">
+                <DialogHeader className="px-8 pt-8 pb-6 border-b border-white/5">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+                      <Users className="w-6 h-6 text-primary" />
+                    </div>
+                    <div>
+                      <DialogTitle className="text-xl font-bold tracking-tight">Suggested to Watch</DialogTitle>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Analyzing active coders you follow on GitHub
+                      </p>
+                    </div>
+                  </div>
+                </DialogHeader>
+                <div className="overflow-y-auto max-h-[60vh] px-6 py-6 grid grid-cols-1 md:grid-cols-2 gap-3 custom-scrollbar">
+                  {suggestions.map(u => renderItem(u, true))}
                 </div>
-                <div>
-                  <DialogTitle className="text-xl font-bold tracking-tight">Suggested to Watch</DialogTitle>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Analyzing active coders you follow on GitHub
-                  </p>
-                </div>
-              </div>
-            </DialogHeader>
-            <div className="overflow-y-auto max-h-[60vh] px-6 py-6 grid grid-cols-1 md:grid-cols-2 gap-3 custom-scrollbar">
-              {suggestions.map(u => renderItem(u, true))}
-            </div>
-          </DialogContent>
-        </Dialog>
+              </DialogContent>
+            </Dialog>
+          )}
+        </>
       )}
 
-      {/* Confirmation Dialog — Liquid Glass Redux */}
+      {/* Confirmation Dialog — Unified Liquid Glass */}
       <AlertDialog open={!!confirmUser} onOpenChange={o => !o && setConfirmUser(null)}>
-        <AlertDialogContent className="bg-[#080808]/90 backdrop-blur-[32px] border border-white/10 rounded-[2rem] shadow-2xl overflow-hidden p-0 max-w-sm">
-          <div className="relative h-24 bg-gradient-to-br from-primary/20 to-transparent">
-            <div className="absolute inset-0 bg-grid-white/[0.02]" />
-            <div className="absolute -bottom-8 left-6">
-              <img src={confirmUser?.avatarUrl} className="w-16 h-16 rounded-2xl border-4 border-[#080808] shadow-xl object-cover" />
+        <AlertDialogContent className="bg-[#080808]/95 backdrop-blur-[40px] border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden p-0 max-w-sm z-[150] animate-in fade-in zoom-in-95 duration-200">
+          <div className="relative h-28 bg-gradient-to-br from-primary/30 to-transparent">
+            <div className="absolute inset-0 bg-grid-white/[0.03]" />
+            <div className="absolute -bottom-10 left-8">
+              <div className="relative">
+                <img src={confirmUser?.avatarUrl} className="w-20 h-20 rounded-2xl border-4 border-[#080808] shadow-2xl object-cover" />
+                {confirmUser?.recentActivity && confirmUser.recentActivity >= 50 && (
+                  <div className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-emerald-500 border-4 border-[#080808] flex items-center justify-center shadow-lg">
+                    <Zap className="w-3 h-3 text-white fill-white" />
+                  </div>
+                )}
+              </div>
             </div>
           </div>
           
-          <div className="px-6 pt-12 pb-8">
+          <div className="px-8 pt-14 pb-10">
             <AlertDialogHeader>
-              <AlertDialogTitle className="text-xl font-bold tracking-tight">
+              <AlertDialogTitle className="text-2xl font-bold tracking-tight">
                 Watch @{confirmUser?.login}?
               </AlertDialogTitle>
-              <AlertDialogDescription className="text-muted-foreground leading-relaxed mt-2">
-                This user is currently in <span className="text-primary font-bold">{activityLabel(confirmUser?.recentActivity || 0)}</span> with {confirmUser?.recentActivity} contributions in 30 days.
+              <div className="flex items-center gap-2 mt-2">
+                <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-white/5 ${activityColor(confirmUser?.recentActivity || 0)}`}>
+                  {activityLabel(confirmUser?.recentActivity || 0)}
+                </span>
+                <span className="text-[10px] text-muted-foreground font-bold">
+                  {confirmUser?.recentActivity} CONTRIBUTIONS
+                </span>
+              </div>
+              <AlertDialogDescription className="text-muted-foreground leading-relaxed mt-4 text-sm">
+                Add this high-performing dev to your competitive watchlist to track their daily momentum.
               </AlertDialogDescription>
             </AlertDialogHeader>
             
-            <div className="mt-6 flex flex-col gap-2">
+            <div className="mt-8 flex flex-col gap-3">
               <AlertDialogAction 
                 onClick={() => { if (confirmUser) addUser(confirmUser.login); setConfirmUser(null); }}
-                className="w-full h-12 rounded-xl bg-primary text-primary-foreground font-bold hover:bg-primary/90 shadow-[0_8px_20px_-4px_hsl(142_71%_45%/0.4)] transition-all active:scale-[0.98]"
+                className="w-full h-14 rounded-2xl bg-primary text-primary-foreground font-black text-sm uppercase tracking-widest hover:bg-primary/90 shadow-[0_10px_25px_-5px_rgba(34,197,94,0.4)] transition-all active:scale-[0.97]"
               >
-                Start Watching
+                Confirm Watch
               </AlertDialogAction>
-              <AlertDialogCancel className="w-full h-12 rounded-xl bg-white/[0.03] border-white/5 hover:bg-white/[0.08] text-muted-foreground transition-all">
-                Maybe later
+              <AlertDialogCancel className="w-full h-14 rounded-2xl bg-white/[0.04] border-white/5 hover:bg-white/[0.08] text-muted-foreground font-bold transition-all text-sm">
+                Cancel
               </AlertDialogCancel>
             </div>
           </div>

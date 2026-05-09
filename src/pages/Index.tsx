@@ -230,7 +230,7 @@ export default function Index() {
 
             {/* ── The Eye ────────────────────────────────── */}
             <Section className="animate-fade-up" style={{ animationDelay: "0.3s" }}>
-              <div className="flex items-center gap-3 mb-5">
+              <div className="flex flex-col items-center sm:flex-row sm:items-center gap-3 mb-5 text-center sm:text-left">
                 <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 shrink-0">
                   <Eye className="w-5 h-5 text-primary animate-pulse-primary" />
                 </div>
