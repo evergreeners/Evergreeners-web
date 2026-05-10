@@ -53,11 +53,11 @@ const stories: StoryProps[] = [
         image: "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?q=80&w=2787&auto=format&fit=crop",
     },
     {
-        name: "Elena Rodriguez",
-        handle: "elena_codes",
-        platform: 'twitter',
+        name: "Sadiqu Muhammad Bello",
+        handle: "Smasduq",
+        platform: 'github',
         variant: 'large',
-        quote: "First time running Evergreeners locally: it just works. The DX is incredibly smooth. Within a week I was already seeing the benefits in my daily workflow — cleaner commits, longer sessions.",
+        quote: "As a developer, Evergreeners has made me compete with my fellow developers. And that is great, because I commit codes more than before. We love Evergreeners!",
         image: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=2787&auto=format&fit=crop",
     },
     {
