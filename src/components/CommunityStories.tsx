@@ -1,89 +1,40 @@
-import { Github, Twitter, ArrowRight } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { getApiUrl } from '@/lib/api-config';
+import { Github, Twitter, ArrowRight, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import './CommunityStories.css';
 
 interface StoryProps {
+    id?: number;
     name: string;
     handle: string;
     quote: string;
     image: string;
     platform: 'github' | 'twitter';
+    featured?: boolean;
+    heroFeatured?: boolean;
     variant?: 'normal' | 'featured' | 'large';
 }
 
-const stories: StoryProps[] = [
-    {
-        name: "Muhammad Adamu Aliyu",
-        handle: "muhammad_adamu",
-        platform: 'twitter',
-        variant: 'large',
-        quote: "The GitHub sync is magic. It just works. Seeing that green graph fill up is the best dopamine hit. It's genuinely transformed how I think about my daily consistency as a developer.",
-        image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=2787&auto=format&fit=crop",
-    },
-    {
-        name: "Sarah Chen",
-        handle: "schen_dev",
-        platform: 'twitter',
-        variant: 'featured',
-        quote: "Loving the new Quest system. It's like an RPG for my career. Finally found a way to make documentation fun and engaging for the whole engineering team.",
-        image: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=2787&auto=format&fit=crop",
-    },
-    {
-        name: "Abdulmumini Muhammad Bello",
-        handle: "abdul_mumi",
-        platform: 'github',
-        variant: 'normal',
-        quote: "Leaderboards made it a game for our whole team. Productivity is up 70% since we started tracking.",
-        image: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=2787&auto=format&fit=crop",
-    },
-    {
-        name: "Nasir Ibrahim Imam",
-        handle: "nasir_imam",
-        platform: 'github',
-        variant: 'featured',
-        quote: "I used to code in bursts and burn out. Evergreeners helped me pace myself. Now I've coded for 100 days straight and my productivity is through the roof.",
-        image: "https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=2787&auto=format&fit=crop",
-    },
-    {
-        name: "Aisha Yusuf",
-        handle: "aisha_codes",
-        platform: 'twitter',
-        variant: 'normal',
-        quote: "Finally a tool that understands the developer workflow. No more manual tracking for me!",
-        image: "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?q=80&w=2787&auto=format&fit=crop",
-    },
-    {
-        name: "Elena Rodriguez",
-        handle: "elena_codes",
-        platform: 'twitter',
-        variant: 'large',
-        quote: "First time running Evergreeners locally: it just works. The DX is incredibly smooth. Within a week I was already seeing the benefits in my daily workflow — cleaner commits, longer sessions.",
-        image: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=2787&auto=format&fit=crop",
-    },
-    {
-        name: "Marcus Thorne",
-        handle: "mthorne_eng",
-        platform: 'github',
-        variant: 'normal',
-        quote: "Been using Evergreeners for 3 months now. The insights are incredibly deep. It helped me identify exactly where my bottlenecks were.",
-        image: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=2787&auto=format&fit=crop",
-    },
-    {
-        name: "James Wilson",
-        handle: "jwil_dev",
-        platform: 'github',
-        variant: 'featured',
-        quote: "The streak system is addictive in the best way possible. I haven't missed a day of coding in 2 months. My team follows my public profile now — it's become our unofficial accountability board.",
-        image: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?q=80&w=2787&auto=format&fit=crop",
-    },
-];
+function StoryCard({ name, handle, quote, image, platform, featured, heroFeatured, variant }: StoryProps) {
+    // If layout variant is not explicitly provided, map it from database fields
+    let activeVariant = variant || 'normal';
+    if (!variant) {
+        if (heroFeatured) {
+            activeVariant = 'large';
+        } else if (featured) {
+            activeVariant = 'featured';
+        }
+    }
+    const variantClass = activeVariant !== 'normal' ? `story-card--${activeVariant}` : '';
+    
+    // Fallback image if null/empty
+    const avatarUrl = image || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`;
 
-function StoryCard({ name, handle, quote, image, platform, variant = 'normal' }: StoryProps) {
-    const variantClass = variant !== 'normal' ? `story-card--${variant}` : '';
     return (
         <div className={`story-card ${variantClass}`}>
             <div className="card-header">
-                <img src={image} alt={name} className="avatar" loading="lazy" />
+                <img src={avatarUrl} alt={name} className="avatar" loading="lazy" />
                 <div className="user-info">
                     <span className="user-name">{name}</span>
                     <span className="user-handle">@{handle}</span>
@@ -98,6 +49,35 @@ function StoryCard({ name, handle, quote, image, platform, variant = 'normal' }:
 }
 
 export function CommunityStories() {
+    const [stories, setStories] = useState<StoryProps[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        let isMounted = true;
+        const fetchStories = async () => {
+            try {
+                const res = await fetch(getApiUrl('/api/community/stories'));
+                if (res.ok) {
+                    const data = await res.json();
+                    if (isMounted) {
+                        setStories(data.stories || []);
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to fetch community stories:', err);
+            } finally {
+                if (isMounted) {
+                    setLoading(false);
+                }
+            }
+        };
+
+        fetchStories();
+        return () => {
+            isMounted = false;
+        };
+    }, []);
+
     return (
         <section className="community-section">
             <div className="cyber-background" />
@@ -141,9 +121,19 @@ export function CommunityStories() {
                 </div>
 
                 <div className="community-grid">
-                    {stories.map((story, index) => (
-                        <StoryCard key={index} {...story} />
-                    ))}
+                    {loading ? (
+                        <div className="col-span-full flex justify-center items-center py-12 w-full">
+                            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                        </div>
+                    ) : stories.length > 0 ? (
+                        stories.map((story, index) => (
+                            <StoryCard key={story.id || index} {...story} />
+                        ))
+                    ) : (
+                        <div className="col-span-full text-center py-12 text-muted-foreground w-full">
+                            <p>No community stories found. Be the first to share yours!</p>
+                        </div>
+                    )}
 
                     {/* CTA card — links to the community page */}
                     <Link
