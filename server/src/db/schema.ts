@@ -34,6 +34,7 @@ export const users = mySchema.table('users', {
     emailNotifications: boolean('email_notifications').default(false), // Streak reminder emails — opt-in
     eyeInsight: text('eye_insight'),
     eyeInsightUpdatedAt: timestamp('eye_insight_updated_at'),
+    eyeInsightCount: integer('eye_insight_count').default(0),
 });
 
 export const sessions = mySchema.table('sessions', {

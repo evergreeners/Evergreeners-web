@@ -344,6 +344,8 @@ export function EyeSection({
   const [loadingList, setLoadingList] = useState(true);
   const [refreshing, setRefreshing] = useState<Record<string, boolean>>({});
   const [adding, setAdding] = useState(false);
+  const [refreshingAll, setRefreshingAll] = useState(false);
+  const [aiRemaining, setAiRemaining] = useState<number | null>(null);
 
   // Analysis state — persisted in localStorage
   const [analysis, setAnalysis] = useState<string | null>(null);
@@ -371,6 +373,9 @@ export function EyeSection({
           setAnalysis(data.eyeInsight);
           setAnalysisTs(data.eyeInsightUpdatedAt);
         }
+        if (data.eyeInsightRemaining !== undefined) {
+          setAiRemaining(data.eyeInsightRemaining);
+        }
       }
     } catch (e) { console.error(e); }
     finally { setLoadingList(false); }
@@ -390,6 +395,7 @@ export function EyeSection({
       if (!res.ok) { toast.error(data.message); return; }
       toast.success(`@${username} added to The Eye`);
       await loadWatchlist();
+      await refreshStats(username);
     } catch { toast.error("Failed to add user"); }
     finally { setAdding(false); }
   };
@@ -420,8 +426,15 @@ export function EyeSection({
   };
 
   const refreshAll = async () => {
-    await Promise.all(watchlist.map(e => refreshStats(e.githubUsername)));
-    toast.success("All stats refreshed");
+    setRefreshingAll(true);
+    try {
+      await Promise.all(watchlist.map(e => refreshStats(e.githubUsername)));
+      toast.success("All stats refreshed");
+    } catch {
+      toast.error("Failed to refresh some stats");
+    } finally {
+      setRefreshingAll(false);
+    }
   };
 
   const runAnalysis = async () => {
@@ -442,6 +455,9 @@ export function EyeSection({
       setAnalysis(data.analysis);
       setAnalysisTs(new Date().toISOString());
       saveAnalysis(data.analysis);
+      if (data.eyeInsightRemaining !== undefined) {
+        setAiRemaining(data.eyeInsightRemaining);
+      }
     } catch { toast.error("Analysis failed"); }
     finally { setAnalyzing(false); }
   };
@@ -475,17 +491,27 @@ export function EyeSection({
             <>
               <button 
                 onClick={refreshAll}
-                className="inline-flex items-center gap-2 h-8 px-4 rounded-xl text-sm font-medium transition-all duration-300 bg-secondary/30 backdrop-blur-[10px] border border-border/50 hover:border-primary/40"
+                disabled={refreshingAll}
+                className="inline-flex items-center gap-2 h-8 px-4 rounded-xl text-sm font-medium transition-all duration-300 bg-secondary/30 backdrop-blur-[10px] border border-border/50 hover:border-primary/40 disabled:opacity-60 disabled:pointer-events-none"
               >
-                <RefreshCw className="w-3 h-3 text-muted-foreground" /> Refresh All
+                <RefreshCw className={`w-3 h-3 text-muted-foreground ${refreshingAll ? "animate-spin" : ""}`} /> 
+                {refreshingAll ? "Refreshing..." : "Refresh All"}
               </button>
-              <button
-                onClick={runAnalysis} disabled={analyzing}
-                className="inline-flex items-center gap-2 h-8 px-4 rounded-xl text-sm font-medium transition-all duration-300 bg-[hsl(0_0%_0%/0.5)] backdrop-blur-[20px] border border-primary/30 text-primary hover:border-primary/60 hover:shadow-[0_0_16px_hsl(142_71%_45%/0.15)] disabled:opacity-60 disabled:pointer-events-none"
-              >
-                <Zap className="w-3 h-3" />
-                {analyzing ? "Analyzing…" : "AI Intel"}
-              </button>
+              <div className="flex flex-col items-end">
+                <button
+                  onClick={runAnalysis} 
+                  disabled={analyzing || aiRemaining === 0}
+                  className="inline-flex items-center gap-2 h-8 px-4 rounded-xl text-sm font-medium transition-all duration-300 bg-[hsl(0_0%_0%/0.5)] backdrop-blur-[20px] border border-primary/30 text-primary hover:border-primary/60 hover:shadow-[0_0_16px_hsl(142_71%_45%/0.15)] disabled:opacity-60 disabled:pointer-events-none"
+                >
+                  <Zap className="w-3 h-3 text-primary" />
+                  {analyzing ? "Analyzing..." : aiRemaining === 0 ? "Limit Reached" : "AI Intel"}
+                </button>
+                {aiRemaining !== null && (
+                  <span className="text-[10px] text-muted-foreground mt-1 select-none">
+                    {aiRemaining} manual {aiRemaining === 1 ? 'refresh' : 'refreshes'} left today
+                  </span>
+                )}
+              </div>
             </>
           )}
         </div>
