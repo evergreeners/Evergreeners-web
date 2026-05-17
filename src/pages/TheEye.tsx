@@ -183,6 +183,7 @@ export default function TheEye() {
   const [analysis, setAnalysis] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [showAnalysis, setShowAnalysis] = useState(false);
+  const [refreshingAll, setRefreshingAll] = useState(false);
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const myWeekly = sessionUser?.weeklyCommits || 0;
@@ -242,6 +243,7 @@ export default function TheEye() {
       toast.success(`@${username} added to The Eye`);
       setQuery(""); setSearchResults([]);
       await loadWatchlist();
+      await refreshStats(username);
     } catch { toast.error("Failed to add user"); }
     finally { setAdding(false); }
   };
@@ -272,8 +274,15 @@ export default function TheEye() {
   };
 
   const refreshAll = async () => {
-    for (const entry of watchlist) await refreshStats(entry.githubUsername);
-    toast.success("All stats refreshed");
+    setRefreshingAll(true);
+    try {
+      await Promise.all(watchlist.map(entry => refreshStats(entry.githubUsername)));
+      toast.success("All stats refreshed");
+    } catch {
+      toast.error("Failed to refresh some stats");
+    } finally {
+      setRefreshingAll(false);
+    }
   };
 
   const runAnalysis = async () => {
@@ -336,8 +345,10 @@ export default function TheEye() {
                     variant="outline" size="sm"
                     className="gap-2 border-border"
                     onClick={refreshAll}
+                    disabled={refreshingAll}
                   >
-                    <RefreshCw className="w-4 h-4" /> Refresh All
+                    <RefreshCw className={`w-4 h-4 ${refreshingAll ? "animate-spin" : ""}`} /> 
+                    {refreshingAll ? "Refreshing..." : "Refresh All"}
                   </Button>
                   <Button
                     size="sm"

@@ -344,6 +344,7 @@ export function EyeSection({
   const [loadingList, setLoadingList] = useState(true);
   const [refreshing, setRefreshing] = useState<Record<string, boolean>>({});
   const [adding, setAdding] = useState(false);
+  const [refreshingAll, setRefreshingAll] = useState(false);
 
   // Analysis state — persisted in localStorage
   const [analysis, setAnalysis] = useState<string | null>(null);
@@ -390,6 +391,7 @@ export function EyeSection({
       if (!res.ok) { toast.error(data.message); return; }
       toast.success(`@${username} added to The Eye`);
       await loadWatchlist();
+      await refreshStats(username);
     } catch { toast.error("Failed to add user"); }
     finally { setAdding(false); }
   };
@@ -420,8 +422,15 @@ export function EyeSection({
   };
 
   const refreshAll = async () => {
-    await Promise.all(watchlist.map(e => refreshStats(e.githubUsername)));
-    toast.success("All stats refreshed");
+    setRefreshingAll(true);
+    try {
+      await Promise.all(watchlist.map(e => refreshStats(e.githubUsername)));
+      toast.success("All stats refreshed");
+    } catch {
+      toast.error("Failed to refresh some stats");
+    } finally {
+      setRefreshingAll(false);
+    }
   };
 
   const runAnalysis = async () => {
@@ -475,9 +484,11 @@ export function EyeSection({
             <>
               <button 
                 onClick={refreshAll}
-                className="inline-flex items-center gap-2 h-8 px-4 rounded-xl text-sm font-medium transition-all duration-300 bg-secondary/30 backdrop-blur-[10px] border border-border/50 hover:border-primary/40"
+                disabled={refreshingAll}
+                className="inline-flex items-center gap-2 h-8 px-4 rounded-xl text-sm font-medium transition-all duration-300 bg-secondary/30 backdrop-blur-[10px] border border-border/50 hover:border-primary/40 disabled:opacity-60 disabled:pointer-events-none"
               >
-                <RefreshCw className="w-3 h-3 text-muted-foreground" /> Refresh All
+                <RefreshCw className={`w-3 h-3 text-muted-foreground ${refreshingAll ? "animate-spin" : ""}`} /> 
+                {refreshingAll ? "Refreshing..." : "Refresh All"}
               </button>
               <button
                 onClick={runAnalysis} disabled={analyzing}
