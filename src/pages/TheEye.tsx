@@ -409,7 +409,7 @@ export default function TheEye() {
           </div>
 
           <p className="text-xs text-muted-foreground mt-2 ml-1">
-            Watchlist: {watchlist.length}/10 · Only public GitHub activity is tracked
+            Watchlist: {watchlist.length}/15 · Only public GitHub activity is tracked
           </p>
         </section>
 
