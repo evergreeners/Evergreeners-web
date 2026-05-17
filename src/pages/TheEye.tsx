@@ -184,6 +184,7 @@ export default function TheEye() {
   const [analyzing, setAnalyzing] = useState(false);
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [refreshingAll, setRefreshingAll] = useState(false);
+  const [aiRemaining, setAiRemaining] = useState<number | null>(null);
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const myWeekly = sessionUser?.weeklyCommits || 0;
@@ -202,6 +203,9 @@ export default function TheEye() {
         if (data.eyeInsight) {
           setAnalysis(data.eyeInsight);
           setShowAnalysis(true);
+        }
+        if (data.eyeInsightRemaining !== undefined) {
+          setAiRemaining(data.eyeInsightRemaining);
         }
       }
     } catch (e) { console.error(e); }
@@ -312,6 +316,10 @@ export default function TheEye() {
       const data = await res.json();
       if (!res.ok) { toast.error(data.message); setShowAnalysis(false); return; }
       setAnalysis(data.analysis);
+      if (data.eyeInsightRemaining !== undefined) {
+        setAiRemaining(data.eyeInsightRemaining);
+      }
+      toast.success("AI Intelligence analysis complete");
     } catch { toast.error("Analysis failed"); setShowAnalysis(false); }
     finally { setAnalyzing(false); }
   };
@@ -350,15 +358,22 @@ export default function TheEye() {
                     <RefreshCw className={`w-4 h-4 ${refreshingAll ? "animate-spin" : ""}`} /> 
                     {refreshingAll ? "Refreshing..." : "Refresh All"}
                   </Button>
-                  <Button
-                    size="sm"
-                    className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
-                    onClick={runAnalysis}
-                    disabled={analyzing}
-                  >
-                    <Zap className="w-4 h-4" />
-                    {analyzing ? "Analyzing..." : "AI Analysis"}
-                  </Button>
+                  <div className="flex flex-col items-end">
+                    <Button
+                      size="sm"
+                      className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
+                      onClick={runAnalysis}
+                      disabled={analyzing || aiRemaining === 0}
+                    >
+                      <Zap className="w-4 h-4" />
+                      {analyzing ? "Analyzing..." : aiRemaining === 0 ? "Limit Reached" : "AI Analysis"}
+                    </Button>
+                    {aiRemaining !== null && (
+                      <span className="text-[10px] text-muted-foreground mt-1 select-none">
+                        {aiRemaining} manual {aiRemaining === 1 ? 'refresh' : 'refreshes'} left today
+                      </span>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

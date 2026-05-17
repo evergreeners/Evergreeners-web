@@ -2210,7 +2210,11 @@ Keep the total response under 300 words. Be like a hype coach mixed with a ruthl
 
             // Save in DB on the users table
             await db.update(schema.users)
-                .set({ eyeInsight: analysis, eyeInsightUpdatedAt: new Date() })
+                .set({ 
+                    eyeInsight: analysis, 
+                    eyeInsightUpdatedAt: new Date(),
+                    eyeInsightCount: 1
+                })
                 .where(eq(schema.users.id, userId));
 
             return analysis;
@@ -2237,6 +2241,7 @@ Keep the total response under 300 words. Be like a hype coach mixed with a ruthl
 
             let currentInsight = user.eyeInsight;
             let currentInsightUpdatedAt = user.eyeInsightUpdatedAt;
+            let currentCount = 0;
 
             if (entries.length > 0) {
                 const todayStr = new Date().toISOString().split('T')[0];
@@ -2249,23 +2254,31 @@ Keep the total response under 300 words. Be like a hype coach mixed with a ruthl
                     if (freshInsight) {
                         currentInsight = freshInsight;
                         currentInsightUpdatedAt = new Date();
+                        currentCount = 1;
                     }
+                } else {
+                    currentCount = user.eyeInsightCount || 0;
                 }
             } else {
                 // If watchlist is empty, clear insight
                 if (currentInsight) {
                     await db.update(schema.users)
-                        .set({ eyeInsight: null, eyeInsightUpdatedAt: null })
+                        .set({ eyeInsight: null, eyeInsightUpdatedAt: null, eyeInsightCount: 0 })
                         .where(eq(schema.users.id, userId));
                     currentInsight = null;
                     currentInsightUpdatedAt = null;
+                    currentCount = 0;
                 }
             }
+
+            const remaining = Math.max(0, 3 - currentCount);
 
             return { 
                 watchlist: entries,
                 eyeInsight: currentInsight,
-                eyeInsightUpdatedAt: currentInsightUpdatedAt ? currentInsightUpdatedAt.toISOString() : null
+                eyeInsightUpdatedAt: currentInsightUpdatedAt ? currentInsightUpdatedAt.toISOString() : null,
+                eyeInsightCount: currentCount,
+                eyeInsightRemaining: remaining
             };
         } catch (error) {
             console.error('Eye watchlist fetch error:', error);
@@ -2496,6 +2509,21 @@ Keep the total response under 300 words. Be like a hype coach mixed with a ruthl
         if (!session) return reply.status(401).send({ message: 'Unauthorized' });
 
         const userId = session.session.userId;
+
+        // Fetch user from DB to check daily quota
+        const [user] = await db.select().from(schema.users).where(eq(schema.users.id, userId)).limit(1);
+        if (!user) return reply.status(404).send({ message: 'User not found' });
+
+        const todayStr = new Date().toISOString().split('T')[0];
+        const lastUpdatedStr = user.eyeInsightUpdatedAt ? new Date(user.eyeInsightUpdatedAt).toISOString().split('T')[0] : null;
+        const currentCount = lastUpdatedStr === todayStr ? (user.eyeInsightCount || 0) : 0;
+
+        if (currentCount >= 3) {
+            return reply.status(400).send({ 
+                message: 'Daily limit reached. You can only request up to 2 manual refreshes per day (3 total AI insights).' 
+            });
+        }
+
         const { watchlistStats, myStats } = req.body as {
             watchlistStats: any[];
             myStats: {
@@ -2560,12 +2588,23 @@ Keep the total response under 300 words. Be like a hype coach mixed with a ruthl
             const result = await model.generateContent(prompt);
             const analysis = result.response.text();
 
+            const nextCount = lastUpdatedStr === todayStr ? (user.eyeInsightCount || 0) + 1 : 1;
+
             // Cache in users table
             await db.update(schema.users)
-                .set({ eyeInsight: analysis, eyeInsightUpdatedAt: new Date() })
+                .set({ 
+                    eyeInsight: analysis, 
+                    eyeInsightUpdatedAt: new Date(),
+                    eyeInsightCount: nextCount
+                })
                 .where(eq(schema.users.id, userId));
 
-            return { analysis, generatedAt: new Date().toISOString() };
+            return { 
+                analysis, 
+                generatedAt: new Date().toISOString(),
+                eyeInsightCount: nextCount,
+                eyeInsightRemaining: Math.max(0, 3 - nextCount)
+            };
         } catch (error) {
             console.error('Eye AI analysis error:', error);
             return reply.status(500).send({ message: 'AI analysis failed.' });

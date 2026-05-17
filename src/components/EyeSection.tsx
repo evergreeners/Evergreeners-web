@@ -345,6 +345,7 @@ export function EyeSection({
   const [refreshing, setRefreshing] = useState<Record<string, boolean>>({});
   const [adding, setAdding] = useState(false);
   const [refreshingAll, setRefreshingAll] = useState(false);
+  const [aiRemaining, setAiRemaining] = useState<number | null>(null);
 
   // Analysis state — persisted in localStorage
   const [analysis, setAnalysis] = useState<string | null>(null);
@@ -371,6 +372,9 @@ export function EyeSection({
         if (data.eyeInsight) {
           setAnalysis(data.eyeInsight);
           setAnalysisTs(data.eyeInsightUpdatedAt);
+        }
+        if (data.eyeInsightRemaining !== undefined) {
+          setAiRemaining(data.eyeInsightRemaining);
         }
       }
     } catch (e) { console.error(e); }
@@ -451,6 +455,9 @@ export function EyeSection({
       setAnalysis(data.analysis);
       setAnalysisTs(new Date().toISOString());
       saveAnalysis(data.analysis);
+      if (data.eyeInsightRemaining !== undefined) {
+        setAiRemaining(data.eyeInsightRemaining);
+      }
     } catch { toast.error("Analysis failed"); }
     finally { setAnalyzing(false); }
   };
@@ -490,13 +497,21 @@ export function EyeSection({
                 <RefreshCw className={`w-3 h-3 text-muted-foreground ${refreshingAll ? "animate-spin" : ""}`} /> 
                 {refreshingAll ? "Refreshing..." : "Refresh All"}
               </button>
-              <button
-                onClick={runAnalysis} disabled={analyzing}
-                className="inline-flex items-center gap-2 h-8 px-4 rounded-xl text-sm font-medium transition-all duration-300 bg-[hsl(0_0%_0%/0.5)] backdrop-blur-[20px] border border-primary/30 text-primary hover:border-primary/60 hover:shadow-[0_0_16px_hsl(142_71%_45%/0.15)] disabled:opacity-60 disabled:pointer-events-none"
-              >
-                <Zap className="w-3 h-3" />
-                {analyzing ? "Analyzing…" : "AI Intel"}
-              </button>
+              <div className="flex flex-col items-end">
+                <button
+                  onClick={runAnalysis} 
+                  disabled={analyzing || aiRemaining === 0}
+                  className="inline-flex items-center gap-2 h-8 px-4 rounded-xl text-sm font-medium transition-all duration-300 bg-[hsl(0_0%_0%/0.5)] backdrop-blur-[20px] border border-primary/30 text-primary hover:border-primary/60 hover:shadow-[0_0_16px_hsl(142_71%_45%/0.15)] disabled:opacity-60 disabled:pointer-events-none"
+                >
+                  <Zap className="w-3 h-3 text-primary" />
+                  {analyzing ? "Analyzing..." : aiRemaining === 0 ? "Limit Reached" : "AI Intel"}
+                </button>
+                {aiRemaining !== null && (
+                  <span className="text-[10px] text-muted-foreground mt-1 select-none">
+                    {aiRemaining} manual {aiRemaining === 1 ? 'refresh' : 'refreshes'} left today
+                  </span>
+                )}
+              </div>
             </>
           )}
         </div>
