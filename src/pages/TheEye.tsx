@@ -198,6 +198,10 @@ export default function TheEye() {
       if (res.ok) {
         const data = await res.json();
         setWatchlist(data.watchlist || []);
+        if (data.eyeInsight) {
+          setAnalysis(data.eyeInsight);
+          setShowAnalysis(true);
+        }
       }
     } catch (e) { console.error(e); }
     finally { setLoadingList(false); }

@@ -364,7 +364,14 @@ export function EyeSection({
     setLoadingList(true);
     try {
       const res = await fetch(getApiUrl("/api/eye/watchlist"), { credentials: "include", headers: authHeaders });
-      if (res.ok) setWatchlist((await res.json()).watchlist || []);
+      if (res.ok) {
+        const data = await res.json();
+        setWatchlist(data.watchlist || []);
+        if (data.eyeInsight) {
+          setAnalysis(data.eyeInsight);
+          setAnalysisTs(data.eyeInsightUpdatedAt);
+        }
+      }
     } catch (e) { console.error(e); }
     finally { setLoadingList(false); }
   }, [authToken]);
