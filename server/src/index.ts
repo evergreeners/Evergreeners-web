@@ -16,6 +16,7 @@ import { getGithubContributions, checkQuestProgress } from './lib/github.js';
 import { setupCronJobs } from './cron.js';
 import { updateUserGoals } from './lib/goals.js';
 import { sendWelcomeEmail } from './lib/email.js';
+import { getOrGenerateEyeInsight } from './lib/eye.js';
 import { checkAndAwardBadges } from './badges/award-badges.js';
 import { BADGES, getBadgeById } from './badges/badge-definitions.js';
 
@@ -1857,6 +1858,9 @@ if (process.env.NODE_ENV !== 'production') {
                 ? (overrideCommitted ? 5 : 0)
                 : realToday;
 
+            // If user exists, dynamically get or generate their competitive AI insight to preview
+            const realEyeInsight = user ? await getOrGenerateEyeInsight(user.id) : null;
+
             const result = await sendDailyDigestEmail({
                 to: query.to,
                 name: realName,
@@ -1865,6 +1869,7 @@ if (process.env.NODE_ENV !== 'production') {
                 todayCommits: finalToday,
                 totalCommits: realTotal,
                 weeklyCommits: realWeekly,
+                eyeInsight: realEyeInsight,
             });
 
             return {
@@ -2154,76 +2159,6 @@ server.register(async (instance) => {
 
     // ─── THE EYE: Watchlist Routes ────────────────────────────────────────────
 
-    // Reusable daily AI insight generator helper
-    async function runDailyEyeAnalysis(userId: string, user: any, entries: any[]) {
-        const withStats = entries.filter(e => e.cachedStats).map(e => e.cachedStats);
-        if (withStats.length === 0) return null;
-
-        const apiKey = process.env.GEMINI_API_KEY;
-        if (!apiKey) {
-            console.warn('AI analysis is not configured (missing GEMINI_API_KEY).');
-            return null;
-        }
-
-        try {
-            const { GoogleGenerativeAI } = await import('@google/generative-ai');
-            const genAI = new GoogleGenerativeAI(apiKey);
-            const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-
-            const watchlistSummary = withStats.map((w: any) =>
-                `- @${w.login}: ${w.weeklyCommits} commits/week, ${w.monthlyCommits} commits/month, ${w.currentStreak}-day streak, ${w.totalPRs} total PRs`
-            ).join('\n');
-
-            const prompt = `You are an elite software engineering coach and competitive intelligence analyst for a developer productivity platform called Evergreeners.
-
-The user @${user.username || 'you'} is watching these GitHub developers:
-${watchlistSummary}
-
-The user's own stats:
-- Weekly commits: ${user.weeklyCommits || 0}
-- Streak: ${user.streak || 0} days
-- Total commits: ${user.totalCommits || 0}
-- Total PRs: ${user.totalPullRequests || 0}
-
-Provide a sharp, motivating, brutally honest competitive analysis. Be direct, use personality, and make the user feel the heat of competition. Structure your response exactly like this (use markdown):
-
-## 🧠 The Eye's Read
-
-[1-2 sentences: Overall competitive situation - where does the user stand vs the watchlist?]
-
-## 🔥 Threats
-
-[Bullet points about users who are clearly outperforming or surging in activity. Be specific with numbers.]
-
-## 📊 Your Position
-
-[Honest assessment of the user's current momentum. Good AND bad.]
-
-## ⚡ Intel Report
-
-[2-3 specific, actionable things the user should do RIGHT NOW to compete. Be specific and motivating.]
-
-Keep the total response under 300 words. Be like a hype coach mixed with a ruthless analyst. Don't soften the truth.`;
-
-            const result = await model.generateContent(prompt);
-            const analysis = result.response.text();
-
-            // Save in DB on the users table
-            await db.update(schema.users)
-                .set({ 
-                    eyeInsight: analysis, 
-                    eyeInsightUpdatedAt: new Date(),
-                    eyeInsightCount: 1
-                })
-                .where(eq(schema.users.id, userId));
-
-            return analysis;
-        } catch (error) {
-            console.error('Failed to run daily eye analysis:', error);
-            return null;
-        }
-    }
-
     // GET /api/eye/watchlist — fetch current user's watchlist & auto-generate daily insight
     instance.get('/api/eye/watchlist', async (req, reply) => {
         const session = await getSessionFromRequest(req);
@@ -2244,17 +2179,14 @@ Keep the total response under 300 words. Be like a hype coach mixed with a ruthl
             let currentCount = 0;
 
             if (entries.length > 0) {
-                const todayStr = new Date().toISOString().split('T')[0];
-                const lastUpdatedStr = currentInsightUpdatedAt ? new Date(currentInsightUpdatedAt).toISOString().split('T')[0] : null;
-                const needsNewInsight = !currentInsight || !currentInsightUpdatedAt || lastUpdatedStr !== todayStr;
-
-                if (needsNewInsight) {
-                    console.log(`Auto-generating fresh daily AI eye insight for user ${userId}...`);
-                    const freshInsight = await runDailyEyeAnalysis(userId, user, entries);
-                    if (freshInsight) {
-                        currentInsight = freshInsight;
-                        currentInsightUpdatedAt = new Date();
-                        currentCount = 1;
+                // Fetch or automatically generate/cache insight for today
+                const freshInsight = await getOrGenerateEyeInsight(userId);
+                if (freshInsight) {
+                    const [updatedUser] = await db.select().from(schema.users).where(eq(schema.users.id, userId)).limit(1);
+                    if (updatedUser) {
+                        currentInsight = updatedUser.eyeInsight;
+                        currentInsightUpdatedAt = updatedUser.eyeInsightUpdatedAt;
+                        currentCount = updatedUser.eyeInsightCount || 0;
                     }
                 } else {
                     currentCount = user.eyeInsightCount || 0;

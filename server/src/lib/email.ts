@@ -238,10 +238,24 @@ export interface DailyDigestOptions {
     todayCommits: number;
     totalCommits: number;
     weeklyCommits: number;
+    eyeInsight?: string | null;
+}
+
+function formatMarkdownToHtml(md: string): string {
+    return md
+        .replace(/\r?\n/g, '<br/>')
+        .replace(/## 🧠 (.*?)<br\/>/g, '<p style="margin:20px 0 8px;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Helvetica,Arial,sans-serif;font-size:16px;font-weight:700;color:#10b981;">🧠 $1</p>')
+        .replace(/## 🔥 (.*?)<br\/>/g, '<p style="margin:20px 0 8px;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Helvetica,Arial,sans-serif;font-size:16px;font-weight:700;color:#ef4444;">🔥 $1</p>')
+        .replace(/## 📊 (.*?)<br\/>/g, '<p style="margin:20px 0 8px;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Helvetica,Arial,sans-serif;font-size:16px;font-weight:700;color:#3b82f6;">📊 $1</p>')
+        .replace(/## ⚡ (.*?)<br\/>/g, '<p style="margin:20px 0 8px;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Helvetica,Arial,sans-serif;font-size:16px;font-weight:700;color:#a855f7;">⚡ $1</p>')
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+        .replace(/- (.*?)<br\/>/g, '<div style="margin-bottom:6px;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Helvetica,Arial,sans-serif;font-size:14px;color:#52525b;line-height:1.6;">• $1</div>')
+        .replace(/• (.*?)<br\/>/g, '• $1<br/>');
 }
 
 export async function sendDailyDigestEmail(opts: DailyDigestOptions) {
-    const { to, name, username, streak, todayCommits, totalCommits, weeklyCommits } = opts;
+    const { to, name, username, streak, todayCommits, totalCommits, weeklyCommits, eyeInsight } = opts;
     const displayName = name?.split(' ')[0] || username || 'there';
     const committed = todayCommits > 0;
 
@@ -391,6 +405,20 @@ export async function sendDailyDigestEmail(opts: DailyDigestOptions) {
             </table>
           </td>
         </tr>
+
+        <!-- The Eye AI Insight Block (Sunday only) -->
+        ${eyeInsight ? `
+        ${divider}
+        <tr>
+          <td class="stat-box" style="padding:24px;background-color:#fafafa;border:1px solid #e4e4e7;border-radius:12px;">
+            <p class="stat-label" style="margin:0 0 12px;font-family:ui-monospace,'SF Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#10b981;">
+              👁️ THE EYE: WEEKLY INTEL REPORT
+            </p>
+            <div class="text-body" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;color:#52525b;line-height:1.7;">
+              ${formatMarkdownToHtml(eyeInsight)}
+            </div>
+          </td>
+        </tr>` : ''}
 
       </table>`;
 
