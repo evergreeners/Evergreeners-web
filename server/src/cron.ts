@@ -133,6 +133,18 @@ export function setupCronJobs() {
                 // ── Normal daily digest for active streak users ──
                 try {
                     console.log(`Sending daily digest to ${user.email} (streak: ${streak})...`);
+                    
+                    let eyeInsight: string | null = null;
+                    const isSunday = new Date().getDay() === 0;
+                    if (isSunday) {
+                        try {
+                            const { getOrGenerateEyeInsight } = await import('./lib/eye.js');
+                            eyeInsight = await getOrGenerateEyeInsight(user.id);
+                        } catch (err) {
+                            console.error(`Failed to get/generate Sunday AI insight for user ${user.id}:`, err);
+                        }
+                    }
+
                     await sendDailyDigestEmail({
                         to: user.email,
                         name: user.name || user.username || 'Dev',
@@ -141,6 +153,7 @@ export function setupCronJobs() {
                         todayCommits: user.todayCommits || 0,
                         totalCommits: user.totalCommits || 0,
                         weeklyCommits,
+                        eyeInsight,
                     });
                     sent++;
                 } catch (err) {
