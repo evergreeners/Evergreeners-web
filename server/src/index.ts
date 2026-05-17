@@ -2182,10 +2182,10 @@ server.register(async (instance) => {
 
         if (!githubUsername) return reply.status(400).send({ message: 'githubUsername is required' });
 
-        // Check limit (max 10 per user)
+        // Check limit (max 15 per user)
         const existing = await db.select().from(schema.watchlist).where(eq(schema.watchlist.userId, userId));
-        if (existing.length >= 10) {
-            return reply.status(400).send({ message: 'Watchlist is full (max 10). Remove someone first.' });
+        if (existing.length >= 15) {
+            return reply.status(400).send({ message: 'Watchlist is full (max 15). Remove someone first.' });
         }
 
         // Verify the GitHub user exists & fetch their public profile

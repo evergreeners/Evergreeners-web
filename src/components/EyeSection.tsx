@@ -243,7 +243,7 @@ function ManageWatchlistSheet({ watchlist, onAdd, onRemove, adding, authToken, o
               </Button>
             )}
 
-            <p className="text-xs text-muted-foreground">{watchlist.length}/10 slots used</p>
+            <p className="text-xs text-muted-foreground">{watchlist.length}/15 slots used</p>
 
             {/* Current watchlist */}
             <div className="space-y-2">
@@ -453,7 +453,7 @@ export function EyeSection({
       {/* Header row — centered on mobile */}
       <div className="flex flex-col items-center sm:flex-row sm:items-center sm:justify-between gap-3 flex-wrap">
         <p className="text-sm text-muted-foreground order-2 sm:order-1">
-          Track competitors' public activity · {watchlist.length}/10 slots
+          Track competitors' public activity · {watchlist.length}/15 slots
         </p>
         <div className="flex gap-2 order-1 sm:order-2">
           <ManageWatchlistSheet
