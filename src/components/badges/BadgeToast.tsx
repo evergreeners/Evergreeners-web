@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { getRarityStyles } from './RarityPill';
 import type { BadgeDefinition } from './types';
+import { BadgeVisual } from './BadgeVisual';
 
 interface NewBadge {
     id: string;
@@ -42,14 +43,13 @@ export function BadgeToast({ badges, onDismiss }: BadgeToastProps) {
                             ].join(' ')}
                             onClick={() => onDismiss(badge.id)}
                         >
-                            {/* Badge icon placeholder */}
-                            <div className={[
-                                'w-10 h-10 rounded-xl flex items-center justify-center text-lg font-bold shrink-0',
-                                styles.placeholder,
-                            ].join(' ')}>
-                                {/* TODO: replace with <img> when SVG assets are added */}
-                                {badge.name.charAt(0).toUpperCase()}
-                            </div>
+                            {/* Premium visual badge */}
+                            <BadgeVisual
+                                id={badge.id}
+                                rarity={badge.rarity}
+                                earned={true}
+                                size="sm"
+                            />
 
                             <div className="flex-1 min-w-0">
                                 <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">

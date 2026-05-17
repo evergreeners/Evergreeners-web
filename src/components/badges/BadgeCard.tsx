@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { RarityPill, getRarityStyles } from './RarityPill';
 import type { UserBadge } from './types';
+import { BadgeVisual } from './BadgeVisual';
 
 interface BadgeCardProps {
     badge: UserBadge;
@@ -32,16 +33,14 @@ export function BadgeCard({ badge, earned, earnedAt }: BadgeCardProps) {
                 isLegendary && earned && 'animate-pulse-slow',
             )}
         >
-            {/* Badge image placeholder */}
-            <div
-                className={cn(
-                    'w-14 h-14 rounded-xl flex items-center justify-center text-xl font-bold select-none',
-                    earned ? styles.placeholder : 'bg-secondary text-muted-foreground',
-                )}
-            >
-                {/* TODO: replace with <img> when SVG assets are added */}
-                {isSecret ? '?' : badge.name.charAt(0).toUpperCase()}
-            </div>
+            {/* Premium visual badge */}
+            <BadgeVisual
+                id={badge.id}
+                rarity={badge.rarity}
+                earned={earned}
+                isSecret={badge.isSecret}
+                size="md"
+            />
 
             {/* Name */}
             <p className={cn('text-xs font-semibold text-center leading-tight', earned ? 'text-foreground' : 'text-muted-foreground')}>
