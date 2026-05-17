@@ -32,6 +32,8 @@ export const users = mySchema.table('users', {
     isGithubConnected: boolean('is_github_connected').default(false),
     bestRank: integer('best_rank'), // Best leaderboard rank ever achieved
     emailNotifications: boolean('email_notifications').default(false), // Streak reminder emails — opt-in
+    eyeInsight: text('eye_insight'),
+    eyeInsightUpdatedAt: timestamp('eye_insight_updated_at'),
 });
 
 export const sessions = mySchema.table('sessions', {

@@ -2154,18 +2154,119 @@ server.register(async (instance) => {
 
     // ─── THE EYE: Watchlist Routes ────────────────────────────────────────────
 
-    // GET /api/eye/watchlist — fetch current user's watchlist
+    // Reusable daily AI insight generator helper
+    async function runDailyEyeAnalysis(userId: string, user: any, entries: any[]) {
+        const withStats = entries.filter(e => e.cachedStats).map(e => e.cachedStats);
+        if (withStats.length === 0) return null;
+
+        const apiKey = process.env.GEMINI_API_KEY;
+        if (!apiKey) {
+            console.warn('AI analysis is not configured (missing GEMINI_API_KEY).');
+            return null;
+        }
+
+        try {
+            const { GoogleGenerativeAI } = await import('@google/generative-ai');
+            const genAI = new GoogleGenerativeAI(apiKey);
+            const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+
+            const watchlistSummary = withStats.map((w: any) =>
+                `- @${w.login}: ${w.weeklyCommits} commits/week, ${w.monthlyCommits} commits/month, ${w.currentStreak}-day streak, ${w.totalPRs} total PRs`
+            ).join('\n');
+
+            const prompt = `You are an elite software engineering coach and competitive intelligence analyst for a developer productivity platform called Evergreeners.
+
+The user @${user.username || 'you'} is watching these GitHub developers:
+${watchlistSummary}
+
+The user's own stats:
+- Weekly commits: ${user.weeklyCommits || 0}
+- Streak: ${user.streak || 0} days
+- Total commits: ${user.totalCommits || 0}
+- Total PRs: ${user.totalPullRequests || 0}
+
+Provide a sharp, motivating, brutally honest competitive analysis. Be direct, use personality, and make the user feel the heat of competition. Structure your response exactly like this (use markdown):
+
+## 🧠 The Eye's Read
+
+[1-2 sentences: Overall competitive situation - where does the user stand vs the watchlist?]
+
+## 🔥 Threats
+
+[Bullet points about users who are clearly outperforming or surging in activity. Be specific with numbers.]
+
+## 📊 Your Position
+
+[Honest assessment of the user's current momentum. Good AND bad.]
+
+## ⚡ Intel Report
+
+[2-3 specific, actionable things the user should do RIGHT NOW to compete. Be specific and motivating.]
+
+Keep the total response under 300 words. Be like a hype coach mixed with a ruthless analyst. Don't soften the truth.`;
+
+            const result = await model.generateContent(prompt);
+            const analysis = result.response.text();
+
+            // Save in DB on the users table
+            await db.update(schema.users)
+                .set({ eyeInsight: analysis, eyeInsightUpdatedAt: new Date() })
+                .where(eq(schema.users.id, userId));
+
+            return analysis;
+        } catch (error) {
+            console.error('Failed to run daily eye analysis:', error);
+            return null;
+        }
+    }
+
+    // GET /api/eye/watchlist — fetch current user's watchlist & auto-generate daily insight
     instance.get('/api/eye/watchlist', async (req, reply) => {
         const session = await getSessionFromRequest(req);
         if (!session) return reply.status(401).send({ message: 'Unauthorized' });
 
         const userId = session.session.userId;
         try {
+            const [user] = await db.select().from(schema.users).where(eq(schema.users.id, userId)).limit(1);
+            if (!user) return reply.status(404).send({ message: 'User not found' });
+
             const entries = await db.select()
                 .from(schema.watchlist)
                 .where(eq(schema.watchlist.userId, userId))
                 .orderBy(desc(schema.watchlist.addedAt));
-            return { watchlist: entries };
+
+            let currentInsight = user.eyeInsight;
+            let currentInsightUpdatedAt = user.eyeInsightUpdatedAt;
+
+            if (entries.length > 0) {
+                const todayStr = new Date().toISOString().split('T')[0];
+                const lastUpdatedStr = currentInsightUpdatedAt ? new Date(currentInsightUpdatedAt).toISOString().split('T')[0] : null;
+                const needsNewInsight = !currentInsight || !currentInsightUpdatedAt || lastUpdatedStr !== todayStr;
+
+                if (needsNewInsight) {
+                    console.log(`Auto-generating fresh daily AI eye insight for user ${userId}...`);
+                    const freshInsight = await runDailyEyeAnalysis(userId, user, entries);
+                    if (freshInsight) {
+                        currentInsight = freshInsight;
+                        currentInsightUpdatedAt = new Date();
+                    }
+                }
+            } else {
+                // If watchlist is empty, clear insight
+                if (currentInsight) {
+                    await db.update(schema.users)
+                        .set({ eyeInsight: null, eyeInsightUpdatedAt: null })
+                        .where(eq(schema.users.id, userId));
+                    currentInsight = null;
+                    currentInsightUpdatedAt = null;
+                }
+            }
+
+            return { 
+                watchlist: entries,
+                eyeInsight: currentInsight,
+                eyeInsightUpdatedAt: currentInsightUpdatedAt ? currentInsightUpdatedAt.toISOString() : null
+            };
         } catch (error) {
             console.error('Eye watchlist fetch error:', error);
             return reply.status(500).send({ message: 'Failed to fetch watchlist' });
@@ -2458,6 +2559,11 @@ Keep the total response under 300 words. Be like a hype coach mixed with a ruthl
 
             const result = await model.generateContent(prompt);
             const analysis = result.response.text();
+
+            // Cache in users table
+            await db.update(schema.users)
+                .set({ eyeInsight: analysis, eyeInsightUpdatedAt: new Date() })
+                .where(eq(schema.users.id, userId));
 
             return { analysis, generatedAt: new Date().toISOString() };
         } catch (error) {
