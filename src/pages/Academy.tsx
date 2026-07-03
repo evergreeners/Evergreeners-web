@@ -32,9 +32,7 @@ export default function Academy() {
   const [auditStepsText, setAuditStepsText] = useState<string[]>([]);
   const [auditResult, setAuditResult] = useState<AuditResult | null>(null);
 
-  // Payment enrollment state
-  const [payReference, setPayReference] = useState("");
-  const [selectedTier, setSelectedTier] = useState<'enrolled' | 'premium'>('enrolled');
+  // Enrollment state
   const [isEnrolling, setIsEnrolling] = useState(false);
 
   // Check enrollment status
@@ -117,15 +115,10 @@ export default function Academy() {
     setIsAuditing(true);
   };
 
-  const handleEnroll = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleEnroll = async () => {
     if (!session) {
       toast.error("Please log in or sign up first to enroll in the Academy.");
-      navigate("/login");
-      return;
-    }
-    if (!payReference.trim()) {
-      toast.error("Please enter your Paystack reference or click Simulate.");
+      navigate("/login?redirect=/academy");
       return;
     }
 
@@ -137,31 +130,24 @@ export default function Academy() {
           "Content-Type": "application/json",
           ...(session?.session?.token ? { Authorization: `Bearer ${session.session.token}` } : {})
         },
-        body: JSON.stringify({ paystackReference: payReference, tier: selectedTier }),
         credentials: "include"
       });
 
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.message || "Failed to verify payment");
+        throw new Error(err.message || "Failed to enroll");
       }
 
       toast.success("Welcome to Evergreeners Academy!", {
-        description: `Successfully enrolled in the ${selectedTier === 'premium' ? 'Premium' : 'Standard'} Cohort.`
+        description: "Successfully enrolled in the Git and Open Source Cohort."
       });
       queryClient.invalidateQueries({ queryKey: ['academyStatus'] });
       navigate("/academy/dashboard");
     } catch (err: any) {
-      toast.error(err.message || "Payment verification failed.");
+      toast.error(err.message || "Enrollment failed.");
     } finally {
       setIsEnrolling(false);
     }
-  };
-
-  const simulatePayment = () => {
-    const randomRef = "pay_mock_" + Math.random().toString(36).substring(2, 10);
-    setPayReference(randomRef);
-    toast.info("Simulated Paystack reference generated! Click Enroll now.");
   };
 
   const enrolled = statusData?.status && statusData.status !== 'none';
@@ -189,9 +175,9 @@ export default function Academy() {
                 Go to Student Portal <ArrowRight className="w-5 h-5" />
               </Button>
             ) : (
-              <a href="#pricing">
+              <a href="#enrollment">
                 <Button size="lg" className="gap-2 font-bold px-8">
-                  Join Next Cohort <ArrowRight className="w-5 h-5" />
+                  Join Academy <ArrowRight className="w-5 h-5" />
                 </Button>
               </a>
             )}
@@ -446,173 +432,70 @@ export default function Academy() {
           </div>
         </Section>
 
-        {/* Pricing Tiers Section */}
-        <span id="pricing" className="block -mt-10 pt-10" />
-        <Section title="Academy Enlistment" className="animate-fade-up">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch max-w-5xl mx-auto">
-            
-            {/* Free Audit */}
-            <Card className="bg-card/20 border-border flex flex-col justify-between">
-              <CardHeader>
-                <CardTitle className="text-lg">Lead Magnet</CardTitle>
-                <CardDescription>Free Profile Integrity Audit</CardDescription>
-                <div className="text-3xl font-extrabold mt-3">₦0 <span className="text-xs font-normal text-muted-foreground">/ forever</span></div>
-              </CardHeader>
-              <CardContent className="space-y-3 text-xs text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
-                  <span>GitHub Profile README scan</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
-                  <span>Graveyard Index calculation</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
-                  <span>Immediate advice scorecard</span>
-                </div>
-              </CardContent>
-              <CardFooter className="pt-4 border-t border-border">
-                <a href="#audit" className="w-full">
-                  <Button variant="outline" className="w-full">Run Free Audit</Button>
-                </a>
-              </CardFooter>
-            </Card>
-
-            {/* Paid Cohort */}
-            <Card className="bg-card/30 border-primary/50 flex flex-col justify-between relative shadow-[0_0_20px_rgba(16,185,129,0.1)]">
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-black font-bold px-3 py-0.5 rounded-full text-[10px] uppercase tracking-wider">Most Popular</div>
-              <CardHeader>
-                <CardTitle className="text-lg">Paid Cohort</CardTitle>
-                <CardDescription>4-Week Bootcamp & Community</CardDescription>
-                <div className="text-3xl font-extrabold mt-3">₦15,000 <span className="text-xs font-normal text-muted-foreground">/ cohort</span></div>
-              </CardHeader>
-              <CardContent className="space-y-3 text-xs text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
-                  <span>All 4-week async lesson materials</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
-                  <span>Live weekly Q&A and PR review sessions</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
-                  <span>Private accountability pod (Discord)</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
-                  <span>Opt-in to Student Leaderboard</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
-                  <span>Verifiable Graduation Certificate</span>
-                </div>
-              </CardContent>
-              <CardFooter className="pt-4 border-t border-border">
-                {enrolled ? (
-                  <Button className="w-full font-bold" onClick={() => navigate("/academy/dashboard")}>Go to Dashboard</Button>
-                ) : (
-                  <a href="#payment" className="w-full" onClick={() => { setSelectedTier('enrolled'); setPayReference(''); }}>
-                    <Button className="w-full font-bold">Enroll in Cohort</Button>
-                  </a>
-                )}
-              </CardFooter>
-            </Card>
-
-            {/* Premium Cohort */}
-            <Card className="bg-card/20 border-border flex flex-col justify-between">
-              <CardHeader>
-                <CardTitle className="text-lg">Premium Review</CardTitle>
-                <CardDescription>Cohort + 1:1 Expert PR Review</CardDescription>
-                <div className="text-3xl font-extrabold mt-3">₦50,000 <span className="text-xs font-normal text-muted-foreground">/ cohort</span></div>
-              </CardHeader>
-              <CardContent className="space-y-3 text-xs text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
-                  <span>Everything in the Paid Cohort tier</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
-                  <span>1:1 Code & Pull Request reviews</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
-                  <span>Direct Slack/WhatsApp access to mentors</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
-                  <span>Resume & GitHub Profile optimization call</span>
-                </div>
-              </CardContent>
-              <CardFooter className="pt-4 border-t border-border">
-                {enrolled ? (
-                  <Button className="w-full font-bold" onClick={() => navigate("/academy/dashboard")}>Go to Dashboard</Button>
-                ) : (
-                  <a href="#payment" className="w-full" onClick={() => { setSelectedTier('premium'); setPayReference(''); }}>
-                    <Button variant="outline" className="w-full">Get Premium Tier</Button>
-                  </a>
-                )}
-              </CardFooter>
-            </Card>
-
-          </div>
+        {/* Academy Enrollment Section */}
+        <span id="enrollment" className="block -mt-10 pt-10" />
+        <Section title="Enroll in the Academy" className="animate-fade-up">
+          <Card className="max-w-2xl mx-auto bg-card/25 border-primary/20 relative shadow-[0_0_30px_rgba(16,185,129,0.05)] overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-primary to-transparent" />
+            <CardHeader className="text-center space-y-2">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-primary/30 bg-primary/10 text-primary text-xs font-bold uppercase tracking-wider mx-auto">
+                <Sparkles className="w-3.5 h-3.5" /> 100% Free & Open Source
+              </div>
+              <CardTitle className="text-2xl font-bold">Start Your Journey Today</CardTitle>
+              <CardDescription>
+                Join the cohort to build consistency, master Git, and make your first verified open-source contributions.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 max-w-md mx-auto text-sm text-muted-foreground pb-6">
+              <div className="flex items-center gap-3">
+                <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />
+                <span>Access all 4 weeks of structured learning materials</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />
+                <span>Complete interactive quests and hands-on Git practice</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />
+                <span>Submit your capstone external PR for validation</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />
+                <span>Earn a verifiable certificate of completion</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />
+                <span>Unlock the exclusive Academy Graduate profile badge</span>
+              </div>
+            </CardContent>
+            <CardFooter className="pt-6 border-t border-border flex justify-center bg-black/10">
+              {enrolled ? (
+                <Button size="lg" className="w-full max-w-sm font-bold gap-2" onClick={() => navigate("/academy/dashboard")}>
+                  Go to Student Portal <ArrowRight className="w-4 h-4" />
+                </Button>
+              ) : (
+                <Button 
+                  size="lg" 
+                  className="w-full max-w-sm font-bold gap-2 text-black" 
+                  onClick={handleEnroll} 
+                  disabled={isEnrolling}
+                >
+                  {isEnrolling ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Enrolling...</span>
+                    </>
+                  ) : (
+                    <>
+                      <GraduationCap className="w-5 h-5" />
+                      <span>Enroll in Academy (Free)</span>
+                    </>
+                  )}
+                </Button>
+              )}
+            </CardFooter>
+          </Card>
         </Section>
-
-        {/* Payment Form Panel */}
-        {!enrolled && (
-          <span id="payment" className="block -mt-10 pt-10" />
-        )}
-        {!enrolled && (
-          <Section title="Cohort Enlistment & Payment" className="animate-fade-up">
-            <Card className="max-w-xl mx-auto bg-card/40 border-primary/20 shadow-xl">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <ShieldCheck className="w-5 h-5 text-primary" /> Verify Payment Reference
-                </CardTitle>
-                <CardDescription>
-                  Selected Tier: <strong className="text-primary">{selectedTier === 'premium' ? 'Premium (₦50,000)' : 'Standard (₦15,000)'}</strong>
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  We use Paystack Payment Pages to securely process Nigerian cards and bank transfers. Click the button below to pay on Paystack. Once completed, paste the Transaction Reference received.
-                </p>
-
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <a 
-                    href={selectedTier === 'premium' ? "https://paystack.com/pay/evergreeners-academy-premium" : "https://paystack.com/pay/evergreeners-academy"} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="flex-1"
-                  >
-                    <Button variant="outline" className="w-full gap-2 border-primary/30 hover:bg-primary/5">
-                      <Play className="w-4 h-4 text-primary" /> Pay on Paystack
-                    </Button>
-                  </a>
-                  <Button variant="secondary" onClick={simulatePayment} className="flex-1">
-                    Simulate Payment (Dev mode)
-                  </Button>
-                </div>
-
-                <form onSubmit={handleEnroll} className="space-y-4 pt-4 border-t border-border">
-                  <div className="space-y-2">
-                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Transaction Reference</label>
-                    <Input 
-                      placeholder="e.g. T62849105749..." 
-                      value={payReference}
-                      onChange={(e) => setPayReference(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <Button type="submit" className="w-full font-bold" disabled={isEnrolling}>
-                    {isEnrolling ? "Verifying..." : "Verify & Join Academy"}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          </Section>
-        )}
 
       </main>
 

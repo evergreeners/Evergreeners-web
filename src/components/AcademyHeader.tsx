@@ -71,12 +71,12 @@ export function AcademyHeader() {
   const isMarketingPage = pathname === "/academy";
   const syllabusHref = isMarketingPage ? "#curriculum" : "/academy#curriculum";
   const auditHref = isMarketingPage ? "#audit" : "/academy#audit";
-  const pricingHref = isMarketingPage ? "#pricing" : "/academy#pricing";
+  const enrollHref = isMarketingPage ? "#enrollment" : "/academy#enrollment";
 
   const navLinks = [
     { label: "Syllabus", href: syllabusHref, isAnchor: isMarketingPage },
     { label: "Profile Audit", href: auditHref, isAnchor: isMarketingPage },
-    { label: "Pricing", href: pricingHref, isAnchor: isMarketingPage },
+    { label: "Join Academy", href: enrollHref, isAnchor: isMarketingPage },
   ];
 
   const handleAnchorClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
@@ -228,11 +228,11 @@ export function AcademyHeader() {
                 <span>Sign In</span>
               </Link>
               <a
-                href={pricingHref}
-                onClick={(e) => handleAnchorClick(e, pricingHref)}
+                href={enrollHref}
+                onClick={(e) => handleAnchorClick(e, enrollHref)}
                 className="group flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all duration-300 bg-primary text-black hover:bg-[#5aff94] hover:scale-105 active:scale-95 active:rotate-1"
               >
-                <span>Join Cohort</span>
+                <span>Join Academy</span>
                 <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
               </a>
             </div>
@@ -306,9 +306,9 @@ export function AcademyHeader() {
                         Sign In
                       </Button>
                     </Link>
-                    <a href={pricingHref} onClick={(e) => handleAnchorClick(e, pricingHref)} className="block w-full">
+                    <a href={enrollHref} onClick={(e) => handleAnchorClick(e, enrollHref)} className="block w-full">
                       <Button className="w-full text-sm rounded-xl py-5 font-bold">
-                        Join Cohort
+                        Join Academy
                       </Button>
                     </a>
                   </>
