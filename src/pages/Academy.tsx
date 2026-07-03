@@ -3,7 +3,7 @@ import { FloatingNav } from "@/components/FloatingNav";
 import { Section } from "@/components/Section";
 import { GraduationCap, Terminal, Zap, CheckCircle2, AlertTriangle, ShieldCheck, GitFork, ArrowRight, Loader2, Play, Sparkles } from "lucide-react";
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/lib/auth-client";
 import { getApiUrl } from "@/lib/api-config";
@@ -153,13 +153,100 @@ export default function Academy() {
   const enrolled = statusData?.status && statusData.status !== 'none';
 
   return (
-    <div className="min-h-screen bg-background overflow-x-hidden custom-scrollbar">
+    <div className="min-h-screen bg-background overflow-x-hidden custom-scrollbar relative">
+      {/* SVG Filters for hand-drawn cosmic buttons */}
+      <svg height="0" width="0" style={{ position: 'absolute', pointerEvents: 'none' }}>
+        <filter id="handDrawnNoise">
+          <feTurbulence result="noise" numOctaves="8" baseFrequency="0.1" type="fractalNoise" />
+          <feDisplacementMap yChannelSelector="G" xChannelSelector="R" scale="3" in2="noise" in="SourceGraphic" />
+        </filter>
+        <filter id="handDrawnNoise2">
+          <feTurbulence result="noise" numOctaves="8" baseFrequency="0.1" seed="1010" type="fractalNoise" />
+          <feDisplacementMap yChannelSelector="G" xChannelSelector="R" scale="3" in2="noise" in="SourceGraphic" />
+        </filter>
+      </svg>
+
+      <style>{`
+        .cyber-background {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          background-color: #050505;
+          background-image:
+            radial-gradient(circle at center, transparent 30%, #000 90%),
+            linear-gradient(rgba(74, 222, 128, 0.07) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(74, 222, 128, 0.07) 1px, transparent 1px),
+            linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+          background-size:
+            100% 100%,
+            60px 60px,
+            60px 60px,
+            20px 20px,
+            20px 20px;
+          animation: cyber-move 20s linear infinite;
+          z-index: 0;
+          pointer-events: none;
+        }
+
+        @keyframes cyber-move {
+          0%   { background-position: 0 0, 0 0, 0 0, 0 0, 0 0; }
+          100% { background-position: 0 0, 60px 60px, 60px 60px, 40px 40px, 40px 40px; }
+        }
+
+        .academy-action-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          background-color: rgba(5, 5, 5, 0.85);
+          backdrop-filter: blur(8px);
+          filter: url(#handDrawnNoise);
+          font-family: "Courier New", monospace;
+          font-size: 1rem;
+          font-weight: bold;
+          padding: 0.85rem 1.8rem;
+          border: 1.5px solid rgba(255, 255, 255, 0.15);
+          border-radius: 2rem;
+          box-shadow: #33333366 4px 4px 0 1px;
+          animation: community-btn-idle 1s infinite ease-in-out;
+          color: white;
+          cursor: pointer;
+          text-decoration: none;
+          transition: 0.3s ease-in-out;
+          position: relative;
+        }
+
+        @keyframes community-btn-idle {
+          0%   { filter: url(#handDrawnNoise); }
+          50%  { rotate: 1.5deg; filter: url(#handDrawnNoise2); }
+          100% { filter: url(#handDrawnNoise); }
+        }
+
+        .academy-action-btn:hover {
+          rotate: -2deg;
+          border-color: rgba(74, 222, 128, 0.5);
+          color: #4ade80;
+          animation: community-btn-hover 2.5s infinite ease-in-out;
+        }
+
+        @keyframes community-btn-hover {
+          0%   { rotate: 0deg;    filter: url(#handDrawnNoise);  translate: 0 0;   }
+          25%  { rotate: -1deg;   filter: url(#handDrawnNoise2); translate: 0 -2px; }
+          50%  { rotate: 0deg;    filter: url(#handDrawnNoise);  translate: 0 2px; }
+          75%  { rotate: -1deg;   filter: url(#handDrawnNoise2); translate: 0 -2px; }
+          100% { rotate: 0deg;    filter: url(#handDrawnNoise);  translate: 0 0;   }
+        }
+      `}</style>
+
+      <div className="cyber-background" />
       <AcademyHeader />
 
-      <main className="w-full max-w-[1400px] mx-auto px-4 md:px-8 pt-24 pb-32 md:pb-12 space-y-16">
+      <main className="w-full max-w-[1400px] mx-auto px-4 md:px-8 pt-24 pb-32 md:pb-12 space-y-16 relative z-10">
         
         {/* Hero Section */}
-        <section className="text-center py-12 space-y-6 animate-fade-in">
+        <section className="text-center py-12 space-y-6 animate-fade-in relative z-10">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-primary/20 bg-primary/10 text-primary text-xs font-semibold uppercase tracking-wider">
             <GraduationCap className="w-4 h-4" /> The Evergreeners Academy
           </div>
@@ -169,22 +256,21 @@ export default function Academy() {
           <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
             From Git zero to public repository hero. A highly focused 4-week syllabus designed to build verifiable GitHub credibility and launch your open-source journey.
           </p>
-          <div className="flex flex-wrap justify-center gap-4 pt-4">
+          <div className="flex flex-wrap justify-center gap-6 pt-4 relative z-10">
             {enrolled ? (
-              <Button size="lg" className="gap-2 font-bold px-8" onClick={() => navigate("/academy/dashboard")}>
-                Go to Student Portal <ArrowRight className="w-5 h-5" />
-              </Button>
+              <Link to="/academy/dashboard" className="academy-action-btn">
+                <span>Go to Student Portal</span>
+                <ArrowRight className="w-5 h-5" />
+              </Link>
             ) : (
-              <a href="#enrollment">
-                <Button size="lg" className="gap-2 font-bold px-8">
-                  Join Academy <ArrowRight className="w-5 h-5" />
-                </Button>
+              <a href="#enrollment" className="academy-action-btn">
+                <span>Join Academy</span>
+                <ArrowRight className="w-5 h-5" />
               </a>
             )}
-            <a href="#audit">
-              <Button size="lg" variant="outline" className="gap-2 border-primary/20 bg-primary/5">
-                Audit Your Profile <Sparkles className="w-4 h-4 text-primary" />
-              </Button>
+            <a href="#audit" className="academy-action-btn">
+              <span>Audit Your Profile</span>
+              <Sparkles className="w-4 h-4 text-primary" />
             </a>
           </div>
         </section>
