@@ -196,7 +196,7 @@ export default function Academy() {
             <div className="lg:col-span-5 space-y-6">
               <h3 className="text-2xl font-bold">Is your GitHub profile a graveyard?</h3>
               <p className="text-muted-foreground leading-relaxed text-sm">
-                Most students and early developers know how to write code, but their contribution graphs tell a story of inconsistency. Recruiters, GSoC fellows, and hiring managers look at your history. 
+                Most students and early developers know how to write code, but their contribution graphs tell a story of inconsistency. Recruiters and hiring managers look at your history. 
               </p>
               <p className="text-muted-foreground leading-relaxed text-sm">
                 Our audit tool scans your repositories, checks for key portfolio standards (READMEs, Pins), and calculates your <strong>Graveyard Index</strong> (inactive code percentage) to show you exactly where you stand.
