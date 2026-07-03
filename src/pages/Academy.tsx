@@ -303,6 +303,16 @@ export default function Academy() {
       </svg>
 
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@700&display=swap');
+
+        .font-handwritten {
+          font-family: 'Caveat', cursive;
+          font-size: 1.1em;
+          font-weight: 700;
+          display: inline-block;
+          transform: rotate(-1.5deg);
+        }
+
         .cyber-background {
           position: absolute;
           inset: 0;
@@ -544,7 +554,7 @@ export default function Academy() {
             <GraduationCap className="w-4 h-4" /> The Evergreeners Academy
           </div>
           <h1 className="text-4xl md:text-7xl font-extrabold text-foreground tracking-tight leading-none">
-            Convert Philosophy Into <span className="text-gradient">Taught Skill</span>
+            Convert Philosophy Into <span className="text-primary font-handwritten tracking-normal">Taught Skill</span>
           </h1>
           <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
             From Git zero to public repository hero. A highly focused 4-week syllabus designed to build verifiable GitHub credibility and launch your open-source journey.
