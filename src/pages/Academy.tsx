@@ -441,7 +441,7 @@ export default function Academy() {
           background-color: #4ade80;
           box-shadow: 0 0 10px #4ade80, 0 0 20px #4ade80;
           border-radius: 100px;
-          z-index: 2;
+          z-index: 1;
           top: 10%;
           left: 10%;
           transform: translate(-50%, -50%);
@@ -505,6 +505,7 @@ export default function Academy() {
           position: absolute;
           background-color: rgba(255, 255, 255, 0.05);
           pointer-events: none;
+          z-index: 1;
         }
         
         .enroll-topl {
@@ -781,8 +782,8 @@ export default function Academy() {
         <span id="enrollment" className="block -mt-10 pt-10" />
         <Section title="Enroll in the Academy" className="animate-fade-up">
           <div className="enroll-outer">
-            <div className="enroll-dot" />
             <div className="enroll-card">
+              <div className="enroll-dot" />
               <div className="enroll-ray" />
               
               <div className="enroll-line enroll-topl" />
@@ -790,9 +791,9 @@ export default function Academy() {
               <div className="enroll-line enroll-bottoml" />
               <div className="enroll-line enroll-rightl" />
 
-              <div className="z-10 flex flex-col items-center text-center space-y-4 w-full">
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-primary/30 bg-primary/10 text-primary text-xs font-bold uppercase tracking-wider mx-auto">
-                  <Sparkles className="w-3.5 h-3.5" /> 100% Free & Open Source
+              <div className="relative z-10 flex flex-col items-center text-center space-y-4 w-full">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-primary/30 bg-[#161717] text-primary text-xs font-bold uppercase tracking-wider mx-auto relative z-20">
+                  100% Free & Open Source
                 </div>
                 <h3 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">Start Your Journey Today</h3>
                 <p className="text-sm text-muted-foreground/80 max-w-lg mx-auto">
@@ -842,11 +843,11 @@ export default function Academy() {
                   </div>
                 </div>
 
-                <div className="pt-4 flex justify-center z-10 w-full">
+                <div className="pt-4 flex justify-center w-full relative z-20">
                   <button 
                     disabled 
                     className="academy-action-btn opacity-60 cursor-not-allowed border-primary/30 text-primary hover:text-primary active:scale-100 hover:scale-100 rotate-0 hover:rotate-0"
-                    style={{ animation: 'none' }}
+                    style={{ animation: 'none', backgroundColor: '#0c0d0d' }}
                   >
                     <span>Coming Soon</span>
                     <ArrowRight className="w-5 h-5" />
