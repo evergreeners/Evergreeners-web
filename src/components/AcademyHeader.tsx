@@ -99,7 +99,7 @@ export function AcademyHeader() {
         <Link to="/academy" onClick={() => triggerHaptic()} className="flex items-center gap-3 group shrink-0">
           <Logo className="w-6 h-6" />
           <div className="flex items-center gap-2">
-            <span className="font-bold text-foreground tracking-tight text-lg group-hover:text-green-400 transition-colors">Forever Green</span>
+            <span className="font-bold text-foreground tracking-tight text-lg group-hover:text-green-400 transition-colors">Evergreen</span>
             <span className="text-[10px] bg-primary/20 text-primary border border-primary/30 rounded-full px-2.5 py-0.5 font-extrabold uppercase tracking-widest hidden sm:inline-block">Academy</span>
           </div>
         </Link>
@@ -253,7 +253,7 @@ export function AcademyHeader() {
               <div className="space-y-6 pt-8">
                 <div className="flex items-center gap-2.5 pb-4 border-b border-white/10">
                   <Logo className="w-5 h-5" />
-                  <span className="font-bold text-foreground tracking-tight text-md">Evergreeners Academy</span>
+                  <span className="font-bold text-foreground tracking-tight text-md">Evergreen Academy</span>
                 </div>
 
                 <div className="flex flex-col gap-3">
