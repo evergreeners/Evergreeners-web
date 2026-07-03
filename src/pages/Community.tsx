@@ -325,6 +325,23 @@ function SubmitModal({ onClose, onRefresh }: { onClose: () => void; onRefresh: (
 
 /* ─────────────── PAGE ─────────────── */
 
+const getCachedData = (key: string, fallback: any) => {
+    try {
+        const cached = localStorage.getItem(key);
+        return cached ? JSON.parse(cached) : fallback;
+    } catch {
+        return fallback;
+    }
+};
+
+const setCachedData = (key: string, data: any) => {
+    try {
+        localStorage.setItem(key, JSON.stringify(data));
+    } catch (e) {
+        console.error(e);
+    }
+};
+
 type Tab = 'stories' | 'events' | 'members' | 'opensource' | 'admin';
 
 export default function Community() {
@@ -341,8 +358,11 @@ export default function Community() {
         queryFn: async () => {
             const res = await fetch(getApiUrl('/api/community/stories'));
             if (!res.ok) throw new Error('Failed to fetch stories');
-            return res.json();
-        }
+            const data = await res.json();
+            setCachedData('cached_stories', data);
+            return data;
+        },
+        initialData: () => getCachedData('cached_stories', undefined)
     });
     const apiStories = storiesData?.stories || [];
     const isAdmin = storiesData?.isAdmin || false;
@@ -353,8 +373,11 @@ export default function Community() {
         queryFn: async () => {
             const res = await fetch(getApiUrl('/api/community/events'));
             if (!res.ok) throw new Error('Failed to fetch events');
-            return res.json();
-        }
+            const data = await res.json();
+            setCachedData('cached_events', data);
+            return data;
+        },
+        initialData: () => getCachedData('cached_events', undefined)
     });
     const apiEvents = eventsData?.events || [];
 
@@ -365,22 +388,22 @@ export default function Community() {
             const res = await fetch(getApiUrl('/api/community/stats'));
             if (!res.ok) throw new Error('Failed to fetch stats');
             const data = await res.json();
-            if (data.stats) {
-                const iconMap: Record<string, React.ReactNode> = {
-                    'Users': <Users size={18} />,
-                    'Flame': <Flame size={18} />,
-                    'Star': <Star size={18} />,
-                    'GitPullRequest': <GitPullRequest size={18} />
-                };
-                return data.stats.map((s: any) => ({
-                    ...s,
-                    icon: iconMap[s.icon] || <Zap size={18} />
-                }));
-            }
-            return [];
-        }
+            setCachedData('cached_stats', data);
+            return data;
+        },
+        initialData: () => getCachedData('cached_stats', undefined)
     });
-    const apiStats = statsData || [];
+    const rawStats = statsData?.stats || [];
+    const iconMap: Record<string, React.ReactNode> = {
+        'Users': <Users size={18} />,
+        'Flame': <Flame size={18} />,
+        'Star': <Star size={18} />,
+        'GitPullRequest': <GitPullRequest size={18} />
+    };
+    const apiStats = rawStats.map((s: any) => ({
+        ...s,
+        icon: iconMap[s.icon] || <Zap size={18} />
+    }));
 
     // 4. Leaderboard Query
     const { data: leaderboardData, isLoading: isLoadingLeaderboard } = useQuery({
@@ -388,8 +411,11 @@ export default function Community() {
         queryFn: async () => {
             const res = await fetch(getApiUrl('/api/leaderboard'));
             if (!res.ok) throw new Error('Failed to fetch leaderboard');
-            return res.json();
-        }
+            const data = await res.json();
+            setCachedData('cached_leaderboard', data);
+            return data;
+        },
+        initialData: () => getCachedData('cached_leaderboard', undefined)
     });
     const leaderboard = leaderboardData?.leaderboard || [];
 
@@ -399,8 +425,11 @@ export default function Community() {
         queryFn: async () => {
             const res = await fetch(getApiUrl('/api/community/hero-avatars'));
             if (!res.ok) throw new Error('Failed to fetch hero avatars');
-            return res.json();
-        }
+            const data = await res.json();
+            setCachedData('cached_hero_avatars', data);
+            return data;
+        },
+        initialData: () => getCachedData('cached_hero_avatars', undefined)
     });
     const apiHeroAvatars = heroAvatarsData?.avatars || [];
 

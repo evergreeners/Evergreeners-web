@@ -141,6 +141,30 @@ export default function Academy() {
   // Enrollment state
   const [isEnrolling, setIsEnrolling] = useState(false);
 
+  // Target Date: August 31, 2026 at 00:00:00
+  const calculateTimeLeft = () => {
+    const difference = +new Date("2026-08-31T00:00:00") - +new Date();
+    let timeLeft = { days: 0, hours: 0, minutes: 0, seconds: 0 };
+    if (difference > 0) {
+      timeLeft = {
+        days: Math.floor(difference / (1000 * 60 * 60 * 24)),
+        hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
+        minutes: Math.floor((difference / 1000 / 60) % 60),
+        seconds: Math.floor((difference / 1000) % 60)
+      };
+    }
+    return timeLeft;
+  };
+
+  const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTimeLeft(calculateTimeLeft());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   // Check enrollment status
   const { data: statusData, isLoading: isLoadingStatus } = useQuery({
     queryKey: ['academyStatus'],
@@ -397,6 +421,115 @@ export default function Academy() {
           padding: 2.2rem 1.8rem 3.8rem 1.8rem;
           box-sizing: border-box;
         }
+
+        .enroll-outer {
+          width: 100%;
+          max-width: 42rem;
+          min-height: 480px;
+          border-radius: 12px;
+          padding: 1px;
+          background: radial-gradient(circle 280px at 0% 0%, rgba(255, 255, 255, 0.4), #0c0d0d);
+          position: relative;
+          overflow: hidden;
+          margin: 0 auto;
+        }
+
+        .enroll-dot {
+          width: 6px;
+          aspect-ratio: 1;
+          position: absolute;
+          background-color: #4ade80;
+          box-shadow: 0 0 10px #4ade80, 0 0 20px #4ade80;
+          border-radius: 100px;
+          z-index: 2;
+          top: 10%;
+          left: 10%;
+          transform: translate(-50%, -50%);
+          animation: moveDot 8s linear infinite;
+        }
+
+        @keyframes moveDot {
+          0%,
+          100% {
+            top: 10%;
+            left: 10%;
+          }
+          25% {
+            top: 10%;
+            left: 90%;
+          }
+          50% {
+            top: 90%;
+            left: 90%;
+          }
+          75% {
+            top: 90%;
+            left: 10%;
+          }
+        }
+
+        .enroll-card {
+          z-index: 1;
+          width: 100%;
+          height: 100%;
+          border-radius: 11px;
+          border: solid 1px #202222;
+          background: radial-gradient(circle 450px at 0% 0%, #1c1d1d, #050505);
+          display: flex;
+          align-items: center;
+          position: relative;
+          flex-direction: column;
+          color: #fff;
+          padding: 3rem 2rem;
+        }
+
+        .enroll-ray {
+          width: 320px;
+          height: 60px;
+          border-radius: 100px;
+          position: absolute;
+          background-color: rgba(74, 222, 128, 0.15);
+          opacity: 0.4;
+          box-shadow: 0 0 60px rgba(74, 222, 128, 0.4);
+          filter: blur(15px);
+          transform-origin: 10%;
+          top: 0%;
+          left: 0;
+          transform: rotate(40deg);
+          pointer-events: none;
+        }
+
+        .enroll-line {
+          width: 100%;
+          height: 1px;
+          position: absolute;
+          background-color: rgba(255, 255, 255, 0.05);
+          pointer-events: none;
+        }
+        
+        .enroll-topl {
+          top: 10%;
+          background: linear-gradient(90deg, rgba(74, 222, 128, 0.3) 30%, rgba(255, 255, 255, 0.03) 70%);
+        }
+        
+        .enroll-bottoml {
+          bottom: 10%;
+          background: linear-gradient(90deg, rgba(255, 255, 255, 0.03) 30%, rgba(74, 222, 128, 0.1) 70%);
+        }
+        
+        .enroll-leftl {
+          left: 10%;
+          width: 1px;
+          height: 100%;
+          background: linear-gradient(180deg, rgba(74, 222, 128, 0.3) 30%, rgba(255, 255, 255, 0.03) 70%);
+        }
+        
+        .enroll-rightl {
+          right: 10%;
+          width: 1px;
+          height: 100%;
+          background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 30%, rgba(74, 222, 128, 0.1) 70%);
+        }
       `}</style>
 
       <div className="cyber-background" />
@@ -647,66 +780,81 @@ export default function Academy() {
         {/* Academy Enrollment Section */}
         <span id="enrollment" className="block -mt-10 pt-10" />
         <Section title="Enroll in the Academy" className="animate-fade-up">
-          <Card className="max-w-2xl mx-auto bg-card/25 border-primary/20 relative shadow-[0_0_30px_rgba(16,185,129,0.05)] overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-primary to-transparent" />
-            <CardHeader className="text-center space-y-2">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-primary/30 bg-primary/10 text-primary text-xs font-bold uppercase tracking-wider mx-auto">
-                <Sparkles className="w-3.5 h-3.5" /> 100% Free & Open Source
+          <div className="enroll-outer">
+            <div className="enroll-dot" />
+            <div className="enroll-card">
+              <div className="enroll-ray" />
+              
+              <div className="enroll-line enroll-topl" />
+              <div className="enroll-line enroll-leftl" />
+              <div className="enroll-line enroll-bottoml" />
+              <div className="enroll-line enroll-rightl" />
+
+              <div className="z-10 flex flex-col items-center text-center space-y-4 w-full">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-primary/30 bg-primary/10 text-primary text-xs font-bold uppercase tracking-wider mx-auto">
+                  <Sparkles className="w-3.5 h-3.5" /> 100% Free & Open Source
+                </div>
+                <h3 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">Start Your Journey Today</h3>
+                <p className="text-sm text-muted-foreground/80 max-w-lg mx-auto">
+                  Join the cohort to build consistency, master Git, and make your first verified open-source contributions.
+                </p>
+
+                {/* Countdown Timer */}
+                <div className="flex gap-3 md:gap-4 justify-center my-6 z-10">
+                  <div className="flex flex-col items-center bg-black/50 border border-white/5 px-3.5 py-1.5 rounded-xl min-w-[65px]">
+                    <span className="text-2xl font-extrabold text-primary font-mono">{String(timeLeft.days).padStart(2, '0')}</span>
+                    <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">Days</span>
+                  </div>
+                  <div className="flex flex-col items-center bg-black/50 border border-white/5 px-3.5 py-1.5 rounded-xl min-w-[65px]">
+                    <span className="text-2xl font-extrabold text-primary font-mono">{String(timeLeft.hours).padStart(2, '0')}</span>
+                    <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">Hours</span>
+                  </div>
+                  <div className="flex flex-col items-center bg-black/50 border border-white/5 px-3.5 py-1.5 rounded-xl min-w-[65px]">
+                    <span className="text-2xl font-extrabold text-primary font-mono">{String(timeLeft.minutes).padStart(2, '0')}</span>
+                    <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">Mins</span>
+                  </div>
+                  <div className="flex flex-col items-center bg-black/50 border border-white/5 px-3.5 py-1.5 rounded-xl min-w-[65px]">
+                    <span className="text-2xl font-extrabold text-primary font-mono">{String(timeLeft.seconds).padStart(2, '0')}</span>
+                    <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">Secs</span>
+                  </div>
+                </div>
+
+                <div className="space-y-3 max-w-md mx-auto text-sm text-muted-foreground/90 pb-6 text-left">
+                  <div className="flex items-center gap-3">
+                    <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />
+                    <span>Access all 4 weeks of structured learning materials</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />
+                    <span>Complete interactive quests and hands-on Git practice</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />
+                    <span>Submit your capstone external PR for validation</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />
+                    <span>Earn a verifiable certificate of completion</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />
+                    <span>Unlock the exclusive Academy Graduate profile badge</span>
+                  </div>
+                </div>
+
+                <div className="pt-4 flex justify-center z-10 w-full">
+                  <button 
+                    disabled 
+                    className="academy-action-btn opacity-60 cursor-not-allowed border-primary/30 text-primary hover:text-primary active:scale-100 hover:scale-100 rotate-0 hover:rotate-0"
+                    style={{ animation: 'none' }}
+                  >
+                    <span>Coming Soon</span>
+                    <ArrowRight className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
-              <CardTitle className="text-2xl font-bold">Start Your Journey Today</CardTitle>
-              <CardDescription>
-                Join the cohort to build consistency, master Git, and make your first verified open-source contributions.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4 max-w-md mx-auto text-sm text-muted-foreground pb-6">
-              <div className="flex items-center gap-3">
-                <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />
-                <span>Access all 4 weeks of structured learning materials</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />
-                <span>Complete interactive quests and hands-on Git practice</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />
-                <span>Submit your capstone external PR for validation</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />
-                <span>Earn a verifiable certificate of completion</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />
-                <span>Unlock the exclusive Academy Graduate profile badge</span>
-              </div>
-            </CardContent>
-            <CardFooter className="pt-6 border-t border-border flex justify-center bg-black/10">
-              {enrolled ? (
-                <Button size="lg" className="w-full max-w-sm font-bold gap-2" onClick={() => navigate("/academy/dashboard")}>
-                  Go to Student Portal <ArrowRight className="w-4 h-4" />
-                </Button>
-              ) : (
-                <Button 
-                  size="lg" 
-                  className="w-full max-w-sm font-bold gap-2 text-black" 
-                  onClick={handleEnroll} 
-                  disabled={isEnrolling}
-                >
-                  {isEnrolling ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Enrolling...</span>
-                    </>
-                  ) : (
-                    <>
-                      <GraduationCap className="w-5 h-5" />
-                      <span>Enroll in Academy (Free)</span>
-                    </>
-                  )}
-                </Button>
-              )}
-            </CardFooter>
-          </Card>
+            </div>
+          </div>
         </Section>
 
       </main>
