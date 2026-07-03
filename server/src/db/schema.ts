@@ -35,6 +35,10 @@ export const users = mySchema.table('users', {
     eyeInsight: text('eye_insight'),
     eyeInsightUpdatedAt: timestamp('eye_insight_updated_at'),
     eyeInsightCount: integer('eye_insight_count').default(0),
+    academyStatus: text('academy_status').default('none'), // 'none', 'audit_completed', 'enrolled', 'premium', 'graduated'
+    academyJoinedAt: timestamp('academy_joined_at'),
+    academyPrUrl: text('academy_pr_url'),
+    academyCertId: text('academy_cert_id'),
 });
 
 export const sessions = mySchema.table('sessions', {

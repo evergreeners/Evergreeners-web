@@ -19,6 +19,9 @@ import RepoDetail from "./pages/RepoDetail";
 import NotFound from "./pages/NotFound";
 import Community from "./pages/Community";
 import AdminDashboard from "./pages/AdminDashboard";
+import Academy from "./pages/Academy";
+import AcademyDashboard from "./pages/AcademyDashboard";
+import AcademyVerify from "./pages/AcademyVerify";
 import ScrollToTop from "./components/ScrollToTop";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { PWAInstallPrompt } from "./components/PWAInstallPrompt";
@@ -90,6 +93,8 @@ const AppContents = () => {
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/community" element={<Community />} />
+        <Route path="/academy" element={<Academy />} />
+        <Route path="/academy/verify/:certId" element={<AcademyVerify />} />
 
         <Route element={<ProtectedRoute />}>
           <Route path="/dashboard" element={<Index />} />
@@ -101,6 +106,7 @@ const AppContents = () => {
           <Route path="/leaderboard" element={<Leaderboard />} />
           <Route path="/generator" element={<Generator />} />
           <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/academy/dashboard" element={<AcademyDashboard />} />
           <Route path="/repo/:owner/:repo" element={<RepoDetail />} />
         </Route>
 

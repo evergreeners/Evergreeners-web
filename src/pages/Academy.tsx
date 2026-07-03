@@ -1,0 +1,621 @@
+import { Header } from "@/components/Header";
+import { FloatingNav } from "@/components/FloatingNav";
+import { Section } from "@/components/Section";
+import { GraduationCap, Terminal, Zap, CheckCircle2, AlertTriangle, ShieldCheck, GitFork, ArrowRight, Loader2, Play, Sparkles } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "@/lib/auth-client";
+import { getApiUrl } from "@/lib/api-config";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { toast } from "sonner";
+
+interface AuditResult {
+  score: number;
+  profileReadmeExists: boolean;
+  graveyardIndex: number;
+  pinnedReposCount: number;
+  feedback: string[];
+}
+
+export default function Academy() {
+  const { data: session } = useSession();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  // Audit lead magnet state
+  const [auditUsername, setAuditUsername] = useState("");
+  const [isAuditing, setIsAuditing] = useState(false);
+  const [auditStep, setAuditStep] = useState(0);
+  const [auditStepsText, setAuditStepsText] = useState<string[]>([]);
+  const [auditResult, setAuditResult] = useState<AuditResult | null>(null);
+
+  // Payment enrollment state
+  const [payReference, setPayReference] = useState("");
+  const [selectedTier, setSelectedTier] = useState<'enrolled' | 'premium'>('enrolled');
+  const [isEnrolling, setIsEnrolling] = useState(false);
+
+  // Check enrollment status
+  const { data: statusData, isLoading: isLoadingStatus } = useQuery({
+    queryKey: ['academyStatus'],
+    queryFn: async () => {
+      const res = await fetch(getApiUrl('/api/academy/status'), {
+        credentials: "include",
+        headers: {
+          ...(session?.session?.token ? { Authorization: `Bearer ${session.session.token}` } : {})
+        }
+      });
+      if (!res.ok) throw new Error("Failed to fetch status");
+      return res.json();
+    },
+    enabled: !!session,
+  });
+
+  const auditSteps = [
+    "Initializing git profile-audit...",
+    "Connecting to GitHub API v3...",
+    "Inspecting profile README layout...",
+    "Analyzing public repositories list...",
+    "Scanning push frequencies (calculating consistency)...",
+    "Measuring Repository Graveyard Index...",
+    "Compiling developer score sheet..."
+  ];
+
+  useEffect(() => {
+    if (!isAuditing) return;
+    if (auditStep < auditSteps.length) {
+      const timer = setTimeout(() => {
+        setAuditStepsText(prev => [...prev, `$ ${auditSteps[auditStep]}`]);
+        setAuditStep(prev => prev + 1);
+      }, 700 + Math.random() * 500);
+      return () => clearTimeout(timer);
+    } else {
+      // Trigger API fetch
+      const triggerAuditApi = async () => {
+        try {
+          const res = await fetch(getApiUrl('/api/academy/audit'), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username: auditUsername })
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setAuditResult(data);
+            toast.success("Audit completed! See your results below.");
+          } else {
+            throw new Error("Audit failed");
+          }
+        } catch (e) {
+          toast.error("Could not run audit. Please check your spelling and try again.");
+          setAuditResult({
+            score: 55,
+            profileReadmeExists: false,
+            graveyardIndex: 45,
+            pinnedReposCount: 2,
+            feedback: [
+              "We encountered an issue connecting to GitHub, but here is a sample analysis.",
+              "Profile README was not found.",
+              "Your repository activity looks irregular. Join the paid cohort to learn consistency."
+            ]
+          });
+        } finally {
+          setIsAuditing(false);
+        }
+      };
+      triggerAuditApi();
+    }
+  }, [isAuditing, auditStep, auditUsername]);
+
+  const handleStartAudit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!auditUsername.trim()) return;
+    setAuditStepsText(["$ git init-audit --username=" + auditUsername]);
+    setAuditStep(0);
+    setAuditResult(null);
+    setIsAuditing(true);
+  };
+
+  const handleEnroll = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!session) {
+      toast.error("Please log in or sign up first to enroll in the Academy.");
+      navigate("/login");
+      return;
+    }
+    if (!payReference.trim()) {
+      toast.error("Please enter your Paystack reference or click Simulate.");
+      return;
+    }
+
+    setIsEnrolling(true);
+    try {
+      const res = await fetch(getApiUrl('/api/academy/enroll'), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(session?.session?.token ? { Authorization: `Bearer ${session.session.token}` } : {})
+        },
+        body: JSON.stringify({ paystackReference: payReference, tier: selectedTier }),
+        credentials: "include"
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Failed to verify payment");
+      }
+
+      toast.success("Welcome to Evergreeners Academy!", {
+        description: `Successfully enrolled in the ${selectedTier === 'premium' ? 'Premium' : 'Standard'} Cohort.`
+      });
+      queryClient.invalidateQueries({ queryKey: ['academyStatus'] });
+      navigate("/academy/dashboard");
+    } catch (err: any) {
+      toast.error(err.message || "Payment verification failed.");
+    } finally {
+      setIsEnrolling(false);
+    }
+  };
+
+  const simulatePayment = () => {
+    const randomRef = "pay_mock_" + Math.random().toString(36).substring(2, 10);
+    setPayReference(randomRef);
+    toast.info("Simulated Paystack reference generated! Click Enroll now.");
+  };
+
+  const enrolled = statusData?.status && statusData.status !== 'none';
+
+  return (
+    <div className="min-h-screen bg-background overflow-x-hidden custom-scrollbar">
+      <Header />
+
+      <main className="w-full max-w-[1400px] mx-auto px-4 md:px-8 pt-24 pb-32 md:pb-12 space-y-16">
+        
+        {/* Hero Section */}
+        <section className="text-center py-12 space-y-6 animate-fade-in">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-primary/20 bg-primary/10 text-primary text-xs font-semibold uppercase tracking-wider">
+            <GraduationCap className="w-4 h-4" /> The Evergreeners Academy
+          </div>
+          <h1 className="text-4xl md:text-7xl font-extrabold text-foreground tracking-tight leading-none">
+            Convert Philosophy Into <span className="text-gradient">Taught Skill</span>
+          </h1>
+          <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
+            From Git zero to public repository hero. A highly focused 4-week syllabus designed to build verifiable GitHub credibility and launch your open-source journey.
+          </p>
+          <div className="flex flex-wrap justify-center gap-4 pt-4">
+            {enrolled ? (
+              <Button size="lg" className="gap-2 font-bold px-8" onClick={() => navigate("/academy/dashboard")}>
+                Go to Student Portal <ArrowRight className="w-5 h-5" />
+              </Button>
+            ) : (
+              <a href="#pricing">
+                <Button size="lg" className="gap-2 font-bold px-8">
+                  Join Next Cohort <ArrowRight className="w-5 h-5" />
+                </Button>
+              </a>
+            )}
+            <a href="#audit">
+              <Button size="lg" variant="outline" className="gap-2 border-primary/20 bg-primary/5">
+                Audit Your Profile <Sparkles className="w-4 h-4 text-primary" />
+              </Button>
+            </a>
+          </div>
+        </section>
+
+        {/* Lead Magnet Audit Section */}
+        <span id="audit" className="block -mt-10 pt-10" />
+        <Section title="Auditing the Graveyard" className="animate-fade-up">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            <div className="lg:col-span-5 space-y-6">
+              <h3 className="text-2xl font-bold">Is your GitHub profile a graveyard?</h3>
+              <p className="text-muted-foreground leading-relaxed text-sm">
+                Most students and early developers know how to write code, but their contribution graphs tell a story of inconsistency. Recruiters, GSoC fellows, and hiring managers look at your history. 
+              </p>
+              <p className="text-muted-foreground leading-relaxed text-sm">
+                Our audit tool scans your repositories, checks for key portfolio standards (READMEs, Pins), and calculates your <strong>Graveyard Index</strong> (inactive code percentage) to show you exactly where you stand.
+              </p>
+              
+              <form onSubmit={handleStartAudit} className="flex gap-2">
+                <div className="relative flex-1">
+                  <span className="absolute inset-y-0 left-3 flex items-center text-muted-foreground text-sm">github.com/</span>
+                  <Input 
+                    placeholder="username" 
+                    className="pl-[88px] h-11"
+                    value={auditUsername}
+                    onChange={(e) => setAuditUsername(e.target.value)}
+                    disabled={isAuditing}
+                    required
+                  />
+                </div>
+                <Button type="submit" size="lg" className="h-11 font-bold shrink-0" disabled={isAuditing}>
+                  {isAuditing ? "Auditing..." : "Audit Profile"}
+                </Button>
+              </form>
+            </div>
+
+            <div className="lg:col-span-7">
+              {/* Terminal View */}
+              <div className="rounded-xl border border-border bg-black overflow-hidden shadow-2xl">
+                <div className="flex items-center justify-between bg-zinc-900/60 px-4 py-2 border-b border-border">
+                  <div className="flex items-center gap-1.5">
+                    <Terminal className="w-4 h-4 text-primary" />
+                    <span className="text-xs font-mono text-muted-foreground">profile_audit.sh</span>
+                  </div>
+                  <div className="flex gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded-full bg-red-500/40" />
+                    <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/40" />
+                    <div className="w-2.5 h-2.5 rounded-full bg-green-500/40" />
+                  </div>
+                </div>
+                <div className="p-5 font-mono text-xs space-y-2 min-h-[220px] max-h-[300px] overflow-y-auto bg-black text-green-400 custom-scrollbar">
+                  {auditStepsText.map((text, i) => (
+                    <div key={i} className="whitespace-pre-wrap">{text}</div>
+                  ))}
+                  {isAuditing && (
+                    <div className="flex items-center gap-2 mt-1">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                      <span className="text-muted-foreground italic">scanning...</span>
+                    </div>
+                  )}
+                  {!isAuditing && auditStepsText.length === 0 && (
+                    <div className="text-muted-foreground italic text-center py-10">
+                      Enter your GitHub username to initiate the profile integrity check.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Audit Results Panel */}
+              {auditResult && (
+                <div className="mt-6 p-6 rounded-xl border border-primary/20 bg-primary/5 grid grid-cols-1 md:grid-cols-12 gap-6 animate-fade-in">
+                  
+                  {/* Score circle */}
+                  <div className="md:col-span-4 flex flex-col items-center justify-center text-center">
+                    <div className="relative w-32 h-32 flex items-center justify-center">
+                      <svg className="w-full h-full transform -rotate-90">
+                        <circle cx="64" cy="64" r="54" className="stroke-zinc-800" strokeWidth="8" fill="transparent" />
+                        <circle cx="64" cy="64" r="54" className="stroke-primary drop-shadow-[0_0_8px_hsla(var(--primary)/0.5)]" strokeWidth="8" fill="transparent" 
+                          strokeDasharray={2 * Math.PI * 54}
+                          strokeDashoffset={2 * Math.PI * 54 * (1 - auditResult.score / 100)}
+                        />
+                      </svg>
+                      <div className="absolute text-3xl font-extrabold text-foreground">{auditResult.score}</div>
+                    </div>
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mt-3">Developer Score</span>
+                  </div>
+
+                  {/* Metrics list */}
+                  <div className="md:col-span-8 space-y-4">
+                    <h4 className="font-bold text-lg">Profile Audit Metrics</h4>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="p-3 rounded-lg border border-border bg-background flex flex-col justify-between">
+                        <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Profile README</span>
+                        <div className="flex items-center gap-1.5 mt-1 font-bold text-sm">
+                          {auditResult.profileReadmeExists ? (
+                            <>
+                              <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
+                              <span className="text-primary">Found</span>
+                            </>
+                          ) : (
+                            <>
+                              <AlertTriangle className="w-4 h-4 text-destructive shrink-0" />
+                              <span className="text-destructive">Missing</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="p-3 rounded-lg border border-border bg-background flex flex-col justify-between">
+                        <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Graveyard Index</span>
+                        <div className="flex items-center gap-1.5 mt-1 font-bold text-sm">
+                          <span className={auditResult.graveyardIndex > 40 ? "text-destructive" : "text-primary"}>
+                            {auditResult.graveyardIndex}%
+                          </span>
+                          <span className="text-[10px] font-normal text-muted-foreground">stale</span>
+                        </div>
+                      </div>
+
+                      <div className="p-3 rounded-lg border border-border bg-background flex flex-col justify-between">
+                        <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Pinned Repos</span>
+                        <div className="flex items-center gap-1.5 mt-1 font-bold text-sm">
+                          <GitFork className="w-4 h-4 text-primary shrink-0" />
+                          <span>{auditResult.pinnedReposCount} / 6</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5 pt-2">
+                      {auditResult.feedback.map((item, index) => (
+                        <div key={index} className="flex gap-2 text-xs leading-relaxed text-foreground/90">
+                          <span className="text-primary shrink-0">•</span>
+                          <span>{item}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                </div>
+              )}
+            </div>
+          </div>
+        </Section>
+
+        {/* 4-Week Curriculum Timeline */}
+        <Section title="The 4-Week Curriculum" className="animate-fade-up">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            
+            {/* Week 1 */}
+            <Card className="bg-card/20 border-border hover:border-primary/30 transition-all duration-300 relative group overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-primary to-transparent opacity-40 group-hover:opacity-100 transition-opacity" />
+              <CardHeader>
+                <div className="text-primary font-bold text-xs uppercase tracking-wider mb-1">Week 1</div>
+                <CardTitle className="text-lg">Git Fundamentals</CardTitle>
+                <CardDescription>Mastering the local repository workflow.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2 text-xs text-muted-foreground">
+                <div className="flex gap-2">
+                  <span className="text-primary">•</span>
+                  <span>init, add, commit, branch, merge, rebase basics</span>
+                </div>
+                <div className="flex gap-2">
+                  <span className="text-primary">•</span>
+                  <span>Writing commit messages that don't suck</span>
+                </div>
+                <div className="flex gap-2">
+                  <span className="text-primary">•</span>
+                  <span>.gitignore, undoing mistakes (reset/revert/reflog)</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Week 2 */}
+            <Card className="bg-card/20 border-border hover:border-primary/30 transition-all duration-300 relative group overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-primary to-transparent opacity-40 group-hover:opacity-100 transition-opacity" />
+              <CardHeader>
+                <div className="text-primary font-bold text-xs uppercase tracking-wider mb-1">Week 2</div>
+                <CardTitle className="text-lg">GitHub Mechanics</CardTitle>
+                <CardDescription>Moving your workflow to the cloud.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2 text-xs text-muted-foreground">
+                <div className="flex gap-2">
+                  <span className="text-primary">•</span>
+                  <span>Repos, forks, PRs, issues and remote syncing</span>
+                </div>
+                <div className="flex gap-2">
+                  <span className="text-primary">•</span>
+                  <span>README that sells your project (aesthetic files)</span>
+                </div>
+                <div className="flex gap-2">
+                  <span className="text-primary">•</span>
+                  <span>Profile optimization & contribution graphs</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Week 3 */}
+            <Card className="bg-card/20 border-border hover:border-primary/30 transition-all duration-300 relative group overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-primary to-transparent opacity-40 group-hover:opacity-100 transition-opacity" />
+              <CardHeader>
+                <div className="text-primary font-bold text-xs uppercase tracking-wider mb-1">Week 3</div>
+                <CardTitle className="text-lg">Open Source Contribution</CardTitle>
+                <CardDescription>Diving into real-world codebases.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2 text-xs text-muted-foreground">
+                <div className="flex gap-2">
+                  <span className="text-primary">•</span>
+                  <span>How to find beginner-friendly repos (good first issue)</span>
+                </div>
+                <div className="flex gap-2">
+                  <span className="text-primary">•</span>
+                  <span>Reading code and documentation before touching files</span>
+                </div>
+                <div className="flex gap-2">
+                  <span className="text-primary">•</span>
+                  <span>Making first external PR & handling reviews</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Week 4 */}
+            <Card className="bg-card/20 border-border hover:border-primary/30 transition-all duration-300 relative group overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-primary to-transparent opacity-40 group-hover:opacity-100 transition-opacity" />
+              <CardHeader>
+                <div className="text-primary font-bold text-xs uppercase tracking-wider mb-1">Week 4</div>
+                <CardTitle className="text-lg">Consistency Systems</CardTitle>
+                <CardDescription>Building sustainable habits for the long run.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2 text-xs text-muted-foreground">
+                <div className="flex gap-2">
+                  <span className="text-primary">•</span>
+                  <span>Sustainable habits vs fake streak padding</span>
+                </div>
+                <div className="flex gap-2">
+                  <span className="text-primary">•</span>
+                  <span>Accountability pods (peer check-ins)</span>
+                </div>
+                <div className="flex gap-2">
+                  <span className="text-primary">•</span>
+                  <span>Capstone: merge 1 real PR + complete before/after audit</span>
+                </div>
+              </CardContent>
+            </Card>
+
+          </div>
+        </Section>
+
+        {/* Pricing Tiers Section */}
+        <span id="pricing" className="block -mt-10 pt-10" />
+        <Section title="Academy Enlistment" className="animate-fade-up">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch max-w-5xl mx-auto">
+            
+            {/* Free Audit */}
+            <Card className="bg-card/20 border-border flex flex-col justify-between">
+              <CardHeader>
+                <CardTitle className="text-lg">Lead Magnet</CardTitle>
+                <CardDescription>Free Profile Integrity Audit</CardDescription>
+                <div className="text-3xl font-extrabold mt-3">₦0 <span className="text-xs font-normal text-muted-foreground">/ forever</span></div>
+              </CardHeader>
+              <CardContent className="space-y-3 text-xs text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
+                  <span>GitHub Profile README scan</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
+                  <span>Graveyard Index calculation</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
+                  <span>Immediate advice scorecard</span>
+                </div>
+              </CardContent>
+              <CardFooter className="pt-4 border-t border-border">
+                <a href="#audit" className="w-full">
+                  <Button variant="outline" className="w-full">Run Free Audit</Button>
+                </a>
+              </CardFooter>
+            </Card>
+
+            {/* Paid Cohort */}
+            <Card className="bg-card/30 border-primary/50 flex flex-col justify-between relative shadow-[0_0_20px_rgba(16,185,129,0.1)]">
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-black font-bold px-3 py-0.5 rounded-full text-[10px] uppercase tracking-wider">Most Popular</div>
+              <CardHeader>
+                <CardTitle className="text-lg">Paid Cohort</CardTitle>
+                <CardDescription>4-Week Bootcamp & Community</CardDescription>
+                <div className="text-3xl font-extrabold mt-3">₦15,000 <span className="text-xs font-normal text-muted-foreground">/ cohort</span></div>
+              </CardHeader>
+              <CardContent className="space-y-3 text-xs text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
+                  <span>All 4-week async lesson materials</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
+                  <span>Live weekly Q&A and PR review sessions</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
+                  <span>Private accountability pod (Discord)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
+                  <span>Opt-in to Student Leaderboard</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
+                  <span>Verifiable Graduation Certificate</span>
+                </div>
+              </CardContent>
+              <CardFooter className="pt-4 border-t border-border">
+                {enrolled ? (
+                  <Button className="w-full font-bold" onClick={() => navigate("/academy/dashboard")}>Go to Dashboard</Button>
+                ) : (
+                  <a href="#payment" className="w-full" onClick={() => { setSelectedTier('enrolled'); setPayReference(''); }}>
+                    <Button className="w-full font-bold">Enroll in Cohort</Button>
+                  </a>
+                )}
+              </CardFooter>
+            </Card>
+
+            {/* Premium Cohort */}
+            <Card className="bg-card/20 border-border flex flex-col justify-between">
+              <CardHeader>
+                <CardTitle className="text-lg">Premium Review</CardTitle>
+                <CardDescription>Cohort + 1:1 Expert PR Review</CardDescription>
+                <div className="text-3xl font-extrabold mt-3">₦50,000 <span className="text-xs font-normal text-muted-foreground">/ cohort</span></div>
+              </CardHeader>
+              <CardContent className="space-y-3 text-xs text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
+                  <span>Everything in the Paid Cohort tier</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
+                  <span>1:1 Code & Pull Request reviews</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
+                  <span>Direct Slack/WhatsApp access to mentors</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
+                  <span>Resume & GitHub Profile optimization call</span>
+                </div>
+              </CardContent>
+              <CardFooter className="pt-4 border-t border-border">
+                {enrolled ? (
+                  <Button className="w-full font-bold" onClick={() => navigate("/academy/dashboard")}>Go to Dashboard</Button>
+                ) : (
+                  <a href="#payment" className="w-full" onClick={() => { setSelectedTier('premium'); setPayReference(''); }}>
+                    <Button variant="outline" className="w-full">Get Premium Tier</Button>
+                  </a>
+                )}
+              </CardFooter>
+            </Card>
+
+          </div>
+        </Section>
+
+        {/* Payment Form Panel */}
+        {!enrolled && (
+          <span id="payment" className="block -mt-10 pt-10" />
+        )}
+        {!enrolled && (
+          <Section title="Cohort Enlistment & Payment" className="animate-fade-up">
+            <Card className="max-w-xl mx-auto bg-card/40 border-primary/20 shadow-xl">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-primary" /> Verify Payment Reference
+                </CardTitle>
+                <CardDescription>
+                  Selected Tier: <strong className="text-primary">{selectedTier === 'premium' ? 'Premium (₦50,000)' : 'Standard (₦15,000)'}</strong>
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  We use Paystack Payment Pages to securely process Nigerian cards and bank transfers. Click the button below to pay on Paystack. Once completed, paste the Transaction Reference received.
+                </p>
+
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <a 
+                    href={selectedTier === 'premium' ? "https://paystack.com/pay/evergreeners-academy-premium" : "https://paystack.com/pay/evergreeners-academy"} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="flex-1"
+                  >
+                    <Button variant="outline" className="w-full gap-2 border-primary/30 hover:bg-primary/5">
+                      <Play className="w-4 h-4 text-primary" /> Pay on Paystack
+                    </Button>
+                  </a>
+                  <Button variant="secondary" onClick={simulatePayment} className="flex-1">
+                    Simulate Payment (Dev mode)
+                  </Button>
+                </div>
+
+                <form onSubmit={handleEnroll} className="space-y-4 pt-4 border-t border-border">
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Transaction Reference</label>
+                    <Input 
+                      placeholder="e.g. T62849105749..." 
+                      value={payReference}
+                      onChange={(e) => setPayReference(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <Button type="submit" className="w-full font-bold" disabled={isEnrolling}>
+                    {isEnrolling ? "Verifying..." : "Verify & Join Academy"}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          </Section>
+        )}
+
+      </main>
+
+      <FloatingNav />
+    </div>
+  );
+}

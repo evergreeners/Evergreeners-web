@@ -33,6 +33,14 @@ export async function checkAndAwardBadges(
 
     const alreadyEarned = new Set(existingRows.map((r) => r.badgeId));
 
+    // Fetch academy status to verify graduation badge
+    const userRow = await db
+        .select({ academyStatus: schema.users.academyStatus })
+        .from(schema.users)
+        .where(eq(schema.users.id, userId))
+        .limit(1);
+    stats.academyGraduated = userRow[0]?.academyStatus === 'graduated';
+
     // 2. Find badges the user now qualifies for but hasn't been awarded yet
     const newlyQualified = BADGES.filter(
         (badge) => !alreadyEarned.has(badge.id) && badge.check(stats),
