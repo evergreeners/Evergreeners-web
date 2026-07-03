@@ -106,7 +106,13 @@ export default function Landing() {
     // This prevents blank screens on slow networks
 
     return (
-        <div className="min-h-screen bg-black text-foreground font-sans selection:bg-primary/30 overflow-x-hidden">
+        <div className="min-h-screen bg-black text-foreground font-sans selection:bg-primary/30 overflow-x-hidden relative">
+            {/* Viewport Corner Tech Lines */}
+            <div className="fixed top-6 left-6 w-6 h-6 border-t-2 border-l-2 border-primary z-50 pointer-events-none" />
+            <div className="fixed top-6 right-6 w-6 h-6 border-t-2 border-r-2 border-primary z-50 pointer-events-none" />
+            <div className="fixed bottom-6 left-6 w-6 h-6 border-b-2 border-l-2 border-primary z-50 pointer-events-none" />
+            <div className="fixed bottom-6 right-6 w-6 h-6 border-b-2 border-r-2 border-primary z-50 pointer-events-none" />
+
             <PublicHeader />
 
             {/* Background Noise & Grid */}
