@@ -1,7 +1,7 @@
 import { AcademyHeader } from "@/components/AcademyHeader";
 import { FloatingNav } from "@/components/FloatingNav";
 import { Section } from "@/components/Section";
-import { GraduationCap, Terminal, Zap, CheckCircle2, AlertTriangle, ShieldCheck, GitFork, ArrowRight, Loader2, Play, Sparkles } from "lucide-react";
+import { GraduationCap, Terminal, Zap, CheckCircle2, AlertTriangle, ShieldCheck, GitFork, ArrowRight, Loader2, Play, Sparkles, Github, Code, BookOpen, Users } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -19,6 +19,112 @@ interface AuditResult {
   pinnedReposCount: number;
   feedback: string[];
 }
+
+interface CurriculumCardProps {
+  week: string;
+  title: string;
+  subtitle: string;
+  focusTitle: string;
+  focusDesc: string;
+  topicsTitle: string;
+  topicsList: string[];
+  icon: React.ReactNode;
+}
+
+const CurriculumCard: React.FC<CurriculumCardProps> = ({
+  week,
+  title,
+  subtitle,
+  focusTitle,
+  focusDesc,
+  topicsTitle,
+  topicsList,
+  icon
+}) => {
+  const [activeSlide, setActiveSlide] = useState(0);
+  const [isHovered, setIsHovered] = useState(false);
+
+  useEffect(() => {
+    if (!isHovered) {
+      setActiveSlide(0);
+      return;
+    }
+
+    // Slide to the next slide (Focus) immediately on hover
+    setActiveSlide(1);
+
+    // Cycle through slides every 2.5 seconds
+    const interval = setInterval(() => {
+      setActiveSlide((prev) => (prev + 1) % 3);
+    }, 2500);
+
+    return () => clearInterval(interval);
+  }, [isHovered]);
+
+  const handleDotClick = (e: React.MouseEvent, index: number) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setActiveSlide(index);
+  };
+
+  return (
+    <div 
+      className="curriculum-card group relative"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      <div 
+        className="carousel-content"
+        style={{ 
+          transform: `translateX(-${activeSlide * 33.333}%)`,
+          transition: 'transform 0.6s cubic-bezier(0.25, 1, 0.5, 1)'
+        }}
+      >
+        {/* Slide 1: Week & Title */}
+        <div className="carousel-slide space-y-3">
+          {icon}
+          <div className="text-primary font-bold text-xs uppercase tracking-wider">{week}</div>
+          <h3 className="text-2xl font-extrabold text-foreground text-center">{title}</h3>
+          <p className="text-xs text-muted-foreground text-center px-4">{subtitle}</p>
+        </div>
+
+        {/* Slide 2: Focus */}
+        <div className="carousel-slide space-y-2">
+          <div className="text-[10px] text-zinc-400 uppercase tracking-widest font-extrabold mb-1">{focusTitle}</div>
+          <p className="text-sm font-medium text-foreground/90 text-center leading-relaxed">
+            {focusDesc}
+          </p>
+        </div>
+
+        {/* Slide 3: Topics */}
+        <div className="carousel-slide space-y-2.5">
+          <div className="text-[10px] text-primary uppercase tracking-widest font-extrabold">{topicsTitle}</div>
+          <div className="text-xs text-muted-foreground space-y-1.5 text-center font-medium leading-normal">
+            {topicsList.map((item, idx) => (
+              <div key={idx}>{item}</div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Navigation Dots */}
+      <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2 z-20 pointer-events-auto">
+        {[0, 1, 2].map((index) => (
+          <button
+            key={index}
+            onClick={(e) => handleDotClick(e, index)}
+            className={`w-2 h-2 rounded-full transition-all duration-300 ${
+              activeSlide === index 
+                ? "bg-primary w-4 shadow-[0_0_8px_rgba(74,222,128,0.5)]" 
+                : "bg-white/20 hover:bg-white/40"
+            }`}
+            aria-label={`Go to slide ${index + 1}`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+};
 
 export default function Academy() {
   const { data: session } = useSession();
@@ -238,6 +344,53 @@ export default function Academy() {
           75%  { rotate: -1deg;   filter: url(#handDrawnNoise2); translate: 0 -2px; }
           100% { rotate: 0deg;    filter: url(#handDrawnNoise);  translate: 0 0;   }
         }
+
+        .curriculum-card {
+          width: 100%;
+          height: 300px;
+          background: rgba(10, 18, 10, 0.7);
+          backdrop-filter: blur(12px);
+          overflow: hidden;
+          border-radius: 20px;
+          border: 1.5px solid rgba(74, 222, 128, 0.15);
+          box-shadow:
+            inset 0px 56px 40px rgba(0, 0, 0, 0.8),
+            inset 0px -56px 40px rgba(74, 222, 128, 0.08),
+            1px 1px 2px rgba(255, 255, 255, 0.08),
+            -1px -1px 2px rgba(0, 0, 0, 0.6);
+          transition: all 0.35s ease-in-out;
+          position: relative;
+        }
+
+        .curriculum-card:hover {
+          border-color: rgba(74, 222, 128, 0.45);
+          box-shadow:
+            inset 0px 56px 40px rgba(0, 0, 0, 0.7),
+            inset 0px -56px 40px rgba(74, 222, 128, 0.15),
+            1px 1px 3px rgba(255, 255, 255, 0.15),
+            -1px -1px 2px rgba(0, 0, 0, 0.5),
+            0 0 20px rgba(74, 222, 128, 0.12);
+          transform: translateY(-4px);
+        }
+
+        .carousel-content {
+          position: relative;
+          display: flex;
+          width: 300%;
+          height: 100%;
+        }
+
+        .carousel-slide {
+          width: 33.333%;
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          align-items: center;
+          flex-shrink: 0;
+          padding: 2.2rem 1.8rem 3.8rem 1.8rem;
+          box-sizing: border-box;
+        }
       `}</style>
 
       <div className="cyber-background" />
@@ -416,103 +569,71 @@ export default function Academy() {
         {/* 4-Week Curriculum Timeline */}
         <span id="curriculum" className="block -mt-10 pt-10" />
         <Section title="The 4-Week Curriculum" className="animate-fade-up">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             
             {/* Week 1 */}
-            <Card className="bg-card/20 border-border hover:border-primary/30 transition-all duration-300 relative group overflow-hidden">
-              <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-primary to-transparent opacity-40 group-hover:opacity-100 transition-opacity" />
-              <CardHeader>
-                <div className="text-primary font-bold text-xs uppercase tracking-wider mb-1">Week 1</div>
-                <CardTitle className="text-lg">Git Fundamentals</CardTitle>
-                <CardDescription>Mastering the local repository workflow.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2 text-xs text-muted-foreground">
-                <div className="flex gap-2">
-                  <span className="text-primary">•</span>
-                  <span>init, add, commit, branch, merge, rebase basics</span>
-                </div>
-                <div className="flex gap-2">
-                  <span className="text-primary">•</span>
-                  <span>Writing commit messages that don't suck</span>
-                </div>
-                <div className="flex gap-2">
-                  <span className="text-primary">•</span>
-                  <span>.gitignore, undoing mistakes (reset/revert/reflog)</span>
-                </div>
-              </CardContent>
-            </Card>
+            <CurriculumCard
+              week="Week 1"
+              title="Git Fundamentals"
+              subtitle="Mastering the local repository workflow."
+              focusTitle="Syllabus Focus"
+              focusDesc="Learn how Git tracks changes under the hood. You'll master stage management, branch creation, merging conflicts cleanly, and working safely with rebase."
+              topicsTitle="Core Competencies"
+              topicsList={[
+                "• init, add, commit, branch, merge, rebase",
+                "• Writing semantic commit messages that tell a story",
+                "• Restoring files, resolving conflicts, and using reflog"
+              ]}
+              icon={<Terminal className="w-12 h-12 text-primary" />}
+            />
 
             {/* Week 2 */}
-            <Card className="bg-card/20 border-border hover:border-primary/30 transition-all duration-300 relative group overflow-hidden">
-              <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-primary to-transparent opacity-40 group-hover:opacity-100 transition-opacity" />
-              <CardHeader>
-                <div className="text-primary font-bold text-xs uppercase tracking-wider mb-1">Week 2</div>
-                <CardTitle className="text-lg">GitHub Mechanics</CardTitle>
-                <CardDescription>Moving your workflow to the cloud.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2 text-xs text-muted-foreground">
-                <div className="flex gap-2">
-                  <span className="text-primary">•</span>
-                  <span>Repos, forks, PRs, issues and remote syncing</span>
-                </div>
-                <div className="flex gap-2">
-                  <span className="text-primary">•</span>
-                  <span>README that sells your project (aesthetic files)</span>
-                </div>
-                <div className="flex gap-2">
-                  <span className="text-primary">•</span>
-                  <span>Profile optimization & contribution graphs</span>
-                </div>
-              </CardContent>
-            </Card>
+            <CurriculumCard
+              week="Week 2"
+              title="GitHub Mechanics"
+              subtitle="Moving your local workflow to the cloud."
+              focusTitle="Syllabus Focus"
+              focusDesc="Connect your local repositories to remote servers. Understand how to work with forks, pull requests, issue tracking, and synchronize upstream changes without losing history."
+              topicsTitle="Core Competencies"
+              topicsList={[
+                "• Forking, cloning, pushing, pulling, and tracking upstream",
+                "• Creating aesthetic, high-converting README pages",
+                "• Profile optimization, pinned repositories, and green graphs"
+              ]}
+              icon={<Github className="w-12 h-12 text-primary" />}
+            />
 
             {/* Week 3 */}
-            <Card className="bg-card/20 border-border hover:border-primary/30 transition-all duration-300 relative group overflow-hidden">
-              <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-primary to-transparent opacity-40 group-hover:opacity-100 transition-opacity" />
-              <CardHeader>
-                <div className="text-primary font-bold text-xs uppercase tracking-wider mb-1">Week 3</div>
-                <CardTitle className="text-lg">Open Source Contribution</CardTitle>
-                <CardDescription>Diving into real-world codebases.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2 text-xs text-muted-foreground">
-                <div className="flex gap-2">
-                  <span className="text-primary">•</span>
-                  <span>How to find beginner-friendly repos (good first issue)</span>
-                </div>
-                <div className="flex gap-2">
-                  <span className="text-primary">•</span>
-                  <span>Reading code and documentation before touching files</span>
-                </div>
-                <div className="flex gap-2">
-                  <span className="text-primary">•</span>
-                  <span>Making first external PR & handling reviews</span>
-                </div>
-              </CardContent>
-            </Card>
+            <CurriculumCard
+              week="Week 3"
+              title="Open Source"
+              subtitle="Diving into real-world codebases."
+              focusTitle="Syllabus Focus"
+              focusDesc="Step beyond your personal projects. Learn to navigate large repositories, read documentation, locate beginner-friendly bugs, and follow project contribution guidelines."
+              topicsTitle="Core Competencies"
+              topicsList={[
+                "• Finding 'good first issues' and understanding licensing",
+                "• Reading project structures, code patterns, and tests first",
+                "• Writing clear PR descriptions and resolving review feedback"
+              ]}
+              icon={<Code className="w-12 h-12 text-primary" />}
+            />
 
             {/* Week 4 */}
-            <Card className="bg-card/20 border-border hover:border-primary/30 transition-all duration-300 relative group overflow-hidden">
-              <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-primary to-transparent opacity-40 group-hover:opacity-100 transition-opacity" />
-              <CardHeader>
-                <div className="text-primary font-bold text-xs uppercase tracking-wider mb-1">Week 4</div>
-                <CardTitle className="text-lg">Consistency Systems</CardTitle>
-                <CardDescription>Building sustainable habits for the long run.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2 text-xs text-muted-foreground">
-                <div className="flex gap-2">
-                  <span className="text-primary">•</span>
-                  <span>Sustainable habits vs fake streak padding</span>
-                </div>
-                <div className="flex gap-2">
-                  <span className="text-primary">•</span>
-                  <span>Accountability pods (peer check-ins)</span>
-                </div>
-                <div className="flex gap-2">
-                  <span className="text-primary">•</span>
-                  <span>Capstone: merge 1 real PR + complete before/after audit</span>
-                </div>
-              </CardContent>
-            </Card>
+            <CurriculumCard
+              week="Week 4"
+              title="Consistency Systems"
+              subtitle="Building sustainable habits for the long run."
+              focusTitle="Syllabus Focus"
+              focusDesc="Develop a long-term contribution rhythm. Understand the difference between vanity streak padding and real open-source impact. Set up automated accountability checks."
+              topicsTitle="Core Competencies"
+              topicsList={[
+                "• Establishing sustainable, high-value contribution habits",
+                "• Participating in peer accountability check-ins and pods",
+                "• Capstone PR submission, validation check, and graduation"
+              ]}
+              icon={<GraduationCap className="w-12 h-12 text-primary" />}
+            />
 
           </div>
         </Section>
