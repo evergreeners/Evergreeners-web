@@ -48,6 +48,8 @@ export function AcademyHeader() {
 
   const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showTooltip, setShowTooltip] = useState(false);
+  const daysLeft = Math.max(0, Math.floor((+new Date("2026-08-31T00:00:00") - +new Date()) / (1000 * 60 * 60 * 24)));
 
   // Check enrollment status if logged in
   const { data: statusData } = useQuery({
@@ -227,14 +229,25 @@ export function AcademyHeader() {
                 <LogIn className="w-4 h-4" />
                 <span>Sign In</span>
               </Link>
-              <a
-                href={enrollHref}
-                onClick={(e) => handleAnchorClick(e, enrollHref)}
-                className="group flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 bg-primary text-black hover:bg-[#5aff94] hover:scale-105 active:scale-95 active:rotate-1"
+              <div 
+                className="relative" 
+                onMouseEnter={() => setShowTooltip(true)} 
+                onMouseLeave={() => setShowTooltip(false)}
               >
-                <span>Join Academy</span>
-                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-              </a>
+                <a
+                  href={enrollHref}
+                  onClick={(e) => handleAnchorClick(e, enrollHref)}
+                  className="group flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 bg-primary text-black hover:bg-[#5aff94] hover:scale-105 active:scale-95 active:rotate-1"
+                >
+                  <span>Join Academy</span>
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </a>
+                {showTooltip && (
+                  <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 bg-zinc-950/95 border border-white/10 px-3.5 py-1.5 rounded-xl text-[10px] text-primary font-mono whitespace-nowrap shadow-2xl z-50 animate-in fade-in slide-in-from-top-1">
+                    🚀 Launching in {daysLeft} Days (Aug 31)
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
