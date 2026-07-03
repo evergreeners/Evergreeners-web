@@ -3,6 +3,7 @@ import { PublicHeader } from '@/components/PublicHeader';
 import { Header } from '@/components/Header';
 import { CosmicButton } from '@/components/ui/cosmic-button';
 import { Link } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
     Github, Twitter, X, Send, ArrowRight, Star, Users,
     Flame, Calendar, MessageSquare, GitPullRequest, Trophy,
@@ -332,33 +333,84 @@ export default function Community() {
     const [storyFilter, setStoryFilter] = useState<'all' | 'featured' | 'github' | 'twitter'>('all');
     const [showModal, setShowModal] = useState(false);
 
-    // API Data State
-    const [apiStories, setApiStories] = useState<any[]>([]);
-    const [apiEvents, setApiEvents] = useState<any[]>([]);
-    const [apiStats, setApiStats] = useState<any[]>([]);
-    const [apiHeroAvatars, setApiHeroAvatars] = useState<any[]>([]);
-    const [isAdmin, setIsAdmin] = useState(false);
-    const [leaderboard, setLeaderboard] = useState<any[]>([]);
-    const [loading, setLoading] = useState({
-        stories: true,
-        events: true,
-        stats: true,
-        leaderboard: true,
-        hero: true
-    });
+    const queryClient = useQueryClient();
 
-    const fetchStories = useCallback(async () => {
-        try {
+    // 1. Stories Query (caches stories list and admin flag)
+    const { data: storiesData, refetch: refetchStories, isLoading: isLoadingStories } = useQuery({
+        queryKey: ['communityStories'],
+        queryFn: async () => {
             const res = await fetch(getApiUrl('/api/community/stories'));
-            const data = await res.json();
-            setApiStories(data.stories || []);
-            setIsAdmin(data.isAdmin || false);
-        } catch (err) {
-            console.error('Fetch stories error:', err);
-        } finally {
-            setLoading(prev => ({ ...prev, stories: false }));
+            if (!res.ok) throw new Error('Failed to fetch stories');
+            return res.json();
         }
-    }, []);
+    });
+    const apiStories = storiesData?.stories || [];
+    const isAdmin = storiesData?.isAdmin || false;
+
+    // 2. Events Query
+    const { data: eventsData, isLoading: isLoadingEvents } = useQuery({
+        queryKey: ['communityEvents'],
+        queryFn: async () => {
+            const res = await fetch(getApiUrl('/api/community/events'));
+            if (!res.ok) throw new Error('Failed to fetch events');
+            return res.json();
+        }
+    });
+    const apiEvents = eventsData?.events || [];
+
+    // 3. Stats Query
+    const { data: statsData, isLoading: isLoadingStats } = useQuery({
+        queryKey: ['communityStats'],
+        queryFn: async () => {
+            const res = await fetch(getApiUrl('/api/community/stats'));
+            if (!res.ok) throw new Error('Failed to fetch stats');
+            const data = await res.json();
+            if (data.stats) {
+                const iconMap: Record<string, React.ReactNode> = {
+                    'Users': <Users size={18} />,
+                    'Flame': <Flame size={18} />,
+                    'Star': <Star size={18} />,
+                    'GitPullRequest': <GitPullRequest size={18} />
+                };
+                return data.stats.map((s: any) => ({
+                    ...s,
+                    icon: iconMap[s.icon] || <Zap size={18} />
+                }));
+            }
+            return [];
+        }
+    });
+    const apiStats = statsData || [];
+
+    // 4. Leaderboard Query
+    const { data: leaderboardData, isLoading: isLoadingLeaderboard } = useQuery({
+        queryKey: ['leaderboard'],
+        queryFn: async () => {
+            const res = await fetch(getApiUrl('/api/leaderboard'));
+            if (!res.ok) throw new Error('Failed to fetch leaderboard');
+            return res.json();
+        }
+    });
+    const leaderboard = leaderboardData?.leaderboard || [];
+
+    // 5. Hero Avatars Query
+    const { data: heroAvatarsData, refetch: refetchHeroAvatars, isLoading: isLoadingHero } = useQuery({
+        queryKey: ['communityHeroAvatars'],
+        queryFn: async () => {
+            const res = await fetch(getApiUrl('/api/community/hero-avatars'));
+            if (!res.ok) throw new Error('Failed to fetch hero avatars');
+            return res.json();
+        }
+    });
+    const apiHeroAvatars = heroAvatarsData?.avatars || [];
+
+    const loading = {
+        stories: isLoadingStories,
+        events: isLoadingEvents,
+        stats: isLoadingStats,
+        leaderboard: isLoadingLeaderboard,
+        hero: isLoadingHero
+    };
 
     const handleAdminAction = async (action: string, id: number) => {
         try {
@@ -373,83 +425,18 @@ export default function Community() {
             }
 
             if (res && res.ok) {
-                fetchStories();
-                if (action === 'toggle-hero' || action === 'approve') fetchHeroAvatars();
+                // Invalidate query cache to trigger fresh background reload
+                queryClient.invalidateQueries({ queryKey: ['communityStories'] });
+                if (action === 'toggle-hero' || action === 'approve') {
+                    queryClient.invalidateQueries({ queryKey: ['communityHeroAvatars'] });
+                }
             }
         } catch (err) {
             console.error('Admin action error:', err);
         }
     };
 
-    const fetchEvents = useCallback(async () => {
-        try {
-            const res = await fetch(getApiUrl('/api/community/events'));
-            const data = await res.json();
-            setApiEvents(data.events || []);
-        } catch (err) {
-            console.error('Fetch events error:', err);
-        } finally {
-            setLoading(prev => ({ ...prev, events: false }));
-        }
-    }, []);
-
-    const fetchStats = useCallback(async () => {
-        try {
-            const res = await fetch(getApiUrl('/api/community/stats'));
-            const data = await res.json();
-            if (data.stats) {
-                const iconMap: Record<string, React.ReactNode> = {
-                    'Users': <Users size={18} />,
-                    'Flame': <Flame size={18} />,
-                    'Star': <Star size={18} />,
-                    'GitPullRequest': <GitPullRequest size={18} />
-                };
-                const mappedStats = data.stats.map((s: any) => ({
-                    ...s,
-                    icon: iconMap[s.icon] || <Zap size={18} />
-                }));
-                setApiStats(mappedStats);
-            }
-        } catch (err) {
-            console.error('Fetch stats error:', err);
-        } finally {
-            setLoading(prev => ({ ...prev, stats: false }));
-        }
-    }, []);
-
-    const fetchLeaderboard = useCallback(async () => {
-        try {
-            const res = await fetch(getApiUrl('/api/leaderboard'));
-            const data = await res.json();
-            setLeaderboard(data.leaderboard || []);
-        } catch (err) {
-            console.error('Fetch leaderboard error:', err);
-        } finally {
-            setLoading(prev => ({ ...prev, leaderboard: false }));
-        }
-    }, []);
-
-    const fetchHeroAvatars = useCallback(async () => {
-        try {
-            const res = await fetch(getApiUrl('/api/community/hero-avatars'));
-            const data = await res.json();
-            setApiHeroAvatars(data.avatars || []);
-        } catch (err) {
-            console.error('Fetch hero avatars error:', err);
-        } finally {
-            setLoading(prev => ({ ...prev, hero: false }));
-        }
-    }, []);
-
-    useEffect(() => {
-        fetchStories();
-        fetchEvents();
-        fetchStats();
-        fetchLeaderboard();
-        fetchHeroAvatars();
-    }, [fetchStories, fetchEvents, fetchStats, fetchLeaderboard, fetchHeroAvatars]);
-
-    const mappedHeroAvatars = apiHeroAvatars.map((avatar, i) => {
+    const mappedHeroAvatars = apiHeroAvatars.map((avatar: any, i: number) => {
         const layout = AVATAR_LAYOUTS[i % AVATAR_LAYOUTS.length];
         return { ...avatar, ...layout };
     });
@@ -466,7 +453,13 @@ export default function Community() {
     });
 
     return (
-        <div className="comm-page">
+        <div className="comm-page relative">
+            {/* Viewport Corner Tech Lines */}
+            <div className="fixed top-6 left-6 w-6 h-6 border-t-2 border-l-2 border-primary z-50 pointer-events-none" />
+            <div className="fixed top-6 right-6 w-6 h-6 border-t-2 border-r-2 border-primary z-50 pointer-events-none" />
+            <div className="fixed bottom-6 left-6 w-6 h-6 border-b-2 border-l-2 border-primary z-50 pointer-events-none" />
+            <div className="fixed bottom-6 right-6 w-6 h-6 border-b-2 border-r-2 border-primary z-50 pointer-events-none" />
+
             {session ? <Header /> : <PublicHeader />}
             <div className="comm-bg"><div className="comm-bg-grid" /></div>
 
@@ -631,7 +624,7 @@ export default function Community() {
                 </div>
             </main>
 
-            {showModal && <SubmitModal onClose={() => setShowModal(false)} onRefresh={fetchStories} />}
+            {showModal && <SubmitModal onClose={() => setShowModal(false)} onRefresh={refetchStories} />}
         </div>
     );
 }

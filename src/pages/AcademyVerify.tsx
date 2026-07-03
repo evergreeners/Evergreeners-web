@@ -1,4 +1,4 @@
-import { Header } from "@/components/Header";
+import { AcademyHeader } from "@/components/AcademyHeader";
 import { FloatingNav } from "@/components/FloatingNav";
 import { Section } from "@/components/Section";
 import { Award, ShieldCheck, Twitter, Download, ExternalLink, Calendar, GitPullRequest, ArrowRight, Loader2 } from "lucide-react";
@@ -155,10 +155,41 @@ Stay evergreen. 🌲💻`;
   const certificate = certData.certificate;
 
   return (
-    <div className="min-h-screen bg-background overflow-x-hidden custom-scrollbar">
-      <Header />
+    <div className="min-h-screen bg-background overflow-x-hidden custom-scrollbar relative">
+      <style>{`
+        .cyber-background {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          background-color: #050505;
+          background-image:
+            radial-gradient(circle at center, transparent 30%, #000 90%),
+            linear-gradient(rgba(74, 222, 128, 0.07) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(74, 222, 128, 0.07) 1px, transparent 1px),
+            linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+          background-size:
+            100% 100%,
+            60px 60px,
+            60px 60px,
+            20px 20px,
+            20px 20px;
+          animation: cyber-move 20s linear infinite;
+          z-index: 0;
+          pointer-events: none;
+        }
 
-      <main className="w-full max-w-5xl mx-auto px-4 md:px-8 pt-24 pb-32 md:pb-12 space-y-12">
+        @keyframes cyber-move {
+          0%   { background-position: 0 0, 0 0, 0 0, 0 0, 0 0; }
+          100% { background-position: 0 0, 60px 60px, 60px 60px, 40px 40px, 40px 40px; }
+        }
+      `}</style>
+
+      <div className="cyber-background" />
+      <AcademyHeader />
+
+      <main className="w-full max-w-5xl mx-auto px-4 md:px-8 pt-24 pb-32 md:pb-12 space-y-12 relative z-10">
         
         {/* Verification Success Tag */}
         <div className="flex flex-col items-center text-center space-y-3 animate-fade-in">

@@ -1,9 +1,9 @@
-import { Header } from "@/components/Header";
+import { AcademyHeader } from "@/components/AcademyHeader";
 import { FloatingNav } from "@/components/FloatingNav";
 import { Section } from "@/components/Section";
-import { GraduationCap, Terminal, Zap, CheckCircle2, AlertTriangle, ShieldCheck, GitFork, ArrowRight, Loader2, Play, Sparkles } from "lucide-react";
+import { GraduationCap, Terminal, Zap, CheckCircle2, AlertTriangle, ShieldCheck, GitFork, ArrowRight, Loader2, Play, Sparkles, Github, Code, BookOpen, Users } from "lucide-react";
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/lib/auth-client";
 import { getApiUrl } from "@/lib/api-config";
@@ -20,6 +20,112 @@ interface AuditResult {
   feedback: string[];
 }
 
+interface CurriculumCardProps {
+  week: string;
+  title: string;
+  subtitle: string;
+  focusTitle: string;
+  focusDesc: string;
+  topicsTitle: string;
+  topicsList: string[];
+  icon: React.ReactNode;
+}
+
+const CurriculumCard: React.FC<CurriculumCardProps> = ({
+  week,
+  title,
+  subtitle,
+  focusTitle,
+  focusDesc,
+  topicsTitle,
+  topicsList,
+  icon
+}) => {
+  const [activeSlide, setActiveSlide] = useState(0);
+  const [isHovered, setIsHovered] = useState(false);
+
+  useEffect(() => {
+    if (!isHovered) {
+      setActiveSlide(0);
+      return;
+    }
+
+    // Slide to the next slide (Focus) immediately on hover
+    setActiveSlide(1);
+
+    // Cycle through slides every 2.5 seconds
+    const interval = setInterval(() => {
+      setActiveSlide((prev) => (prev + 1) % 3);
+    }, 2500);
+
+    return () => clearInterval(interval);
+  }, [isHovered]);
+
+  const handleDotClick = (e: React.MouseEvent, index: number) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setActiveSlide(index);
+  };
+
+  return (
+    <div 
+      className="curriculum-card group relative"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      <div 
+        className="carousel-content"
+        style={{ 
+          transform: `translateX(-${activeSlide * 33.333}%)`,
+          transition: 'transform 0.6s cubic-bezier(0.25, 1, 0.5, 1)'
+        }}
+      >
+        {/* Slide 1: Week & Title */}
+        <div className="carousel-slide space-y-3">
+          {icon}
+          <div className="text-primary font-bold text-xs uppercase tracking-wider">{week}</div>
+          <h3 className="text-2xl font-extrabold text-foreground text-center">{title}</h3>
+          <p className="text-xs text-muted-foreground text-center px-4">{subtitle}</p>
+        </div>
+
+        {/* Slide 2: Focus */}
+        <div className="carousel-slide space-y-2">
+          <div className="text-[10px] text-zinc-400 uppercase tracking-widest font-extrabold mb-1">{focusTitle}</div>
+          <p className="text-sm font-medium text-foreground/90 text-center leading-relaxed">
+            {focusDesc}
+          </p>
+        </div>
+
+        {/* Slide 3: Topics */}
+        <div className="carousel-slide space-y-2.5">
+          <div className="text-[10px] text-primary uppercase tracking-widest font-extrabold">{topicsTitle}</div>
+          <div className="text-xs text-muted-foreground space-y-1.5 text-center font-medium leading-normal">
+            {topicsList.map((item, idx) => (
+              <div key={idx}>{item}</div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Navigation Dots */}
+      <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2 z-20 pointer-events-auto">
+        {[0, 1, 2].map((index) => (
+          <button
+            key={index}
+            onClick={(e) => handleDotClick(e, index)}
+            className={`w-2 h-2 rounded-full transition-all duration-300 ${
+              activeSlide === index 
+                ? "bg-primary w-4 shadow-[0_0_8px_rgba(74,222,128,0.5)]" 
+                : "bg-white/20 hover:bg-white/40"
+            }`}
+            aria-label={`Go to slide ${index + 1}`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+};
+
 export default function Academy() {
   const { data: session } = useSession();
   const navigate = useNavigate();
@@ -32,9 +138,7 @@ export default function Academy() {
   const [auditStepsText, setAuditStepsText] = useState<string[]>([]);
   const [auditResult, setAuditResult] = useState<AuditResult | null>(null);
 
-  // Payment enrollment state
-  const [payReference, setPayReference] = useState("");
-  const [selectedTier, setSelectedTier] = useState<'enrolled' | 'premium'>('enrolled');
+  // Enrollment state
   const [isEnrolling, setIsEnrolling] = useState(false);
 
   // Check enrollment status
@@ -117,15 +221,10 @@ export default function Academy() {
     setIsAuditing(true);
   };
 
-  const handleEnroll = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleEnroll = async () => {
     if (!session) {
       toast.error("Please log in or sign up first to enroll in the Academy.");
-      navigate("/login");
-      return;
-    }
-    if (!payReference.trim()) {
-      toast.error("Please enter your Paystack reference or click Simulate.");
+      navigate("/login?redirect=/academy");
       return;
     }
 
@@ -137,43 +236,176 @@ export default function Academy() {
           "Content-Type": "application/json",
           ...(session?.session?.token ? { Authorization: `Bearer ${session.session.token}` } : {})
         },
-        body: JSON.stringify({ paystackReference: payReference, tier: selectedTier }),
         credentials: "include"
       });
 
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.message || "Failed to verify payment");
+        throw new Error(err.message || "Failed to enroll");
       }
 
       toast.success("Welcome to Evergreeners Academy!", {
-        description: `Successfully enrolled in the ${selectedTier === 'premium' ? 'Premium' : 'Standard'} Cohort.`
+        description: "Successfully enrolled in the Git and Open Source Cohort."
       });
       queryClient.invalidateQueries({ queryKey: ['academyStatus'] });
       navigate("/academy/dashboard");
     } catch (err: any) {
-      toast.error(err.message || "Payment verification failed.");
+      toast.error(err.message || "Enrollment failed.");
     } finally {
       setIsEnrolling(false);
     }
   };
 
-  const simulatePayment = () => {
-    const randomRef = "pay_mock_" + Math.random().toString(36).substring(2, 10);
-    setPayReference(randomRef);
-    toast.info("Simulated Paystack reference generated! Click Enroll now.");
-  };
-
   const enrolled = statusData?.status && statusData.status !== 'none';
 
   return (
-    <div className="min-h-screen bg-background overflow-x-hidden custom-scrollbar">
-      <Header />
+    <div className="min-h-screen bg-background overflow-x-hidden custom-scrollbar relative">
+      {/* Viewport Corner Tech Lines */}
+      <div className="fixed top-6 left-6 w-6 h-6 border-t-2 border-l-2 border-primary z-50 pointer-events-none" />
+      <div className="fixed top-6 right-6 w-6 h-6 border-t-2 border-r-2 border-primary z-50 pointer-events-none" />
+      <div className="fixed bottom-6 left-6 w-6 h-6 border-b-2 border-l-2 border-primary z-50 pointer-events-none" />
+      <div className="fixed bottom-6 right-6 w-6 h-6 border-b-2 border-r-2 border-primary z-50 pointer-events-none" />
 
-      <main className="w-full max-w-[1400px] mx-auto px-4 md:px-8 pt-24 pb-32 md:pb-12 space-y-16">
+      {/* SVG Filters for hand-drawn cosmic buttons */}
+      <svg height="0" width="0" style={{ position: 'absolute', pointerEvents: 'none' }}>
+        <filter id="handDrawnNoise">
+          <feTurbulence result="noise" numOctaves="8" baseFrequency="0.1" type="fractalNoise" />
+          <feDisplacementMap yChannelSelector="G" xChannelSelector="R" scale="3" in2="noise" in="SourceGraphic" />
+        </filter>
+        <filter id="handDrawnNoise2">
+          <feTurbulence result="noise" numOctaves="8" baseFrequency="0.1" seed="1010" type="fractalNoise" />
+          <feDisplacementMap yChannelSelector="G" xChannelSelector="R" scale="3" in2="noise" in="SourceGraphic" />
+        </filter>
+      </svg>
+
+      <style>{`
+        .cyber-background {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          background-color: #050505;
+          background-image:
+            radial-gradient(circle at center, transparent 30%, #000 90%),
+            linear-gradient(rgba(74, 222, 128, 0.07) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(74, 222, 128, 0.07) 1px, transparent 1px),
+            linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+          background-size:
+            100% 100%,
+            60px 60px,
+            60px 60px,
+            20px 20px,
+            20px 20px;
+          animation: cyber-move 20s linear infinite;
+          z-index: 0;
+          pointer-events: none;
+        }
+
+        @keyframes cyber-move {
+          0%   { background-position: 0 0, 0 0, 0 0, 0 0, 0 0; }
+          100% { background-position: 0 0, 60px 60px, 60px 60px, 40px 40px, 40px 40px; }
+        }
+
+        .academy-action-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          background-color: rgba(5, 5, 5, 0.85);
+          backdrop-filter: blur(8px);
+          filter: url(#handDrawnNoise);
+          font-family: "Courier New", monospace;
+          font-size: 1rem;
+          font-weight: bold;
+          padding: 0.85rem 1.8rem;
+          border: 1.5px solid rgba(255, 255, 255, 0.15);
+          border-radius: 2rem;
+          box-shadow: #33333366 4px 4px 0 1px;
+          animation: community-btn-idle 1s infinite ease-in-out;
+          color: white;
+          cursor: pointer;
+          text-decoration: none;
+          transition: 0.3s ease-in-out;
+          position: relative;
+        }
+
+        @keyframes community-btn-idle {
+          0%   { filter: url(#handDrawnNoise); }
+          50%  { rotate: 1.5deg; filter: url(#handDrawnNoise2); }
+          100% { filter: url(#handDrawnNoise); }
+        }
+
+        .academy-action-btn:hover {
+          rotate: -2deg;
+          border-color: rgba(74, 222, 128, 0.5);
+          color: #4ade80;
+          animation: community-btn-hover 2.5s infinite ease-in-out;
+        }
+
+        @keyframes community-btn-hover {
+          0%   { rotate: 0deg;    filter: url(#handDrawnNoise);  translate: 0 0;   }
+          25%  { rotate: -1deg;   filter: url(#handDrawnNoise2); translate: 0 -2px; }
+          50%  { rotate: 0deg;    filter: url(#handDrawnNoise);  translate: 0 2px; }
+          75%  { rotate: -1deg;   filter: url(#handDrawnNoise2); translate: 0 -2px; }
+          100% { rotate: 0deg;    filter: url(#handDrawnNoise);  translate: 0 0;   }
+        }
+
+        .curriculum-card {
+          width: 100%;
+          height: 300px;
+          background: rgba(10, 18, 10, 0.7);
+          backdrop-filter: blur(12px);
+          overflow: hidden;
+          border-radius: 20px;
+          border: 1.5px solid rgba(74, 222, 128, 0.15);
+          box-shadow:
+            inset 0px 56px 40px rgba(0, 0, 0, 0.8),
+            inset 0px -56px 40px rgba(74, 222, 128, 0.08),
+            1px 1px 2px rgba(255, 255, 255, 0.08),
+            -1px -1px 2px rgba(0, 0, 0, 0.6);
+          transition: all 0.35s ease-in-out;
+          position: relative;
+        }
+
+        .curriculum-card:hover {
+          border-color: rgba(74, 222, 128, 0.45);
+          box-shadow:
+            inset 0px 56px 40px rgba(0, 0, 0, 0.7),
+            inset 0px -56px 40px rgba(74, 222, 128, 0.15),
+            1px 1px 3px rgba(255, 255, 255, 0.15),
+            -1px -1px 2px rgba(0, 0, 0, 0.5),
+            0 0 20px rgba(74, 222, 128, 0.12);
+          transform: translateY(-4px);
+        }
+
+        .carousel-content {
+          position: relative;
+          display: flex;
+          width: 300%;
+          height: 100%;
+        }
+
+        .carousel-slide {
+          width: 33.333%;
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          align-items: center;
+          flex-shrink: 0;
+          padding: 2.2rem 1.8rem 3.8rem 1.8rem;
+          box-sizing: border-box;
+        }
+      `}</style>
+
+      <div className="cyber-background" />
+      <AcademyHeader />
+
+      <main className="w-full max-w-[1400px] mx-auto px-4 md:px-8 pt-24 pb-32 md:pb-12 space-y-16 relative z-10">
         
         {/* Hero Section */}
-        <section className="text-center py-12 space-y-6 animate-fade-in">
+        <section className="text-center py-12 space-y-6 animate-fade-in relative z-10">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-primary/20 bg-primary/10 text-primary text-xs font-semibold uppercase tracking-wider">
             <GraduationCap className="w-4 h-4" /> The Evergreeners Academy
           </div>
@@ -183,22 +415,20 @@ export default function Academy() {
           <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
             From Git zero to public repository hero. A highly focused 4-week syllabus designed to build verifiable GitHub credibility and launch your open-source journey.
           </p>
-          <div className="flex flex-wrap justify-center gap-4 pt-4">
+          <div className="flex flex-wrap justify-center gap-6 pt-4 relative z-10">
             {enrolled ? (
-              <Button size="lg" className="gap-2 font-bold px-8" onClick={() => navigate("/academy/dashboard")}>
-                Go to Student Portal <ArrowRight className="w-5 h-5" />
-              </Button>
+              <Link to="/academy/dashboard" className="academy-action-btn">
+                <span>Go to Student Portal</span>
+                <ArrowRight className="w-5 h-5" />
+              </Link>
             ) : (
-              <a href="#pricing">
-                <Button size="lg" className="gap-2 font-bold px-8">
-                  Join Next Cohort <ArrowRight className="w-5 h-5" />
-                </Button>
+              <a href="#enrollment" className="academy-action-btn">
+                <span>Join Academy</span>
+                <ArrowRight className="w-5 h-5" />
               </a>
             )}
-            <a href="#audit">
-              <Button size="lg" variant="outline" className="gap-2 border-primary/20 bg-primary/5">
-                Audit Your Profile <Sparkles className="w-4 h-4 text-primary" />
-              </Button>
+            <a href="#audit" className="academy-action-btn">
+              <span>Audit Your Profile</span>
             </a>
           </div>
         </section>
@@ -210,7 +440,7 @@ export default function Academy() {
             <div className="lg:col-span-5 space-y-6">
               <h3 className="text-2xl font-bold">Is your GitHub profile a graveyard?</h3>
               <p className="text-muted-foreground leading-relaxed text-sm">
-                Most students and early developers know how to write code, but their contribution graphs tell a story of inconsistency. Recruiters, GSoC fellows, and hiring managers look at your history. 
+                Most students and early developers know how to write code, but their contribution graphs tell a story of inconsistency. Recruiters and hiring managers look at your history. 
               </p>
               <p className="text-muted-foreground leading-relaxed text-sm">
                 Our audit tool scans your repositories, checks for key portfolio standards (READMEs, Pins), and calculates your <strong>Graveyard Index</strong> (inactive code percentage) to show you exactly where you stand.
@@ -343,275 +573,141 @@ export default function Academy() {
         </Section>
 
         {/* 4-Week Curriculum Timeline */}
+        <span id="curriculum" className="block -mt-10 pt-10" />
         <Section title="The 4-Week Curriculum" className="animate-fade-up">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             
             {/* Week 1 */}
-            <Card className="bg-card/20 border-border hover:border-primary/30 transition-all duration-300 relative group overflow-hidden">
-              <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-primary to-transparent opacity-40 group-hover:opacity-100 transition-opacity" />
-              <CardHeader>
-                <div className="text-primary font-bold text-xs uppercase tracking-wider mb-1">Week 1</div>
-                <CardTitle className="text-lg">Git Fundamentals</CardTitle>
-                <CardDescription>Mastering the local repository workflow.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2 text-xs text-muted-foreground">
-                <div className="flex gap-2">
-                  <span className="text-primary">•</span>
-                  <span>init, add, commit, branch, merge, rebase basics</span>
-                </div>
-                <div className="flex gap-2">
-                  <span className="text-primary">•</span>
-                  <span>Writing commit messages that don't suck</span>
-                </div>
-                <div className="flex gap-2">
-                  <span className="text-primary">•</span>
-                  <span>.gitignore, undoing mistakes (reset/revert/reflog)</span>
-                </div>
-              </CardContent>
-            </Card>
+            <CurriculumCard
+              week="Week 1"
+              title="Git Fundamentals"
+              subtitle="Mastering the local repository workflow."
+              focusTitle="Syllabus Focus"
+              focusDesc="Learn how Git tracks changes under the hood. You'll master stage management, branch creation, merging conflicts cleanly, and working safely with rebase."
+              topicsTitle="Core Competencies"
+              topicsList={[
+                "• init, add, commit, branch, merge, rebase",
+                "• Writing semantic commit messages that tell a story",
+                "• Restoring files, resolving conflicts, and using reflog"
+              ]}
+              icon={<Terminal className="w-12 h-12 text-primary" />}
+            />
 
             {/* Week 2 */}
-            <Card className="bg-card/20 border-border hover:border-primary/30 transition-all duration-300 relative group overflow-hidden">
-              <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-primary to-transparent opacity-40 group-hover:opacity-100 transition-opacity" />
-              <CardHeader>
-                <div className="text-primary font-bold text-xs uppercase tracking-wider mb-1">Week 2</div>
-                <CardTitle className="text-lg">GitHub Mechanics</CardTitle>
-                <CardDescription>Moving your workflow to the cloud.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2 text-xs text-muted-foreground">
-                <div className="flex gap-2">
-                  <span className="text-primary">•</span>
-                  <span>Repos, forks, PRs, issues and remote syncing</span>
-                </div>
-                <div className="flex gap-2">
-                  <span className="text-primary">•</span>
-                  <span>README that sells your project (aesthetic files)</span>
-                </div>
-                <div className="flex gap-2">
-                  <span className="text-primary">•</span>
-                  <span>Profile optimization & contribution graphs</span>
-                </div>
-              </CardContent>
-            </Card>
+            <CurriculumCard
+              week="Week 2"
+              title="GitHub Mechanics"
+              subtitle="Moving your local workflow to the cloud."
+              focusTitle="Syllabus Focus"
+              focusDesc="Connect your local repositories to remote servers. Understand how to work with forks, pull requests, issue tracking, and synchronize upstream changes without losing history."
+              topicsTitle="Core Competencies"
+              topicsList={[
+                "• Forking, cloning, pushing, pulling, and tracking upstream",
+                "• Creating aesthetic, high-converting README pages",
+                "• Profile optimization, pinned repositories, and green graphs"
+              ]}
+              icon={<Github className="w-12 h-12 text-primary" />}
+            />
 
             {/* Week 3 */}
-            <Card className="bg-card/20 border-border hover:border-primary/30 transition-all duration-300 relative group overflow-hidden">
-              <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-primary to-transparent opacity-40 group-hover:opacity-100 transition-opacity" />
-              <CardHeader>
-                <div className="text-primary font-bold text-xs uppercase tracking-wider mb-1">Week 3</div>
-                <CardTitle className="text-lg">Open Source Contribution</CardTitle>
-                <CardDescription>Diving into real-world codebases.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2 text-xs text-muted-foreground">
-                <div className="flex gap-2">
-                  <span className="text-primary">•</span>
-                  <span>How to find beginner-friendly repos (good first issue)</span>
-                </div>
-                <div className="flex gap-2">
-                  <span className="text-primary">•</span>
-                  <span>Reading code and documentation before touching files</span>
-                </div>
-                <div className="flex gap-2">
-                  <span className="text-primary">•</span>
-                  <span>Making first external PR & handling reviews</span>
-                </div>
-              </CardContent>
-            </Card>
+            <CurriculumCard
+              week="Week 3"
+              title="Open Source"
+              subtitle="Diving into real-world codebases."
+              focusTitle="Syllabus Focus"
+              focusDesc="Step beyond your personal projects. Learn to navigate large repositories, read documentation, locate beginner-friendly bugs, and follow project contribution guidelines."
+              topicsTitle="Core Competencies"
+              topicsList={[
+                "• Finding 'good first issues' and understanding licensing",
+                "• Reading project structures, code patterns, and tests first",
+                "• Writing clear PR descriptions and resolving review feedback"
+              ]}
+              icon={<Code className="w-12 h-12 text-primary" />}
+            />
 
             {/* Week 4 */}
-            <Card className="bg-card/20 border-border hover:border-primary/30 transition-all duration-300 relative group overflow-hidden">
-              <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-primary to-transparent opacity-40 group-hover:opacity-100 transition-opacity" />
-              <CardHeader>
-                <div className="text-primary font-bold text-xs uppercase tracking-wider mb-1">Week 4</div>
-                <CardTitle className="text-lg">Consistency Systems</CardTitle>
-                <CardDescription>Building sustainable habits for the long run.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2 text-xs text-muted-foreground">
-                <div className="flex gap-2">
-                  <span className="text-primary">•</span>
-                  <span>Sustainable habits vs fake streak padding</span>
-                </div>
-                <div className="flex gap-2">
-                  <span className="text-primary">•</span>
-                  <span>Accountability pods (peer check-ins)</span>
-                </div>
-                <div className="flex gap-2">
-                  <span className="text-primary">•</span>
-                  <span>Capstone: merge 1 real PR + complete before/after audit</span>
-                </div>
-              </CardContent>
-            </Card>
+            <CurriculumCard
+              week="Week 4"
+              title="Consistency Systems"
+              subtitle="Building sustainable habits for the long run."
+              focusTitle="Syllabus Focus"
+              focusDesc="Develop a long-term contribution rhythm. Understand the difference between vanity streak padding and real open-source impact. Set up automated accountability checks."
+              topicsTitle="Core Competencies"
+              topicsList={[
+                "• Establishing sustainable, high-value contribution habits",
+                "• Participating in peer accountability check-ins and pods",
+                "• Capstone PR submission, validation check, and graduation"
+              ]}
+              icon={<GraduationCap className="w-12 h-12 text-primary" />}
+            />
 
           </div>
         </Section>
 
-        {/* Pricing Tiers Section */}
-        <span id="pricing" className="block -mt-10 pt-10" />
-        <Section title="Academy Enlistment" className="animate-fade-up">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch max-w-5xl mx-auto">
-            
-            {/* Free Audit */}
-            <Card className="bg-card/20 border-border flex flex-col justify-between">
-              <CardHeader>
-                <CardTitle className="text-lg">Lead Magnet</CardTitle>
-                <CardDescription>Free Profile Integrity Audit</CardDescription>
-                <div className="text-3xl font-extrabold mt-3">₦0 <span className="text-xs font-normal text-muted-foreground">/ forever</span></div>
-              </CardHeader>
-              <CardContent className="space-y-3 text-xs text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
-                  <span>GitHub Profile README scan</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
-                  <span>Graveyard Index calculation</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
-                  <span>Immediate advice scorecard</span>
-                </div>
-              </CardContent>
-              <CardFooter className="pt-4 border-t border-border">
-                <a href="#audit" className="w-full">
-                  <Button variant="outline" className="w-full">Run Free Audit</Button>
-                </a>
-              </CardFooter>
-            </Card>
-
-            {/* Paid Cohort */}
-            <Card className="bg-card/30 border-primary/50 flex flex-col justify-between relative shadow-[0_0_20px_rgba(16,185,129,0.1)]">
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-black font-bold px-3 py-0.5 rounded-full text-[10px] uppercase tracking-wider">Most Popular</div>
-              <CardHeader>
-                <CardTitle className="text-lg">Paid Cohort</CardTitle>
-                <CardDescription>4-Week Bootcamp & Community</CardDescription>
-                <div className="text-3xl font-extrabold mt-3">₦15,000 <span className="text-xs font-normal text-muted-foreground">/ cohort</span></div>
-              </CardHeader>
-              <CardContent className="space-y-3 text-xs text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
-                  <span>All 4-week async lesson materials</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
-                  <span>Live weekly Q&A and PR review sessions</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
-                  <span>Private accountability pod (Discord)</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
-                  <span>Opt-in to Student Leaderboard</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
-                  <span>Verifiable Graduation Certificate</span>
-                </div>
-              </CardContent>
-              <CardFooter className="pt-4 border-t border-border">
-                {enrolled ? (
-                  <Button className="w-full font-bold" onClick={() => navigate("/academy/dashboard")}>Go to Dashboard</Button>
-                ) : (
-                  <a href="#payment" className="w-full" onClick={() => { setSelectedTier('enrolled'); setPayReference(''); }}>
-                    <Button className="w-full font-bold">Enroll in Cohort</Button>
-                  </a>
-                )}
-              </CardFooter>
-            </Card>
-
-            {/* Premium Cohort */}
-            <Card className="bg-card/20 border-border flex flex-col justify-between">
-              <CardHeader>
-                <CardTitle className="text-lg">Premium Review</CardTitle>
-                <CardDescription>Cohort + 1:1 Expert PR Review</CardDescription>
-                <div className="text-3xl font-extrabold mt-3">₦50,000 <span className="text-xs font-normal text-muted-foreground">/ cohort</span></div>
-              </CardHeader>
-              <CardContent className="space-y-3 text-xs text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
-                  <span>Everything in the Paid Cohort tier</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
-                  <span>1:1 Code & Pull Request reviews</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
-                  <span>Direct Slack/WhatsApp access to mentors</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
-                  <span>Resume & GitHub Profile optimization call</span>
-                </div>
-              </CardContent>
-              <CardFooter className="pt-4 border-t border-border">
-                {enrolled ? (
-                  <Button className="w-full font-bold" onClick={() => navigate("/academy/dashboard")}>Go to Dashboard</Button>
-                ) : (
-                  <a href="#payment" className="w-full" onClick={() => { setSelectedTier('premium'); setPayReference(''); }}>
-                    <Button variant="outline" className="w-full">Get Premium Tier</Button>
-                  </a>
-                )}
-              </CardFooter>
-            </Card>
-
-          </div>
+        {/* Academy Enrollment Section */}
+        <span id="enrollment" className="block -mt-10 pt-10" />
+        <Section title="Enroll in the Academy" className="animate-fade-up">
+          <Card className="max-w-2xl mx-auto bg-card/25 border-primary/20 relative shadow-[0_0_30px_rgba(16,185,129,0.05)] overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-primary to-transparent" />
+            <CardHeader className="text-center space-y-2">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-primary/30 bg-primary/10 text-primary text-xs font-bold uppercase tracking-wider mx-auto">
+                <Sparkles className="w-3.5 h-3.5" /> 100% Free & Open Source
+              </div>
+              <CardTitle className="text-2xl font-bold">Start Your Journey Today</CardTitle>
+              <CardDescription>
+                Join the cohort to build consistency, master Git, and make your first verified open-source contributions.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 max-w-md mx-auto text-sm text-muted-foreground pb-6">
+              <div className="flex items-center gap-3">
+                <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />
+                <span>Access all 4 weeks of structured learning materials</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />
+                <span>Complete interactive quests and hands-on Git practice</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />
+                <span>Submit your capstone external PR for validation</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />
+                <span>Earn a verifiable certificate of completion</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />
+                <span>Unlock the exclusive Academy Graduate profile badge</span>
+              </div>
+            </CardContent>
+            <CardFooter className="pt-6 border-t border-border flex justify-center bg-black/10">
+              {enrolled ? (
+                <Button size="lg" className="w-full max-w-sm font-bold gap-2" onClick={() => navigate("/academy/dashboard")}>
+                  Go to Student Portal <ArrowRight className="w-4 h-4" />
+                </Button>
+              ) : (
+                <Button 
+                  size="lg" 
+                  className="w-full max-w-sm font-bold gap-2 text-black" 
+                  onClick={handleEnroll} 
+                  disabled={isEnrolling}
+                >
+                  {isEnrolling ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Enrolling...</span>
+                    </>
+                  ) : (
+                    <>
+                      <GraduationCap className="w-5 h-5" />
+                      <span>Enroll in Academy (Free)</span>
+                    </>
+                  )}
+                </Button>
+              )}
+            </CardFooter>
+          </Card>
         </Section>
-
-        {/* Payment Form Panel */}
-        {!enrolled && (
-          <span id="payment" className="block -mt-10 pt-10" />
-        )}
-        {!enrolled && (
-          <Section title="Cohort Enlistment & Payment" className="animate-fade-up">
-            <Card className="max-w-xl mx-auto bg-card/40 border-primary/20 shadow-xl">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <ShieldCheck className="w-5 h-5 text-primary" /> Verify Payment Reference
-                </CardTitle>
-                <CardDescription>
-                  Selected Tier: <strong className="text-primary">{selectedTier === 'premium' ? 'Premium (₦50,000)' : 'Standard (₦15,000)'}</strong>
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  We use Paystack Payment Pages to securely process Nigerian cards and bank transfers. Click the button below to pay on Paystack. Once completed, paste the Transaction Reference received.
-                </p>
-
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <a 
-                    href={selectedTier === 'premium' ? "https://paystack.com/pay/evergreeners-academy-premium" : "https://paystack.com/pay/evergreeners-academy"} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="flex-1"
-                  >
-                    <Button variant="outline" className="w-full gap-2 border-primary/30 hover:bg-primary/5">
-                      <Play className="w-4 h-4 text-primary" /> Pay on Paystack
-                    </Button>
-                  </a>
-                  <Button variant="secondary" onClick={simulatePayment} className="flex-1">
-                    Simulate Payment (Dev mode)
-                  </Button>
-                </div>
-
-                <form onSubmit={handleEnroll} className="space-y-4 pt-4 border-t border-border">
-                  <div className="space-y-2">
-                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Transaction Reference</label>
-                    <Input 
-                      placeholder="e.g. T62849105749..." 
-                      value={payReference}
-                      onChange={(e) => setPayReference(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <Button type="submit" className="w-full font-bold" disabled={isEnrolling}>
-                    {isEnrolling ? "Verifying..." : "Verify & Join Academy"}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          </Section>
-        )}
 
       </main>
 

@@ -2743,44 +2743,16 @@ Keep the total response under 300 words. Be like a hype coach mixed with a ruthl
         if (!session) return reply.status(401).send({ message: "Unauthorized" });
 
         const userId = session.session.userId;
-        const { paystackReference, tier } = req.body as { paystackReference: string; tier: 'enrolled' | 'premium' };
-
-        if (!paystackReference) {
-            return reply.status(400).send({ message: "Payment reference is required" });
-        }
-
-        // Mock payment verification in local development / absence of key
-        const paystackSecret = process.env.PAYSTACK_SECRET_KEY;
-        if (paystackSecret) {
-            try {
-                const response = await fetch(`https://api.paystack.co/transaction/verify/${paystackReference}`, {
-                    headers: {
-                        Authorization: `Bearer ${paystackSecret}`
-                    }
-                });
-                const data: any = await response.json();
-                if (!response.ok || !data.status || data.data.status !== 'success') {
-                    return reply.status(400).send({ message: "Payment verification failed" });
-                }
-            } catch (err) {
-                console.error("Paystack verification error:", err);
-                return reply.status(500).send({ message: "Error contacting payment gateway" });
-            }
-        } else {
-            console.log(`[DEVELOPMENT MOCK] Verifying Paystack reference: ${paystackReference}`);
-            // Simulate API delay
-            await new Promise(resolve => setTimeout(resolve, 800));
-        }
 
         await db.update(schema.users)
             .set({
-                academyStatus: tier || 'enrolled',
+                academyStatus: 'enrolled',
                 academyJoinedAt: new Date(),
                 updatedAt: new Date()
             })
             .where(eq(schema.users.id, userId));
 
-        return { success: true, status: tier || 'enrolled' };
+        return { success: true, status: 'enrolled' };
     });
 
     // 3. POST /api/academy/audit (Public Lead Magnet)

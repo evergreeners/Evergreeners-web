@@ -15,7 +15,7 @@ export function PublicHeader() {
                     <div className="relative flex items-center justify-center w-10 h-10">
                         <Logo className="w-6 h-6" />
                     </div>
-                    <span className="font-bold text-foreground tracking-tight text-lg group-hover:text-green-400 transition-colors">Forever Green</span>
+                    <span className="font-bold text-foreground tracking-tight text-lg group-hover:text-green-400 transition-colors">Evergreeners</span>
                 </Link>
 
                 {/* Navigation - Centered (Hidden on mobile) */}
