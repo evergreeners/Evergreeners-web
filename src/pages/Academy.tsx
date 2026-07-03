@@ -260,6 +260,12 @@ export default function Academy() {
 
   return (
     <div className="min-h-screen bg-background overflow-x-hidden custom-scrollbar relative">
+      {/* Viewport Corner Tech Lines */}
+      <div className="fixed top-6 left-6 w-6 h-6 border-t-2 border-l-2 border-primary z-50 pointer-events-none" />
+      <div className="fixed top-6 right-6 w-6 h-6 border-t-2 border-r-2 border-primary z-50 pointer-events-none" />
+      <div className="fixed bottom-6 left-6 w-6 h-6 border-b-2 border-l-2 border-primary z-50 pointer-events-none" />
+      <div className="fixed bottom-6 right-6 w-6 h-6 border-b-2 border-r-2 border-primary z-50 pointer-events-none" />
+
       {/* SVG Filters for hand-drawn cosmic buttons */}
       <svg height="0" width="0" style={{ position: 'absolute', pointerEvents: 'none' }}>
         <filter id="handDrawnNoise">

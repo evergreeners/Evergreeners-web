@@ -61,7 +61,7 @@ export function Header() {
             <div className="hidden md:flex items-center justify-center w-10 h-10 -ml-1">
               <Logo className="w-6 h-6" />
             </div>
-            <span className="font-semibold text-foreground hidden md:block">Forever Green</span>
+            <span className="font-semibold text-foreground hidden md:block">Evergreeners</span>
             <div className={cn(
               "md:hidden flex items-center justify-center w-9 h-9 rounded-xl transition-all duration-300 bg-transparent",
               currentPath === '/dashboard'

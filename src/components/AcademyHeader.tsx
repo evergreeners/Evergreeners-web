@@ -111,7 +111,7 @@ export function AcademyHeader() {
               <a
                 href={link.href}
                 onClick={(e) => handleAnchorClick(e, link.href)}
-                className="px-4 py-1.5 text-xs font-semibold text-muted-foreground hover:text-white rounded-full transition-all"
+                className="px-4 py-1.5 text-sm font-medium text-muted-foreground hover:text-white rounded-full transition-all"
               >
                 {link.label}
               </a>
@@ -124,13 +124,13 @@ export function AcademyHeader() {
               <Link
                 to="/academy/dashboard"
                 className={cn(
-                  "flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold rounded-full transition-all",
+                  "flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium rounded-full transition-all",
                   pathname === "/academy/dashboard"
                     ? "text-primary bg-primary/10 border border-primary/20"
                     : "text-muted-foreground hover:text-white hover:bg-white/5"
                 )}
               >
-                <GraduationCap className="w-3.5 h-3.5" />
+                <GraduationCap className="w-4 h-4" />
                 <span>Portal</span>
               </Link>
             </>
@@ -219,10 +219,10 @@ export function AcademyHeader() {
               </DropdownMenu>
             </div>
           ) : (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 pl-4">
               <Link
                 to="/login"
-                className="hidden sm:flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-white px-3 py-2 transition-colors"
+                className="hidden sm:flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-white px-3 py-2 transition-colors"
               >
                 <LogIn className="w-4 h-4" />
                 <span>Sign In</span>
@@ -230,10 +230,10 @@ export function AcademyHeader() {
               <a
                 href={enrollHref}
                 onClick={(e) => handleAnchorClick(e, enrollHref)}
-                className="group flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all duration-300 bg-primary text-black hover:bg-[#5aff94] hover:scale-105 active:scale-95 active:rotate-1"
+                className="group flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 bg-primary text-black hover:bg-[#5aff94] hover:scale-105 active:scale-95 active:rotate-1"
               >
                 <span>Join Academy</span>
-                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </a>
             </div>
           )}
