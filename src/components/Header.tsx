@@ -1,4 +1,4 @@
-import { Settings, Menu, Home, BarChart3, Compass, Target, Trophy, LogOut, Wand2, ShieldCheck } from "lucide-react";
+import { Settings, Menu, Home, BarChart3, Compass, Target, Trophy, LogOut, Wand2, ShieldCheck, GraduationCap } from "lucide-react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Logo } from "@/components/Logo";
 import { NotificationCenter } from "@/components/NotificationCenter";
@@ -160,6 +160,16 @@ export function Header() {
                       <Settings className="w-4 h-4 text-muted-foreground" />
                     </div>
                     <span className="font-medium text-sm">Settings</span>
+                  </DropdownMenuItem>
+
+                  <DropdownMenuItem
+                    onClick={() => navigate('/academy')}
+                    className="w-full p-2 cursor-pointer rounded-xl transition-all duration-200 hover:bg-primary/5 focus:bg-primary/5 focus:outline-none flex items-center gap-3"
+                  >
+                    <div className="w-8 h-8 flex items-center justify-center shrink-0">
+                      <GraduationCap className="w-4 h-4 text-muted-foreground" />
+                    </div>
+                    <span className="font-medium text-sm">Academy</span>
                   </DropdownMenuItem>
 
                   {(session?.user as any)?.role === 'admin' && (

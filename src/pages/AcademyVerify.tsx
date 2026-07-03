@@ -1,4 +1,4 @@
-import { Header } from "@/components/Header";
+import { AcademyHeader } from "@/components/AcademyHeader";
 import { FloatingNav } from "@/components/FloatingNav";
 import { Section } from "@/components/Section";
 import { Award, ShieldCheck, Twitter, Download, ExternalLink, Calendar, GitPullRequest, ArrowRight, Loader2 } from "lucide-react";
@@ -156,7 +156,7 @@ Stay evergreen. 🌲💻`;
 
   return (
     <div className="min-h-screen bg-background overflow-x-hidden custom-scrollbar">
-      <Header />
+      <AcademyHeader />
 
       <main className="w-full max-w-5xl mx-auto px-4 md:px-8 pt-24 pb-32 md:pb-12 space-y-12">
         
