@@ -270,7 +270,6 @@ export default function Academy() {
             )}
             <a href="#audit" className="academy-action-btn">
               <span>Audit Your Profile</span>
-              <Sparkles className="w-4 h-4 text-primary" />
             </a>
           </div>
         </section>
