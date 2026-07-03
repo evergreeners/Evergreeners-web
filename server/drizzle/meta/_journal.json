@@ -85,6 +85,13 @@
       "when": 1775262548984,
       "tag": "0011_melted_morgan_stark",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1783106593295,
+      "tag": "0012_shallow_smasher",
+      "breakpoints": true
     }
   ]
 }

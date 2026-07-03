@@ -40,6 +40,7 @@ export interface UserStats {
     isFourAmCommit: boolean;           // a commit happened between 04:00–05:00
     hasSpeedRunnerQuest: boolean;      // completed a quest in < 1 hour
     isCountryLeader: boolean;          // #1 in their country (future feature, flag for now)
+    academyGraduated?: boolean;        // graduated from Evergreeners Academy
 }
 
 export interface BadgeDefinition {
@@ -55,6 +56,14 @@ export interface BadgeDefinition {
 // ─── All 35 Badges ─────────────────────────────────────────────────────────────
 
 export const BADGES: BadgeDefinition[] = [
+    {
+        id: 'academy_graduate',
+        name: 'Academy Graduate',
+        description: 'Graduated from the Evergreeners Academy by merging your first external PR.',
+        rarity: 'rare',
+        category: 'Academy',
+        check: (s) => !!s.academyGraduated,
+    },
 
     // ── Onboarding (5) ──────────────────────────────────────────────────────────
     {
