@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://YOUR-HEROKU-APP-NAME.herokuapp.com/api/$1"
+      "destination": "https://evergreeners-backend-2f9624f97235.herokuapp.com/api/$1"
     },
     {
       "source": "/(.*)",
