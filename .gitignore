@@ -41,3 +41,6 @@ server/test-login.js
 server/build.log
 server/build_success.log
 server/*.log
+
+# Supabase CLI
+supabase/.temp/
