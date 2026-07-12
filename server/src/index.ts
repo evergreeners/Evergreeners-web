@@ -171,10 +171,11 @@ server.register(fastifyStatic, {
 
 // GitHub OAuth is handled by better-auth in separate adapter
 
-// Health check to verify Vercel -> Railway proxying
+// Health check to verify Vercel -> Heroku proxying
 server.get('/api/health', async (req, reply) => {
     return { 
         status: 'ok', 
+        github_ci_cd: 'verified_successfully',
         host: req.headers.host,
         forwardedHost: req.headers['x-forwarded-host'],
         url: req.url
