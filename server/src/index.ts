@@ -10,6 +10,7 @@ import { fileURLToPath } from 'url';
 import fs from 'fs/promises';
 import { auth } from './auth.js';
 import { toNodeHandler } from 'better-auth/node';
+import { createClient } from '@supabase/supabase-js';
 
 import { db } from './db/index.js';
 import * as schema from './db/schema.js';
@@ -2142,16 +2143,47 @@ server.register(async (instance) => {
 
             const ext = path.extname(data.filename);
             const filename = `${Date.now()}-${Math.round(Math.random() * 1E9)}${ext}`;
-            const uploadPath = path.join(__dirname, '../public/uploads', filename);
 
-            await fs.writeFile(uploadPath, await data.toBuffer());
+            const supabaseUrl = process.env.SUPABASE_URL;
+            const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-            // Get base URL for static files
-            const isLocal = req.hostname.includes('localhost') || req.hostname.includes('127.0.0.1');
-            const baseUrl = isLocal ? `http://${req.hostname}:3000` : '';
+            if (!supabaseUrl || !supabaseServiceKey) {
+                console.warn("Supabase Storage configuration missing (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY). Falling back to local disk upload.");
+                const uploadPath = path.join(__dirname, '../public/uploads', filename);
+                await fs.mkdir(path.dirname(uploadPath), { recursive: true });
+                await fs.writeFile(uploadPath, await data.toBuffer());
+
+                const isLocal = req.hostname.includes('localhost') || req.hostname.includes('127.0.0.1');
+                const baseUrl = isLocal ? `http://${req.hostname}:3000` : '';
+
+                return {
+                    url: `${baseUrl}/public/uploads/${filename}`
+                };
+            }
+
+            const supabase = createClient(supabaseUrl, supabaseServiceKey);
+            const buffer = await data.toBuffer();
+
+            const { data: uploadData, error: uploadError } = await supabase.storage
+                .from('community-images')
+                .upload(filename, buffer, {
+                    contentType: data.mimetype,
+                    upsert: true
+                });
+
+            if (uploadError) {
+                console.error("Supabase storage upload error details:", uploadError);
+                throw uploadError;
+            }
+
+            const { data: { publicUrl } } = supabase.storage
+                .from('community-images')
+                .getPublicUrl(filename);
+
+            console.log(`Image successfully uploaded to Supabase Storage: ${publicUrl}`);
 
             return {
-                url: `${baseUrl}/public/uploads/${filename}`
+                url: publicUrl
             };
         } catch (error) {
             console.error("Upload error:", error);
