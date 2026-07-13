@@ -362,7 +362,8 @@ export default function Community() {
             setCachedData('cached_stories', data);
             return data;
         },
-        initialData: () => getCachedData('cached_stories', undefined)
+        initialData: () => getCachedData('cached_stories', undefined),
+        staleTime: 0
     });
     const apiStories = storiesData?.stories || [];
     const isAdmin = storiesData?.isAdmin || false;
@@ -377,7 +378,8 @@ export default function Community() {
             setCachedData('cached_events', data);
             return data;
         },
-        initialData: () => getCachedData('cached_events', undefined)
+        initialData: () => getCachedData('cached_events', undefined),
+        staleTime: 0
     });
     const apiEvents = eventsData?.events || [];
 
@@ -391,7 +393,8 @@ export default function Community() {
             setCachedData('cached_stats', data);
             return data;
         },
-        initialData: () => getCachedData('cached_stats', undefined)
+        initialData: () => getCachedData('cached_stats', undefined),
+        staleTime: 0
     });
     const rawStats = statsData?.stats || [];
     const iconMap: Record<string, React.ReactNode> = {
@@ -415,7 +418,8 @@ export default function Community() {
             setCachedData('cached_leaderboard', data);
             return data;
         },
-        initialData: () => getCachedData('cached_leaderboard', undefined)
+        initialData: () => getCachedData('cached_leaderboard', undefined),
+        staleTime: 0
     });
     const leaderboard = leaderboardData?.leaderboard || [];
 
@@ -429,7 +433,8 @@ export default function Community() {
             setCachedData('cached_hero_avatars', data);
             return data;
         },
-        initialData: () => getCachedData('cached_hero_avatars', undefined)
+        initialData: () => getCachedData('cached_hero_avatars', undefined),
+        staleTime: 0
     });
     const apiHeroAvatars = heroAvatarsData?.avatars || [];
 
