@@ -118,15 +118,23 @@ function EventCard({ event }: { event: any }) {
 }
 
 function MemberRow({ member }: { member: any }) {
+    const displayName = member.name || member.username || "Anonymous Developer";
+    const handle = member.handle || member.originalUsername;
+    const avatarUrl = member.image || member.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=random`;
+
     return (
         <div className="comm-member-row">
             <span className={`comm-member-rank ${member.rank <= 3 ? 'top3' : ''}`}>
                 {member.badge ?? `#${member.rank}`}
             </span>
-            <img src={member.image || member.avatar} alt={member.name} className="comm-member-avatar" loading="lazy" />
+            <img src={avatarUrl} alt={displayName} className="comm-member-avatar" loading="lazy" />
             <div className="comm-member-info">
-                <span className="comm-member-name">{member.name}</span>
-                <span className="comm-member-handle">@{member.handle} · {member.role}</span>
+                <span className="comm-member-name">{displayName}</span>
+                {handle && (
+                    <span className="comm-member-handle">
+                        @{handle} {member.role ? `· ${member.role}` : ''}
+                    </span>
+                )}
             </div>
             <div className="comm-member-streak">
                 <Flame size={14} className="text-orange-400" />
