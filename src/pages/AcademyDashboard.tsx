@@ -1,7 +1,7 @@
 import { AcademyHeader } from "@/components/AcademyHeader";
 import { FloatingNav } from "@/components/FloatingNav";
 import { Section } from "@/components/Section";
-import { GraduationCap, BookOpen, Terminal, CheckCircle, ExternalLink, GitPullRequest, Trophy, MessageSquare, Disc, Award, ArrowRight, Loader2, Maximize2 } from "lucide-react";
+import { GraduationCap, BookOpen, Terminal, CheckCircle, ExternalLink, GitPullRequest, Trophy, MessageSquare, Disc, Award, ArrowRight, Loader2, Maximize2, Lock } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -258,6 +258,7 @@ export default function AcademyDashboard() {
   }, [statusData, isLoadingStatus, navigate]);
 
   const handleMarkComplete = (lessonId: string, forceState?: boolean) => {
+    if (isLessonLocked(lessonId)) return;
     setCompletedLessons(prev => {
       const next = new Set(prev);
       const targetState = forceState !== undefined ? forceState : !next.has(lessonId);
@@ -316,7 +317,8 @@ export default function AcademyDashboard() {
   };
 
   // Calculations
-  const totalLessons = syllabus.reduce((acc, w) => acc + w.lessons.length, 0);
+  const allLessons = syllabus.flatMap(w => w.lessons);
+  const totalLessons = allLessons.length;
   const completionPercentage = Math.round((completedLessons.size / totalLessons) * 100);
   const labUrl = getApiUrl(`/learn-git-branching/?level=${activeLesson.lab}`);
 
@@ -330,6 +332,17 @@ export default function AcademyDashboard() {
   }
 
   const isGraduated = statusData.status === 'graduated';
+
+  // Daily lesson unlock — one new module per day since enrollment
+  const daysSinceJoin = statusData.joinedAt
+    ? Math.max(0, Math.floor((Date.now() - new Date(statusData.joinedAt).getTime()) / 86400000))
+    : 0;
+  const unlockedCount = isGraduated ? totalLessons : Math.max(1, Math.min(totalLessons, daysSinceJoin + 1));
+  const isLessonLocked = (lessonId: string) => {
+    if (isGraduated) return false;
+    const idx = allLessons.findIndex(l => l.id === lessonId);
+    return idx === -1 || idx >= unlockedCount;
+  };
 
   return (
     <div className="min-h-screen bg-background overflow-x-hidden custom-scrollbar relative">
@@ -389,6 +402,11 @@ export default function AcademyDashboard() {
               <span>{completedLessons.size} / {totalLessons} Lessons ({completionPercentage}%)</span>
             </div>
             <Progress value={completionPercentage} className="h-2.5" />
+            {!isGraduated && unlockedCount < totalLessons && (
+              <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                <Lock className="w-3 h-3" /> {unlockedCount} of {totalLessons} unlocked — a new lesson unlocks daily.
+              </p>
+            )}
           </div>
         </div>
 
@@ -411,25 +429,34 @@ export default function AcademyDashboard() {
                     {week.lessons.map((lesson) => {
                       const isActive = activeLesson.id === lesson.id;
                       const isComplete = completedLessons.has(lesson.id);
+                      const locked = isLessonLocked(lesson.id);
+                      const nextUnlock = !locked ? false : unlockedCount === allLessons.findIndex(l => l.id === lesson.id);
                       return (
                         <button
                           key={lesson.id}
+                          disabled={locked}
                           onClick={() => setActiveLesson(lesson)}
                           className={`w-full text-left p-3 rounded-lg text-xs font-medium border transition-all flex items-center justify-between gap-3 ${
-                            isActive
+                            locked
+                              ? "opacity-45 cursor-not-allowed bg-secondary/10 border-transparent text-muted-foreground"
+                              : isActive
                               ? "bg-primary/10 border-primary/40 text-foreground"
                               : "bg-secondary/20 border-transparent text-muted-foreground hover:bg-secondary/40 hover:text-foreground"
                           }`}
                         >
                           <div className="flex items-center gap-2.5 min-w-0">
-                            {isComplete ? (
+                            {locked ? (
+                              <Lock className="w-4 h-4 text-muted-foreground shrink-0" />
+                            ) : isComplete ? (
                               <CheckCircle className="w-4 h-4 text-primary shrink-0" />
                             ) : (
                               <Terminal className="w-4 h-4 text-muted-foreground shrink-0" />
                             )}
                             <span className="truncate">{lesson.id} {lesson.title}</span>
                           </div>
-                          <span className="text-[10px] shrink-0 font-mono text-muted-foreground">{lesson.duration}</span>
+                          <span className="text-[10px] shrink-0 font-mono text-muted-foreground">
+                            {locked ? (nextUnlock ? "Unlocks next" : "Locked") : lesson.duration}
+                          </span>
                         </button>
                       );
                     })}
