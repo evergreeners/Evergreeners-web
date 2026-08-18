@@ -19,7 +19,7 @@ import { eq, and, desc, gt, sql } from 'drizzle-orm';
 import { getGithubContributions, checkQuestProgress } from './lib/github.js';
 import { setupCronJobs } from './cron.js';
 import { updateUserGoals } from './lib/goals.js';
-import { sendWelcomeEmail, sendAcademyWaitlistConfirmationEmail } from './lib/email.js';
+import { sendWelcomeEmail, sendAcademyWaitlistConfirmationEmail, sendAcademyGraduationEmail } from './lib/email.js';
 import { getOrGenerateEyeInsight } from './lib/eye.js';
 import { checkAndAwardBadges, type UserStats } from './badges/award-badges.js';
 import { reviewPullRequest } from './lib/academy-review.js';
@@ -3172,6 +3172,23 @@ Keep the total response under 300 words. Be like a hype coach mixed with a ruthl
                 }
             } catch (err) {
                 console.error('PR auto-review failed:', err);
+            }
+
+            // Async graduation email (non-blocking)
+            const ghEmail = await db.query.users.findFirst({
+                where: eq(schema.users.id, userId),
+                columns: { email: true, name: true, username: true },
+            });
+            if (ghEmail?.email) {
+                sendAcademyGraduationEmail({
+                    to: ghEmail.email,
+                    name: ghEmail.name || 'there',
+                    username: ghEmail.username || '',
+                    certId,
+                    prUrl,
+                    reviewScore: review?.score ?? null,
+                    verifyHref: `${process.env.APP_URL || 'https://evergreeners.dev'}/academy/verify/${certId}`,
+                }).catch((err) => console.error('Academy graduation email failed:', err.message));
             }
 
             const badgeStats = {

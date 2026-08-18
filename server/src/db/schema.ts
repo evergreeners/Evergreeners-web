@@ -41,6 +41,7 @@ export const users = mySchema.table('users', {
     academyCertId: text('academy_cert_id'),
     academyLessonsCompleted: integer('academy_lessons_completed').default(0),
     academyLastActiveAt: timestamp('academy_last_active_at'),
+    academyLastNudgedAt: timestamp('academy_last_nudged_at'),
 });
 
 export const sessions = mySchema.table('sessions', {
