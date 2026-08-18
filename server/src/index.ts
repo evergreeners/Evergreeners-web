@@ -135,6 +135,16 @@ server.register(cors, {
     allowedHeaders: ["Content-Type", "Authorization", "Cookie"],
 });
 
+// ─── Academy launch gate ─────────────────────────────────────────────────────
+const ACADEMY_LAUNCH_DATE = process.env.ACADEMY_LAUNCH_DATE || '2026-08-31T00:00:00Z';
+const ACADEMY_LAUNCH_DATE_LABEL = new Date(ACADEMY_LAUNCH_DATE).toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+});
+const isAcademyOpen = () => Date.now() >= +new Date(ACADEMY_LAUNCH_DATE);
+
 // Extremely crucial for Vercel Rewrites & cross-origin authentication
 // This ensures that for ALL requests, better-auth and session handlers see the public host (e.g. evergreeners.dev)
 // and NOT the internal Railway host. This fixes 401s during sync and OAuth redirect issues.
@@ -2781,12 +2791,21 @@ Keep the total response under 300 words. Be like a hype coach mixed with a ruthl
             joinedAt: user[0].academyJoinedAt,
             prUrl: user[0].academyPrUrl,
             certId: user[0].academyCertId,
-            name: user[0].name
+            name: user[0].name,
+            launchDate: ACADEMY_LAUNCH_DATE,
+            isLaunchOpen: isAcademyOpen()
         };
     });
 
     // 2. POST /api/academy/enroll (Authenticated)
     instance.post('/api/academy/enroll', async (req, reply) => {
+        if (!isAcademyOpen()) {
+            return reply.status(403).send({
+                message: `The Academy opens on ${ACADEMY_LAUNCH_DATE_LABEL}. Check back then to enroll.`,
+                launchDate: ACADEMY_LAUNCH_DATE
+            });
+        }
+
         const session = await getSessionFromRequest(req);
         if (!session) return reply.status(401).send({ message: "Unauthorized" });
 

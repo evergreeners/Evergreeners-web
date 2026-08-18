@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { toast } from "sonner";
+import { getAcademyTimeLeft, isAcademyLaunchOpen, ACADEMY_LAUNCH_DATE_LABEL } from "@/lib/academy-launch";
 
 interface AuditResult {
   score: number;
@@ -140,6 +141,14 @@ export default function Academy() {
 
   // Enrollment state
   const [isEnrolling, setIsEnrolling] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(getAcademyTimeLeft());
+
+  useEffect(() => {
+    const timer = setInterval(() => setTimeLeft(getAcademyTimeLeft()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const academyOpen = isAcademyLaunchOpen();
 
   // Check enrollment status
   const { data: statusData, isLoading: isLoadingStatus } = useQuery({
@@ -222,6 +231,10 @@ export default function Academy() {
   };
 
   const handleEnroll = async () => {
+    if (!isAcademyLaunchOpen()) {
+      toast.error(`The Academy opens on ${ACADEMY_LAUNCH_DATE_LABEL}. Check back then to enroll.`);
+      return;
+    }
     if (!session) {
       toast.error("Please log in or sign up first to enroll in the Academy.");
       navigate("/login?redirect=/academy");
@@ -810,19 +823,50 @@ export default function Academy() {
                   </div>
                 </div>
 
+                {/* Countdown to Aug 31 launch */}
+                {!academyOpen && (
+                  <div className="flex gap-3 md:gap-4 justify-center my-6 z-10">
+                    <div className="flex flex-col items-center bg-black/50 border border-white/5 px-3.5 py-1.5 rounded-xl min-w-[65px]">
+                      <span className="text-2xl font-extrabold text-primary font-mono">{String(timeLeft.days).padStart(2, '0')}</span>
+                      <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">Days</span>
+                    </div>
+                    <div className="flex flex-col items-center bg-black/50 border border-white/5 px-3.5 py-1.5 rounded-xl min-w-[65px]">
+                      <span className="text-2xl font-extrabold text-primary font-mono">{String(timeLeft.hours).padStart(2, '0')}</span>
+                      <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">Hours</span>
+                    </div>
+                    <div className="flex flex-col items-center bg-black/50 border border-white/5 px-3.5 py-1.5 rounded-xl min-w-[65px]">
+                      <span className="text-2xl font-extrabold text-primary font-mono">{String(timeLeft.minutes).padStart(2, '0')}</span>
+                      <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">Mins</span>
+                    </div>
+                    <div className="flex flex-col items-center bg-black/50 border border-white/5 px-3.5 py-1.5 rounded-xl min-w-[65px]">
+                      <span className="text-2xl font-extrabold text-primary font-mono">{String(timeLeft.seconds).padStart(2, '0')}</span>
+                      <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">Secs</span>
+                    </div>
+                  </div>
+                )}
+
                 <div className="pt-4 flex justify-center w-full relative z-20">
                   {enrolled ? (
                     <Link to="/academy/dashboard" className="academy-action-btn">
                       <span>Go to Student Portal</span>
                       <ArrowRight className="w-5 h-5" />
                     </Link>
-                  ) : (
+                  ) : academyOpen ? (
                     <button
                       onClick={handleEnroll}
                       disabled={isEnrolling}
                       className="academy-action-btn"
                     >
                       <span>{isEnrolling ? "Enrolling..." : "Join Now"}</span>
+                      <ArrowRight className="w-5 h-5" />
+                    </button>
+                  ) : (
+                    <button
+                      disabled
+                      className="academy-action-btn opacity-60 cursor-not-allowed border-primary/30 text-primary hover:text-primary active:scale-100 hover:scale-100 rotate-0 hover:rotate-0"
+                      style={{ animation: 'none', backgroundColor: '#0c0d0d' }}
+                    >
+                      <span>Opens {ACADEMY_LAUNCH_DATE_LABEL}</span>
                       <ArrowRight className="w-5 h-5" />
                     </button>
                   )}
