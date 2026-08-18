@@ -183,6 +183,15 @@ export const userBadges = mySchema.table('user_badges', {
     uniqueUserBadge: unique('user_badges_user_id_badge_id_unique').on(table.userId, table.badgeId),
 }));
 
+// ─── Academy Waitlist ──────────────────────────────────────────────────────────
+// Email capture shown to visitors before the Academy launch gate opens.
+
+export const academyWaitlist = mySchema.table('academy_waitlist', {
+    id: serial('id').primaryKey(),
+    email: text('email').notNull().unique(),
+    createdAt: timestamp('created_at').defaultNow(),
+});
+
 // ─── The Eye: Watchlist ────────────────────────────────────────────────────────
 
 export const watchlist = mySchema.table('watchlist', {

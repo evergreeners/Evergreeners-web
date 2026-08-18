@@ -231,6 +231,60 @@ export interface AcademyTimeLeft {
     seconds: number;
 }
 
+export interface AcademyWaitlistOptions {
+    to: string;
+    name?: string;
+    launchDateLabel: string;
+    launchHref: string;
+}
+
+export async function sendAcademyWaitlistConfirmationEmail(opts: AcademyWaitlistOptions) {
+    const { to, name, launchDateLabel, launchHref } = opts;
+    const displayName = name?.split(' ')[0] || 'there';
+
+    const body = `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td style="padding-bottom:8px;">
+            <h1 class="text-heading" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',Helvetica,Arial,sans-serif;font-size:26px;font-weight:700;color:#09090b;letter-spacing:-0.4px;line-height:1.3;">
+              You're on the list, ${displayName}.
+            </h1>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding-bottom:4px;">
+            <p class="text-body" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;color:#52525b;line-height:1.75;">
+              We've saved your spot for the <strong style="color:#09090b;">Evergreeners Academy</strong>, opening <strong style="color:#09090b;">${launchDateLabel}</strong>. You'll be one of the first to know when enrollment opens — no need to do anything else.
+            </p>
+          </td>
+        </tr>
+
+        ${divider}
+
+        <tr>
+          <td align="left" style="padding-top:4px;">
+            <a href="${launchHref}" class="cta" style="display:inline-block;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;font-weight:700;color:#000000;text-decoration:none;background-color:#4ade80;padding:13px 24px;border-radius:9999px;">
+              Visit the Academy →
+            </a>
+          </td>
+        </tr>
+      </table>`;
+
+    try {
+        const result = await getResend().emails.send({
+            from: FROM_EMAIL,
+            to,
+            subject: `You're on the Academy waitlist`,
+            html: emailShell(body),
+        });
+        console.log(`Academy waitlist confirmation email sent to ${to}:`, result.data?.id);
+        return result;
+    } catch (err) {
+        console.error(`Failed to send waitlist confirmation email to ${to}:`, err);
+        throw err;
+    }
+}
+
 export interface AcademyAnnouncementOptions {
     to: string;
     name: string;

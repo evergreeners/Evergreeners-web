@@ -19,7 +19,7 @@ import { eq, and, desc, gt, sql } from 'drizzle-orm';
 import { getGithubContributions, checkQuestProgress } from './lib/github.js';
 import { setupCronJobs } from './cron.js';
 import { updateUserGoals } from './lib/goals.js';
-import { sendWelcomeEmail } from './lib/email.js';
+import { sendWelcomeEmail, sendAcademyWaitlistConfirmationEmail } from './lib/email.js';
 import { getOrGenerateEyeInsight } from './lib/eye.js';
 import { checkAndAwardBadges } from './badges/award-badges.js';
 import { BADGES, getBadgeById } from './badges/badge-definitions.js';
@@ -2797,7 +2797,35 @@ Keep the total response under 300 words. Be like a hype coach mixed with a ruthl
         };
     });
 
-    // 2. POST /api/academy/enroll (Authenticated)
+    // 2. POST /api/academy/waitlist (Public — email capture before launch)
+    instance.post('/api/academy/waitlist', async (req, reply) => {
+        const { email, name } = (req.body || {}) as { email?: string; name?: string };
+        const normalizedEmail = email?.trim().toLowerCase();
+        if (!normalizedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+            return reply.status(400).send({ message: "A valid email address is required." });
+        }
+
+        try {
+            await db.insert(schema.academyWaitlist)
+                .values({ email: normalizedEmail })
+                .onConflictDoNothing();
+
+            const launchHref = `${process.env.APP_URL || 'https://evergreeners.dev'}/academy`;
+            sendAcademyWaitlistConfirmationEmail({
+                to: normalizedEmail,
+                name: name || undefined,
+                launchDateLabel: ACADEMY_LAUNCH_DATE_LABEL,
+                launchHref,
+            }).catch((err) => console.error('Waitlist confirmation email failed:', err.message));
+
+            return { success: true, message: `You're on the list. We'll email you when the Academy opens on ${ACADEMY_LAUNCH_DATE_LABEL}.` };
+        } catch (err: any) {
+            console.error('Error saving waitlist entry:', err);
+            return reply.status(500).send({ message: "Could not save your email. Please try again." });
+        }
+    });
+
+    // 3. POST /api/academy/enroll (Authenticated)
     instance.post('/api/academy/enroll', async (req, reply) => {
         if (!isAcademyOpen()) {
             return reply.status(403).send({
