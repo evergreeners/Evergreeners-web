@@ -3254,7 +3254,74 @@ Keep the total response under 300 words. Be like a hype coach mixed with a ruthl
         }
     });
 
-    // 6. GET /api/academy/review/:certId (Public — AI PR review)
+    // 6. GET /api/academy/certificate/:certId/og-image (Public — SVG social preview)
+    instance.get('/api/academy/certificate/:certId/og-image', async (req, reply) => {
+        const { certId } = req.params as { certId: string };
+
+        const userRecord = await db.select({
+            name: schema.users.name,
+            prUrl: schema.users.academyPrUrl,
+            updatedAt: schema.users.updatedAt,
+            academyJoinedAt: schema.users.academyJoinedAt,
+        })
+        .from(schema.users)
+        .where(eq(schema.users.academyCertId, certId))
+        .limit(1);
+
+        if (!userRecord.length) {
+            return reply.status(404).send({ message: "Certificate not found" });
+        }
+
+        const escapeXml = (s: string) => s
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+
+        const name = escapeXml(userRecord[0].name);
+        const date = new Date(userRecord[0].updatedAt || userRecord[0].academyJoinedAt || new Date())
+            .toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
+        const shortId = escapeXml(certId.slice(0, 18) + '…');
+
+        const svg = `
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#000000"/>
+      <stop offset="55%" stop-color="#0a0f0c"/>
+      <stop offset="100%" stop-color="#040c08"/>
+    </linearGradient>
+    <linearGradient id="brd" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="50%" stop-color="#059669"/>
+      <stop offset="100%" stop-color="#34d399"/>
+    </linearGradient>
+    <linearGradient id="nm" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#a7f3d0"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect x="28" y="28" width="1144" height="574" rx="24" fill="none" stroke="url(#brd)" stroke-width="4" opacity="0.85"/>
+  <circle cx="600" cy="150" r="52" fill="#111827" stroke="#10b981" stroke-width="3"/>
+  <path d="M 580,168 L 600,130 L 620,168 Z" fill="#10b981"/>
+  <circle cx="600" cy="158" r="10" fill="#10b981"/>
+  <text x="600" y="252" font-family="monospace" font-size="22" fill="#10b981" font-weight="bold" letter-spacing="10" text-anchor="middle">EVERGREENERS ACADEMY</text>
+  <text x="600" y="300" font-family="Arial, Helvetica, sans-serif" font-size="40" font-weight="900" fill="#ffffff" letter-spacing="3" text-anchor="middle">CERTIFICATE OF GRADUATION</text>
+  <text x="600" y="360" font-family="Georgia, serif" font-size="22" fill="#9ca3af" font-style="italic" text-anchor="middle">This is to certify that</text>
+  <text x="600" y="420" font-family="Arial, Helvetica, sans-serif" font-size="52" font-weight="bold" fill="url(#nm)" text-anchor="middle">${name}</text>
+  <text x="600" y="475" font-family="Georgia, serif" font-size="19" fill="#9ca3af" text-anchor="middle">has completed the 4-week Git, GitHub &amp; Open Source program</text>
+  <line x1="400" y1="515" x2="800" y2="515" stroke="#1f2937" stroke-width="2"/>
+  <text x="105" y="560" font-family="monospace" font-size="15" fill="#4b5563">VERIFIED ID: ${shortId}</text>
+  <text x="105" y="584" font-family="monospace" font-size="15" fill="#4b5563">DATE: ${escapeXml(date)}</text>
+  <text x="1095" y="560" font-family="Georgia, serif, cursive" font-size="30" font-style="italic" fill="#10b981" text-anchor="end">Evergreener Lead</text>
+  <text x="1095" y="588" font-family="Arial, sans-serif" font-size="13" fill="#4b5563" text-anchor="end">evergreeners.dev/verify</text>
+</svg>`.trim();
+
+        reply.header('Content-Type', 'image/svg+xml');
+        reply.header('Cache-Control', 'public, max-age=86400');
+        return reply.send(svg);
+    });
+
+    // 7. GET /api/academy/review/:certId (Public — AI PR review)
     instance.get('/api/academy/review/:certId', async (req, reply) => {
         const { certId } = req.params as { certId: string };
 

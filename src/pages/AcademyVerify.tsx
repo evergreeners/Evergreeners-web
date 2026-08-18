@@ -7,7 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getApiUrl } from "@/lib/api-config";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { useRef } from "react";
+import { useRef, useEffect } from "react";
 
 interface Certificate {
   certId: string;
@@ -54,6 +54,37 @@ export default function AcademyVerify() {
   });
 
   const review = reviewData?.review ?? null;
+
+  // Set dynamic page title + social (OG) meta tags so shared links render a certificate preview
+  useEffect(() => {
+    if (!certData?.certificate) return;
+    const cert = certData.certificate;
+    const ogImage = `${window.location.origin}/api/academy/certificate/${cert.certId}/og-image`;
+    const title = `${cert.name} graduated from the Evergreeners Academy`;
+    const description = `Verified graduation — 4-week Git, GitHub & Open Source program. Capstone PR: ${cert.prUrl || 'see certificate'}`;
+
+    document.title = title;
+
+    const setMeta = (attr: string, key: string, content: string) => {
+      let el = document.head.querySelector(`meta[${attr}="${key}"]`) as HTMLMetaElement | null;
+      if (!el) {
+        el = document.createElement("meta");
+        el.setAttribute(attr, key);
+        document.head.appendChild(el);
+      }
+      el.setAttribute("content", content);
+    };
+
+    setMeta("property", "og:title", title);
+    setMeta("property", "og:description", description);
+    setMeta("property", "og:image", ogImage);
+    setMeta("property", "og:type", "website");
+    setMeta("property", "og:url", window.location.href);
+    setMeta("name", "twitter:card", "summary_large_image");
+    setMeta("name", "twitter:title", title);
+    setMeta("name", "twitter:description", description);
+    setMeta("name", "twitter:image", ogImage);
+  }, [certData]);
 
   const downloadSvg = () => {
     if (!certData) return;
