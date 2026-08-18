@@ -4,7 +4,28 @@ import { users, accounts, lessonProgress } from './db/schema.js';
 import { eq, and, lt, or, isNull, isNotNull, ne, sql } from 'drizzle-orm';
 import { getGithubContributions } from './lib/github.js';
 import { updateUserGoals } from './lib/goals.js';
-import { sendDailyDigestEmail, sendStreakBrokenEmail, sendAcademyNudgeEmail } from './lib/email.js';
+import { sendDailyDigestEmail, sendStreakBrokenEmail, sendAcademyNudgeEmail, type AcademyTimeLeft, type DailyAcademyInfo } from './lib/email.js';
+
+const ACADEMY_LAUNCH_DATE = process.env.ACADEMY_LAUNCH_DATE || '2026-08-31T00:00:00Z';
+const LAUNCH_MS = new Date(ACADEMY_LAUNCH_DATE).getTime();
+
+function academyTimeLeft(): AcademyTimeLeft {
+    const difference = LAUNCH_MS - Date.now();
+    if (difference <= 0) return { days: 0, hours: 0, minutes: 0, seconds: 0 };
+    return {
+        days: Math.floor(difference / 86400000),
+        hours: Math.floor((difference / 3600000) % 24),
+        minutes: Math.floor((difference / 60000) % 60),
+        seconds: Math.floor((difference / 1000) % 60),
+    };
+}
+
+const academyLaunchDateLabel = new Date(ACADEMY_LAUNCH_DATE).toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+});
 
 export function setupCronJobs() {
     console.log("Setting up cron jobs...");
@@ -82,6 +103,46 @@ export function setupCronJobs() {
 
             console.log(`Checking ${usersToCheck.length} opted-in users for daily digest.`);
 
+            // Academy progress counts (one query for the whole run)
+            const progressRows = await db.select({
+                userId: lessonProgress.userId,
+                count: sql<number>`count(*)::int`,
+            }).from(lessonProgress).groupBy(lessonProgress.userId);
+            const academyProgressMap = new Map(progressRows.map((r) => [r.userId, r.count]));
+            const ACADEMY_TOTAL_LESSONS = 12;
+
+            const buildDailyAcademyInfo = (user: typeof users.$inferSelect): DailyAcademyInfo | null => {
+                const isEnrolled = !!user.academyStatus && user.academyStatus !== 'none';
+                const appUrl = process.env.APP_URL || 'https://evergreeners.dev';
+                const href = `${appUrl}/academy${isEnrolled ? '/dashboard' : ''}`;
+                const daysToLaunch = Math.max(0, Math.ceil((LAUNCH_MS - Date.now()) / 86400000));
+
+                if (!isEnrolled) {
+                    return { isEnrolled: false, daysToLaunch, launchDateLabel: academyLaunchDateLabel, timeLeft: academyTimeLeft(), href };
+                }
+
+                const completed = academyProgressMap.get(user.id) || 0;
+                const daysSinceJoin = user.academyJoinedAt
+                    ? Math.max(0, Math.floor((Date.now() - new Date(user.academyJoinedAt).getTime()) / 86400000))
+                    : 0;
+                const unlockedCount = Math.max(1, Math.min(ACADEMY_TOTAL_LESSONS, daysSinceJoin + 1));
+                let lockedUntil: number | null = null;
+                if (completed < ACADEMY_TOTAL_LESSONS && completed >= unlockedCount && unlockedCount < ACADEMY_TOTAL_LESSONS) {
+                    lockedUntil = 1;
+                }
+
+                return {
+                    isEnrolled: true,
+                    lessonsCompleted: completed,
+                    totalLessons: ACADEMY_TOTAL_LESSONS,
+                    lockedUntil,
+                    daysToLaunch,
+                    launchDateLabel: academyLaunchDateLabel,
+                    timeLeft: academyTimeLeft(),
+                    href,
+                };
+            };
+
             let sent = 0;
             let skipped = 0;
             let broken = 0;
@@ -154,6 +215,7 @@ export function setupCronJobs() {
                         totalCommits: user.totalCommits || 0,
                         weeklyCommits,
                         eyeInsight,
+                        academy: buildDailyAcademyInfo(user),
                     });
                     sent++;
                 } catch (err) {
