@@ -15,7 +15,7 @@ import { createClient } from '@supabase/supabase-js';
 
 import { db } from './db/index.js';
 import * as schema from './db/schema.js';
-import { eq, and, desc, gt, sql } from 'drizzle-orm';
+import { eq, and, desc, gt, sql, ne, isNotNull, isNull } from 'drizzle-orm';
 import { getGithubContributions, checkQuestProgress } from './lib/github.js';
 import { setupCronJobs } from './cron.js';
 import { updateUserGoals } from './lib/goals.js';
@@ -2934,7 +2934,19 @@ Keep the total response under 300 words. Be like a hype coach mixed with a ruthl
         return { success: true, count };
     });
 
-    // 4. POST /api/academy/waitlist (Public — email capture before launch)
+    // 4. GET /api/academy/waitlist/count (Public — social proof)
+    instance.get('/api/academy/waitlist/count', async (_req, reply) => {
+        try {
+            const countRow = await db.select({ count: sql<number>`count(*)::int` })
+                .from(schema.academyWaitlist);
+            return { success: true, count: countRow[0]?.count || 0 };
+        } catch (err) {
+            console.error('Error fetching waitlist count:', err);
+            return reply.status(500).send({ message: "Could not load waitlist count." });
+        }
+    });
+
+    // 5. POST /api/academy/waitlist (Public — email capture before launch)
     instance.post('/api/academy/waitlist', async (req, reply) => {
         const { email, name } = (req.body || {}) as { email?: string; name?: string };
         const normalizedEmail = email?.trim().toLowerCase();
@@ -3408,6 +3420,73 @@ Keep the total response under 300 words. Be like a hype coach mixed with a ruthl
                 checkedAt: row[0].checkedAt,
             }
         };
+    });
+
+    // 8. GET /api/academy/leaderboard (Public — cohort rankings)
+    instance.get('/api/academy/leaderboard', async (_req, reply) => {
+        try {
+            const ACADEMY_TOTAL_LESSONS = 12;
+
+            const students = await db.select({
+                id: schema.users.id,
+                name: schema.users.name,
+                username: schema.users.username,
+                image: schema.users.image,
+                academyStatus: schema.users.academyStatus,
+                academyJoinedAt: schema.users.academyJoinedAt,
+            })
+            .from(schema.users)
+            .where(and(
+                isNotNull(schema.users.academyStatus),
+                ne(schema.users.academyStatus, 'none'),
+                ne(schema.users.academyStatus, 'audit_completed')
+            ))
+            .limit(200);
+
+            const progressRows = await db.select({
+                userId: schema.lessonProgress.userId,
+                count: sql<number>`count(*)::int`,
+            }).from(schema.lessonProgress).groupBy(schema.lessonProgress.userId);
+            const progressMap = new Map(progressRows.map((r) => [r.userId, r.count]));
+
+            // Latest PR review score per student (reviews are one-per-cert, newest first)
+            const reviewRows = await db.select({
+                userId: schema.academyReviews.userId,
+                score: schema.academyReviews.score,
+            })
+            .from(schema.academyReviews)
+            .orderBy(desc(schema.academyReviews.checkedAt));
+            const bestScore = new Map<string, number>();
+            for (const r of reviewRows) {
+                if (!bestScore.has(r.userId)) bestScore.set(r.userId, r.score);
+            }
+
+            const leaderboard = students
+                .map((s) => ({
+                    id: s.id,
+                    name: s.name,
+                    username: s.username,
+                    image: s.image,
+                    status: s.academyStatus,
+                    lessonsCompleted: progressMap.get(s.id) || 0,
+                    totalLessons: ACADEMY_TOTAL_LESSONS,
+                    prScore: bestScore.get(s.id) ?? null,
+                    joinedAt: s.academyJoinedAt,
+                }))
+                .sort(
+                    (a, b) =>
+                        b.lessonsCompleted - a.lessonsCompleted ||
+                        (b.prScore ?? 0) - (a.prScore ?? 0) ||
+                        +new Date(a.joinedAt || 0) - +new Date(b.joinedAt || 0)
+                )
+                .slice(0, 50)
+                .map((r, i) => ({ rank: i + 1, ...r }));
+
+            return { success: true, leaderboard };
+        } catch (err) {
+            console.error('Error fetching academy leaderboard:', err);
+            return reply.status(500).send({ message: "Could not load the leaderboard." });
+        }
     });
 
 });

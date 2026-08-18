@@ -155,6 +155,16 @@ export default function Academy() {
 
   const academyOpen = isAcademyLaunchOpen();
 
+  // Waitlist social-proof count
+  const { data: waitlistData } = useQuery({
+    queryKey: ['academyWaitlistCount'],
+    queryFn: async () => {
+      const res = await fetch(getApiUrl('/api/academy/waitlist/count'));
+      if (!res.ok) throw new Error("Failed to fetch waitlist count");
+      return res.json();
+    },
+  });
+
   // Check enrollment status
   const { data: statusData, isLoading: isLoadingStatus } = useQuery({
     queryKey: ['academyStatus'],
@@ -293,6 +303,7 @@ export default function Academy() {
         throw new Error(err.message || "Could not join the waitlist.");
       }
       setWaitlisted(true);
+      queryClient.invalidateQueries({ queryKey: ['academyWaitlistCount'] });
       toast.success("You're on the list!", {
         description: `We'll email you when the Academy opens on ${ACADEMY_LAUNCH_DATE_LABEL}.`
       });
@@ -884,6 +895,11 @@ export default function Academy() {
                     <p className="text-center text-sm text-muted-foreground mb-3">
                       Doors open {ACADEMY_LAUNCH_DATE_LABEL}. Want a head start?
                     </p>
+                    {waitlistData?.count ? (
+                      <p className="text-center text-[11px] font-medium text-primary/80 mb-3">
+                        {waitlistData.count.toLocaleString()} developers are already on the list
+                      </p>
+                    ) : null}
                     <form
                       onSubmit={(e) => { e.preventDefault(); handleWaitlist(); }}
                       className="flex flex-col sm:flex-row gap-2"
