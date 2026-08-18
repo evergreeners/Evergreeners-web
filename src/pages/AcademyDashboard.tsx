@@ -216,12 +216,31 @@ export default function AcademyDashboard() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const [activeLesson, setActiveLesson] = useState<Lesson>(syllabus[0].lessons[0]);
+  const [activeLesson, setActiveLesson] = useState<Lesson | null>(null);
   const [completedLessons, setCompletedLessons] = useState<Set<string>>(new Set());
 
   // Capstone PR verification state
   const [prUrl, setPrUrl] = useState("");
   const [isVerifyingPr, setIsVerifyingPr] = useState(false);
+
+  // Fetch curriculum from the database, falling back to the bundled syllabus
+  const { data: lessonsData } = useQuery<{ success: boolean; weeks: Week[] }>({
+    queryKey: ['academyLessons'],
+    queryFn: async () => {
+      const res = await fetch(getApiUrl('/api/academy/lessons'), {
+        credentials: "include",
+        headers: {
+          ...(session?.session?.token ? { Authorization: `Bearer ${session.session.token}` } : {})
+        }
+      });
+      if (!res.ok) throw new Error("Failed to fetch lessons");
+      return res.json();
+    },
+    enabled: !!session,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const curriculum: Week[] = lessonsData?.weeks?.length ? lessonsData.weeks : syllabus;
 
   // Fetch academy status
   const { data: statusData, isLoading: isLoadingStatus } = useQuery({
@@ -353,16 +372,25 @@ export default function AcademyDashboard() {
   };
 
   // Calculations
-  const allLessons = syllabus.flatMap(w => w.lessons);
+  const allLessons = curriculum.flatMap(w => w.lessons);
   const totalLessons = allLessons.length;
   const completionPercentage = Math.round((completedLessons.size / totalLessons) * 100);
-  const labUrl = getApiUrl(`/learn-git-branching/?level=${activeLesson.lab}`);
+  const labUrl = activeLesson ? getApiUrl(`/learn-git-branching/?level=${activeLesson.lab}`) : "";
 
-  if (isLoadingStatus || !statusData || statusData.status === 'none') {
+  // Set the first lesson as active once the curriculum is available
+  useEffect(() => {
+    if (!activeLesson && allLessons.length > 0) {
+      setActiveLesson(allLessons[0]);
+    }
+  }, [allLessons.length, activeLesson]);
+
+  if (isLoadingStatus || !statusData || statusData.status === 'none' || !activeLesson) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        <span className="text-sm text-muted-foreground mt-2">Checking enrollment status...</span>
+        <span className="text-sm text-muted-foreground mt-2">
+          {statusData?.status === 'none' ? "Checking enrollment status..." : "Loading your lesson..."}
+        </span>
       </div>
     );
   }
@@ -455,7 +483,7 @@ export default function AcademyDashboard() {
             </h3>
             
             <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
-              {syllabus.map((week) => (
+              {curriculum.map((week) => (
                 <div key={week.number} className="space-y-2">
                   <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-2">
                     Week {week.number} — {week.title}

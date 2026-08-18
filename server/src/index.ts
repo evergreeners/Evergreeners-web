@@ -2798,6 +2798,45 @@ Keep the total response under 300 words. Be like a hype coach mixed with a ruthl
         };
     });
 
+    // 1.5. GET /api/academy/lessons (Authenticated — curriculum from DB)
+    instance.get('/api/academy/lessons', async (req, reply) => {
+        const session = await getSessionFromRequest(req);
+        if (!session) return reply.status(401).send({ message: "Unauthorized" });
+
+        const rows = await db.select({
+            id: schema.academyLessons.id,
+            week: schema.academyLessons.week,
+            weekTitle: schema.academyLessons.weekTitle,
+            title: schema.academyLessons.title,
+            duration: schema.academyLessons.duration,
+            description: schema.academyLessons.description,
+            content: schema.academyLessons.content,
+            lab: schema.academyLessons.lab,
+            sortOrder: schema.academyLessons.sortOrder,
+        })
+        .from(schema.academyLessons)
+        .orderBy(schema.academyLessons.sortOrder);
+
+        const weeks = rows.reduce<Array<{ number: number; title: string; lessons: Array<{ id: string; title: string; duration: string; description: string; content: string; lab: string }> }>>((acc, row) => {
+            let week = acc.find((w) => w.number === row.week);
+            if (!week) {
+                week = { number: row.week, title: row.weekTitle, lessons: [] };
+                acc.push(week);
+            }
+            week.lessons.push({
+                id: row.id,
+                title: row.title,
+                duration: row.duration,
+                description: row.description,
+                content: row.content,
+                lab: row.lab,
+            });
+            return acc;
+        }, []);
+
+        return { success: true, weeks };
+    });
+
     // 2. GET /api/academy/progress (Authenticated)
     instance.get('/api/academy/progress', async (req, reply) => {
         const session = await getSessionFromRequest(req);

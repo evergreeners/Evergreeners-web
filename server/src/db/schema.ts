@@ -204,7 +204,6 @@ export const lessonProgress = mySchema.table('lesson_progress', {
 }, (table) => ({
     uniqueLessonProgress: unique('lesson_progress_user_lesson_unique').on(table.userId, table.lessonId),
 }));
-
 // AI-generated review for a submitted capstone PR
 export const academyReviews = mySchema.table('academy_reviews', {
     id: serial('id').primaryKey(),
@@ -219,6 +218,19 @@ export const academyReviews = mySchema.table('academy_reviews', {
 }, (table) => ({
     uniqueReviewCert: unique('academy_reviews_cert_id_unique').on(table.certId),
 }));
+
+// Curriculum lessons (DB-backed source of truth for the student portal)
+export const academyLessons = mySchema.table('academy_lessons', {
+    id: text('id').primaryKey(),       // e.g. "1.1"
+    week: integer('week').notNull(),   // 1–4
+    weekTitle: text('week_title').notNull(),
+    title: text('title').notNull(),
+    duration: text('duration').notNull(),
+    description: text('description').notNull(),
+    content: text('content').notNull(),
+    lab: text('lab').notNull(),        // LearnGitBranching level slug
+    sortOrder: integer('sort_order').notNull().default(0),
+});
 
 // ─── The Eye: Watchlist ────────────────────────────────────────────────────────
 
