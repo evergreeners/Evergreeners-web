@@ -82,6 +82,26 @@ const divider = `
     </td>
   </tr>`;
 
+// Reusable themed countdown table (baked at send-time — email clients block JS)
+const countdownBox = (value: number, label: string) => `
+  <td align="center" style="padding:10px 14px;background-color:#000000;border:1px solid #1f1f1f;border-radius:10px;min-width:62px;">
+    <div style="font-family:ui-monospace,'SF Mono','Fira Code',monospace;font-size:26px;font-weight:700;color:#4ade80;line-height:1;">${String(value).padStart(2, '0')}</div>
+    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:9px;color:#52525b;letter-spacing:0.14em;text-transform:uppercase;margin-top:4px;">${label}</div>
+  </td>`;
+
+const academyCountdownTable = (tl: AcademyTimeLeft) => `
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;">
+    <tr style="border-collapse:separate;">
+      ${countdownBox(tl.days, 'Days')}
+      <td style="width:6px;">&nbsp;</td>
+      ${countdownBox(tl.hours, 'Hours')}
+      <td style="width:6px;">&nbsp;</td>
+      ${countdownBox(tl.minutes, 'Mins')}
+      <td style="width:6px;">&nbsp;</td>
+      ${countdownBox(tl.seconds, 'Secs')}
+    </tr>
+  </table>`;
+
 // ─── Welcome Email ────────────────────────────────────────────────────────────
 
 export async function sendWelcomeEmail(to: string, name: string, githubConnected = false) {
@@ -231,6 +251,60 @@ export interface AcademyTimeLeft {
     seconds: number;
 }
 
+export interface AcademyWaitlistOptions {
+    to: string;
+    name?: string;
+    launchDateLabel: string;
+    launchHref: string;
+}
+
+export async function sendAcademyWaitlistConfirmationEmail(opts: AcademyWaitlistOptions) {
+    const { to, name, launchDateLabel, launchHref } = opts;
+    const displayName = name?.split(' ')[0] || 'there';
+
+    const body = `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td style="padding-bottom:8px;">
+            <h1 class="text-heading" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',Helvetica,Arial,sans-serif;font-size:26px;font-weight:700;color:#09090b;letter-spacing:-0.4px;line-height:1.3;">
+              You're on the list, ${displayName}.
+            </h1>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding-bottom:4px;">
+            <p class="text-body" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;color:#52525b;line-height:1.75;">
+              We've saved your spot for the <strong style="color:#09090b;">Evergreeners Academy</strong>, opening <strong style="color:#09090b;">${launchDateLabel}</strong>. You'll be one of the first to know when enrollment opens — no need to do anything else.
+            </p>
+          </td>
+        </tr>
+
+        ${divider}
+
+        <tr>
+          <td align="left" style="padding-top:4px;">
+            <a href="${launchHref}" class="cta" style="display:inline-block;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;font-weight:700;color:#000000;text-decoration:none;background-color:#4ade80;padding:13px 24px;border-radius:9999px;">
+              Visit the Academy →
+            </a>
+          </td>
+        </tr>
+      </table>`;
+
+    try {
+        const result = await getResend().emails.send({
+            from: FROM_EMAIL,
+            to,
+            subject: `You're on the Academy waitlist`,
+            html: emailShell(body),
+        });
+        console.log(`Academy waitlist confirmation email sent to ${to}:`, result.data?.id);
+        return result;
+    } catch (err) {
+        console.error(`Failed to send waitlist confirmation email to ${to}:`, err);
+        throw err;
+    }
+}
+
 export interface AcademyAnnouncementOptions {
     to: string;
     name: string;
@@ -242,13 +316,6 @@ export interface AcademyAnnouncementOptions {
 export async function sendAcademyAnnouncementEmail(opts: AcademyAnnouncementOptions) {
     const { to, name, launchDateLabel, launchHref, timeLeft } = opts;
     const displayName = name?.split(' ')[0] || 'there';
-    const pad = (n: number) => String(n).padStart(2, '0');
-
-    const countdownBox = (value: number, label: string) => `
-      <td align="center" style="padding:10px 14px;background-color:#000000;border:1px solid #1f1f1f;border-radius:10px;min-width:62px;">
-        <div style="font-family:ui-monospace,'SF Mono','Fira Code',monospace;font-size:26px;font-weight:700;color:#4ade80;line-height:1;">${pad(value)}</div>
-        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:9px;color:#52525b;letter-spacing:0.14em;text-transform:uppercase;margin-top:4px;">${label}</div>
-      </td>`;
 
     const body = `
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
@@ -277,17 +344,7 @@ export async function sendAcademyAnnouncementEmail(opts: AcademyAnnouncementOpti
         </tr>
         <tr>
           <td style="padding-bottom:24px;">
-            <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;">
-              <tr style="border-collapse:separate;">
-                ${countdownBox(timeLeft.days, 'Days')}
-                <td style="width:6px;">&nbsp;</td>
-                ${countdownBox(timeLeft.hours, 'Hours')}
-                <td style="width:6px;">&nbsp;</td>
-                ${countdownBox(timeLeft.minutes, 'Mins')}
-                <td style="width:6px;">&nbsp;</td>
-                ${countdownBox(timeLeft.seconds, 'Secs')}
-              </tr>
-            </table>
+            ${academyCountdownTable(timeLeft)}
           </td>
         </tr>
 
@@ -325,11 +382,158 @@ export async function sendAcademyAnnouncementEmail(opts: AcademyAnnouncementOpti
     }
 }
 
+export interface AcademyNudgeOptions {
+    to: string;
+    name: string;
+    lessonsCompleted: number;
+    totalLessons: number;
+    daysInactive: number;
+    dashboardHref: string;
+}
+
+export async function sendAcademyNudgeEmail(opts: AcademyNudgeOptions) {
+    const { to, name, lessonsCompleted, totalLessons, daysInactive, dashboardHref } = opts;
+    const displayName = name?.split(' ')[0] || 'there';
+    const percent = totalLessons > 0 ? Math.round((lessonsCompleted / totalLessons) * 100) : 0;
+
+    const body = `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td style="padding-bottom:8px;">
+            <h1 class="text-heading" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',Helvetica,Arial,sans-serif;font-size:26px;font-weight:700;color:#09090b;letter-spacing:-0.4px;line-height:1.3;">
+              Your Academy lessons are waiting, ${displayName}.
+            </h1>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding-bottom:4px;">
+            <p class="text-body" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;color:#52525b;line-height:1.75;">
+              It's been <strong style="color:#09090b;">${daysInactive} days</strong> since your last lesson. You're <strong style="color:#09090b;">${lessonsCompleted} of ${totalLessons}</strong> lessons in (${percent}%).
+            </p>
+          </td>
+        </tr>
+
+        ${divider}
+
+        <tr>
+          <td align="left" style="padding-top:4px;">
+            <a href="${dashboardHref}" class="cta" style="display:inline-block;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;font-weight:700;color:#000000;text-decoration:none;background-color:#4ade80;padding:13px 24px;border-radius:9999px;">
+              Continue Your Lessons →
+            </a>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding-top:16px;">
+            <p class="text-muted" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;color:#a1a1aa;line-height:1.6;">
+              A new lesson unlocks every day you stay enrolled. One merged external PR at the end earns your certificate.
+            </p>
+          </td>
+        </tr>
+      </table>`;
+
+    try {
+        const result = await getResend().emails.send({
+            from: FROM_EMAIL,
+            to,
+            subject: `${lessonsCompleted}/${totalLessons} lessons done — keep the streak going, ${displayName}`,
+            html: emailShell(body),
+        });
+        console.log(`Academy nudge email sent to ${to}:`, result.data?.id);
+        return result;
+    } catch (err) {
+        console.error(`Failed to send academy nudge email to ${to}:`, err);
+        throw err;
+    }
+}
+
+export interface AcademyGraduationOptions {
+    to: string;
+    name: string;
+    username: string;
+    certId: string;
+    prUrl: string;
+    reviewScore?: number | null;
+    verifyHref: string;
+}
+
+export async function sendAcademyGraduationEmail(opts: AcademyGraduationOptions) {
+    const { to, name, username, certId, prUrl, reviewScore, verifyHref } = opts;
+    const displayName = name?.split(' ')[0] || 'there';
+
+    const reviewLine = reviewScore != null
+        ? `AI maintainer review: <strong style="color:#09090b;">${reviewScore}/10</strong>.`
+        : '';
+
+    const body = `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td style="padding-bottom:8px;">
+            <h1 class="text-heading" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',Helvetica,Arial,sans-serif;font-size:26px;font-weight:700;color:#09090b;letter-spacing:-0.4px;line-height:1.3;">
+              You did it, ${displayName}. You're an Academy graduate. 🎓
+            </h1>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding-bottom:4px;">
+            <p class="text-body" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;color:#52525b;line-height:1.75;">
+              Your capstone pull request was verified and merged into an external repository:
+              <a href="${prUrl}" style="color:#059669;text-decoration:underline;">${prUrl.replace('https://github.com/', '')}</a>.
+              You've completed the full 4-week Git, GitHub &amp; Open Source program.${reviewLine ? ' ' + reviewLine : ''}
+            </p>
+          </td>
+        </tr>
+
+        ${divider}
+
+        <tr>
+          <td align="left" style="padding-top:4px;">
+            <a href="${verifyHref}" class="cta" style="display:inline-block;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;font-weight:700;color:#000000;text-decoration:none;background-color:#4ade80;padding:13px 24px;border-radius:9999px;">
+              View & Share Your Certificate →
+            </a>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding-top:16px;">
+            <p class="text-muted" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;color:#a1a1aa;line-height:1.6;">
+              Certificate ID: <span style="font-family:ui-monospace,monospace;color:#52525b;">${certId}</span> — verifiable anytime at ${
+                (process.env.APP_URL || 'https://evergreeners.dev') + '/academy/verify/' + certId
+              }
+            </p>
+          </td>
+        </tr>
+      </table>`;
+
+    try {
+        const result = await getResend().emails.send({
+            from: FROM_EMAIL,
+            to,
+            subject: `🎓 You're an Evergreeners Academy graduate, ${displayName}!`,
+            html: emailShell(body),
+        });
+        console.log(`Academy graduation email sent to ${to}:`, result.data?.id);
+        return result;
+    } catch (err) {
+        console.error(`Failed to send academy graduation email to ${to}:`, err);
+        throw err;
+    }
+}
+
 // ─── Daily Digest Email ───────────────────────────────────────────────────────
 // Sent every day at 8 PM regardless of commit status.
 // Two modes:
 //   - Committed today  → celebration / summary card
 //   - No commits today → streak-at-risk warning
+
+export interface DailyAcademyInfo {
+    isEnrolled: boolean;
+    lessonsCompleted?: number;
+    totalLessons?: number;
+    lockedUntil?: number | null; // days until next lesson unlocks; null = lessons available now
+    daysToLaunch: number;
+    launchDateLabel: string;
+    timeLeft: AcademyTimeLeft;
+    href: string;
+}
 
 export interface DailyDigestOptions {
     to: string;
@@ -340,6 +544,7 @@ export interface DailyDigestOptions {
     totalCommits: number;
     weeklyCommits: number;
     eyeInsight?: string | null;
+    academy?: DailyAcademyInfo | null;
 }
 
 function formatMarkdownToHtml(md: string): string {
@@ -356,7 +561,7 @@ function formatMarkdownToHtml(md: string): string {
 }
 
 export async function sendDailyDigestEmail(opts: DailyDigestOptions) {
-    const { to, name, username, streak, todayCommits, totalCommits, weeklyCommits, eyeInsight } = opts;
+    const { to, name, username, streak, todayCommits, totalCommits, weeklyCommits, eyeInsight, academy } = opts;
     const displayName = name?.split(' ')[0] || username || 'there';
     const committed = todayCommits > 0;
 
@@ -518,6 +723,45 @@ export async function sendDailyDigestEmail(opts: DailyDigestOptions) {
             <div class="text-body" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;color:#52525b;line-height:1.7;">
               ${formatMarkdownToHtml(eyeInsight)}
             </div>
+          </td>
+        </tr>` : ''}
+
+        <!-- Academy block (enrolled students: progress; everyone: launch countdown) -->
+        ${academy ? `
+        ${divider}
+        <tr>
+          <td class="stat-box" style="padding:24px;background-color:#fafafa;border:1px solid #e4e4e7;border-radius:12px;">
+            <p class="stat-label" style="margin:0 0 12px;font-family:ui-monospace,'SF Mono',monospace;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#10b981;">
+              🎓 EVERGREENERS ACADEMY
+            </p>
+
+            ${academy.isEnrolled ? `
+            <p class="text-body" style="margin:0 0 12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;color:#52525b;line-height:1.75;">
+              Course progress: <strong style="color:#09090b;">${academy.lessonsCompleted ?? 0} of ${academy.totalLessons ?? 12}</strong> lessons
+              · ${
+                (academy.lessonsCompleted ?? 0) >= (academy.totalLessons ?? 12)
+                  ? 'all lessons complete — time for the capstone PR!'
+                  : academy.lockedUntil && Number(academy.lockedUntil) > 0
+                  ? `next lesson unlocks in <strong style="color:#09090b;">${academy.lockedUntil} day${Number(academy.lockedUntil) === 1 ? '' : 's'}</strong>`
+                  : 'lessons are unlocked — keep going'
+              }
+            </p>
+            <p style="margin:0 0 16px;">
+              <a href="${academy.href}" class="cta" style="display:inline-block;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;font-weight:700;color:#000000;text-decoration:none;background-color:#4ade80;padding:13px 24px;border-radius:9999px;">
+                Continue Your Lessons →
+              </a>
+            </p>
+            ` : `
+            <p class="text-body" style="margin:0 0 12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;color:#52525b;line-height:1.75;">
+              Admission opens <strong style="color:#09090b;">${academy.launchDateLabel}</strong> — ${academy.daysToLaunch} days away. Complete the lessons and earn a verifiable certificate.
+            </p>
+            <p style="margin:0 0 16px;">${academyCountdownTable(academy.timeLeft)}</p>
+            <p style="margin:0;">
+              <a href="${academy.href}" class="cta" style="display:inline-block;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;font-weight:700;color:#000000;text-decoration:none;background-color:#4ade80;padding:13px 24px;border-radius:9999px;">
+                Visit the Academy →
+              </a>
+            </p>
+            `}
           </td>
         </tr>` : ''}
 

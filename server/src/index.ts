@@ -19,9 +19,10 @@ import { eq, and, desc, gt, sql } from 'drizzle-orm';
 import { getGithubContributions, checkQuestProgress } from './lib/github.js';
 import { setupCronJobs } from './cron.js';
 import { updateUserGoals } from './lib/goals.js';
-import { sendWelcomeEmail } from './lib/email.js';
+import { sendWelcomeEmail, sendAcademyWaitlistConfirmationEmail, sendAcademyGraduationEmail } from './lib/email.js';
 import { getOrGenerateEyeInsight } from './lib/eye.js';
-import { checkAndAwardBadges } from './badges/award-badges.js';
+import { checkAndAwardBadges, type UserStats } from './badges/award-badges.js';
+import { reviewPullRequest } from './lib/academy-review.js';
 import { BADGES, getBadgeById } from './badges/badge-definitions.js';
 
 /**
@@ -2797,7 +2798,171 @@ Keep the total response under 300 words. Be like a hype coach mixed with a ruthl
         };
     });
 
-    // 2. POST /api/academy/enroll (Authenticated)
+    // 1.5. GET /api/academy/lessons (Authenticated — curriculum from DB)
+    instance.get('/api/academy/lessons', async (req, reply) => {
+        const session = await getSessionFromRequest(req);
+        if (!session) return reply.status(401).send({ message: "Unauthorized" });
+
+        const rows = await db.select({
+            id: schema.academyLessons.id,
+            week: schema.academyLessons.week,
+            weekTitle: schema.academyLessons.weekTitle,
+            title: schema.academyLessons.title,
+            duration: schema.academyLessons.duration,
+            description: schema.academyLessons.description,
+            content: schema.academyLessons.content,
+            lab: schema.academyLessons.lab,
+            sortOrder: schema.academyLessons.sortOrder,
+        })
+        .from(schema.academyLessons)
+        .orderBy(schema.academyLessons.sortOrder);
+
+        const weeks = rows.reduce<Array<{ number: number; title: string; lessons: Array<{ id: string; title: string; duration: string; description: string; content: string; lab: string }> }>>((acc, row) => {
+            let week = acc.find((w) => w.number === row.week);
+            if (!week) {
+                week = { number: row.week, title: row.weekTitle, lessons: [] };
+                acc.push(week);
+            }
+            week.lessons.push({
+                id: row.id,
+                title: row.title,
+                duration: row.duration,
+                description: row.description,
+                content: row.content,
+                lab: row.lab,
+            });
+            return acc;
+        }, []);
+
+        return { success: true, weeks };
+    });
+
+    // 2. GET /api/academy/progress (Authenticated)
+    instance.get('/api/academy/progress', async (req, reply) => {
+        const session = await getSessionFromRequest(req);
+        if (!session) return reply.status(401).send({ message: "Unauthorized" });
+        const userId = session.session.userId;
+
+        const rows = await db.select({ lessonId: schema.lessonProgress.lessonId })
+            .from(schema.lessonProgress)
+            .where(eq(schema.lessonProgress.userId, userId));
+
+        return {
+            success: true,
+            completed: rows.map((r) => r.lessonId),
+            count: rows.length,
+        };
+    });
+
+    // 3. POST /api/academy/lessons/complete (Authenticated)
+    instance.post('/api/academy/lessons/complete', async (req, reply) => {
+        const session = await getSessionFromRequest(req);
+        if (!session) return reply.status(401).send({ message: "Unauthorized" });
+        const userId = session.session.userId;
+
+        const { lessonId, completed } = (req.body || {}) as { lessonId?: string; completed?: boolean };
+        if (!lessonId) return reply.status(400).send({ message: "lessonId is required." });
+
+        const user = await db.query.users.findFirst({
+            where: eq(schema.users.id, userId),
+            columns: { id: true, academyStatus: true },
+        });
+        if (!user || user.academyStatus === 'none') {
+            return reply.status(403).send({ message: "You must be enrolled in the Academy to track lessons." });
+        }
+
+        if (completed) {
+            await db.insert(schema.lessonProgress)
+                .values({ userId, lessonId })
+                .onConflictDoNothing();
+        } else {
+            await db.delete(schema.lessonProgress)
+                .where(
+                    and(eq(schema.lessonProgress.userId, userId), eq(schema.lessonProgress.lessonId, lessonId))
+                );
+        }
+
+        const countRow = await db.select({ count: sql<number>`count(*)::int` })
+            .from(schema.lessonProgress)
+            .where(eq(schema.lessonProgress.userId, userId));
+        const count = countRow[0]?.count || 0;
+
+        await db.update(schema.users)
+            .set({
+                academyLessonsCompleted: count,
+                academyLastActiveAt: new Date(),
+                updatedAt: new Date(),
+            })
+            .where(eq(schema.users.id, userId));
+
+        if (completed) {
+            try {
+                const stats: UserStats = {
+                    totalCommits: 0,
+                    lateNightCommits: 0,
+                    currentStreak: 0,
+                    longestStreak: 0,
+                    hadBrokenStreak: false,
+                    questsCompleted: 0,
+                    questsAccepted: 0,
+                    overachieverQuests: 0,
+                    goalsCompleted: 0,
+                    goalsCompletedEarly: 0,
+                    accountAgeDays: 0,
+                    totalActiveDays: 0,
+                    isFirstDay: false,
+                    isProfilePublic: true,
+                    isGithubConnected: true,
+                    hasBio: false,
+                    hasLocation: false,
+                    leaderboardRank: null,
+                    profileViews: 0,
+                    fullYearGreen: false,
+                    isNewYearsCommit: false,
+                    isLunchBreakCommit: false,
+                    isFourAmCommit: false,
+                    hasSpeedRunnerQuest: false,
+                    isCountryLeader: false,
+                    academyLessonsCompleted: count,
+                };
+                await checkAndAwardBadges(userId, stats);
+            } catch (err) {
+                console.error('Error awarding academy scholar badge:', err);
+            }
+        }
+
+        return { success: true, count };
+    });
+
+    // 4. POST /api/academy/waitlist (Public — email capture before launch)
+    instance.post('/api/academy/waitlist', async (req, reply) => {
+        const { email, name } = (req.body || {}) as { email?: string; name?: string };
+        const normalizedEmail = email?.trim().toLowerCase();
+        if (!normalizedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+            return reply.status(400).send({ message: "A valid email address is required." });
+        }
+
+        try {
+            await db.insert(schema.academyWaitlist)
+                .values({ email: normalizedEmail })
+                .onConflictDoNothing();
+
+            const launchHref = `${process.env.APP_URL || 'https://evergreeners.dev'}/academy`;
+            sendAcademyWaitlistConfirmationEmail({
+                to: normalizedEmail,
+                name: name || undefined,
+                launchDateLabel: ACADEMY_LAUNCH_DATE_LABEL,
+                launchHref,
+            }).catch((err) => console.error('Waitlist confirmation email failed:', err.message));
+
+            return { success: true, message: `You're on the list. We'll email you when the Academy opens on ${ACADEMY_LAUNCH_DATE_LABEL}.` };
+        } catch (err: any) {
+            console.error('Error saving waitlist entry:', err);
+            return reply.status(500).send({ message: "Could not save your email. Please try again." });
+        }
+    });
+
+    // 3. POST /api/academy/enroll (Authenticated)
     instance.post('/api/academy/enroll', async (req, reply) => {
         if (!isAcademyOpen()) {
             return reply.status(403).send({
@@ -3027,6 +3192,44 @@ Keep the total response under 300 words. Be like a hype coach mixed with a ruthl
                 })
                 .where(eq(schema.users.id, userId));
 
+            // AI review of the merged PR (advisory — does not block graduation)
+            let review: Awaited<ReturnType<typeof reviewPullRequest>> = null;
+            try {
+                review = await reviewPullRequest(prUrl, token, githubUsername);
+                if (review) {
+                    await db.insert(schema.academyReviews)
+                        .values({
+                            userId,
+                            certId,
+                            prUrl,
+                            score: review.score,
+                            summary: review.summary,
+                            strengths: review.strengths,
+                            improvements: review.improvements,
+                        })
+                        .onConflictDoNothing();
+                }
+            } catch (err) {
+                console.error('PR auto-review failed:', err);
+            }
+
+            // Async graduation email (non-blocking)
+            const ghEmail = await db.query.users.findFirst({
+                where: eq(schema.users.id, userId),
+                columns: { email: true, name: true, username: true },
+            });
+            if (ghEmail?.email) {
+                sendAcademyGraduationEmail({
+                    to: ghEmail.email,
+                    name: ghEmail.name || 'there',
+                    username: ghEmail.username || '',
+                    certId,
+                    prUrl,
+                    reviewScore: review?.score ?? null,
+                    verifyHref: `${process.env.APP_URL || 'https://evergreeners.dev'}/academy/verify/${certId}`,
+                }).catch((err) => console.error('Academy graduation email failed:', err.message));
+            }
+
             const badgeStats = {
                 totalCommits: 0,
                 lateNightCommits: 0,
@@ -3061,7 +3264,8 @@ Keep the total response under 300 words. Be like a hype coach mixed with a ruthl
                 success: true,
                 message: "Pull request verified successfully! You have graduated!",
                 certId,
-                newBadges
+                newBadges,
+                review
             };
 
         } catch (err: any) {
@@ -3104,6 +3308,106 @@ Keep the total response under 300 words. Be like a hype coach mixed with a ruthl
             console.error("Get Certificate Error:", err);
             return reply.status(500).send({ message: "Failed to load certificate" });
         }
+    });
+
+    // 6. GET /api/academy/certificate/:certId/og-image (Public — SVG social preview)
+    instance.get('/api/academy/certificate/:certId/og-image', async (req, reply) => {
+        const { certId } = req.params as { certId: string };
+
+        const userRecord = await db.select({
+            name: schema.users.name,
+            prUrl: schema.users.academyPrUrl,
+            updatedAt: schema.users.updatedAt,
+            academyJoinedAt: schema.users.academyJoinedAt,
+        })
+        .from(schema.users)
+        .where(eq(schema.users.academyCertId, certId))
+        .limit(1);
+
+        if (!userRecord.length) {
+            return reply.status(404).send({ message: "Certificate not found" });
+        }
+
+        const escapeXml = (s: string) => s
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+
+        const name = escapeXml(userRecord[0].name);
+        const date = new Date(userRecord[0].updatedAt || userRecord[0].academyJoinedAt || new Date())
+            .toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
+        const shortId = escapeXml(certId.slice(0, 18) + '…');
+
+        const svg = `
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#000000"/>
+      <stop offset="55%" stop-color="#0a0f0c"/>
+      <stop offset="100%" stop-color="#040c08"/>
+    </linearGradient>
+    <linearGradient id="brd" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="50%" stop-color="#059669"/>
+      <stop offset="100%" stop-color="#34d399"/>
+    </linearGradient>
+    <linearGradient id="nm" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#a7f3d0"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect x="28" y="28" width="1144" height="574" rx="24" fill="none" stroke="url(#brd)" stroke-width="4" opacity="0.85"/>
+  <circle cx="600" cy="150" r="52" fill="#111827" stroke="#10b981" stroke-width="3"/>
+  <path d="M 580,168 L 600,130 L 620,168 Z" fill="#10b981"/>
+  <circle cx="600" cy="158" r="10" fill="#10b981"/>
+  <text x="600" y="252" font-family="monospace" font-size="22" fill="#10b981" font-weight="bold" letter-spacing="10" text-anchor="middle">EVERGREENERS ACADEMY</text>
+  <text x="600" y="300" font-family="Arial, Helvetica, sans-serif" font-size="40" font-weight="900" fill="#ffffff" letter-spacing="3" text-anchor="middle">CERTIFICATE OF GRADUATION</text>
+  <text x="600" y="360" font-family="Georgia, serif" font-size="22" fill="#9ca3af" font-style="italic" text-anchor="middle">This is to certify that</text>
+  <text x="600" y="420" font-family="Arial, Helvetica, sans-serif" font-size="52" font-weight="bold" fill="url(#nm)" text-anchor="middle">${name}</text>
+  <text x="600" y="475" font-family="Georgia, serif" font-size="19" fill="#9ca3af" text-anchor="middle">has completed the 4-week Git, GitHub &amp; Open Source program</text>
+  <line x1="400" y1="515" x2="800" y2="515" stroke="#1f2937" stroke-width="2"/>
+  <text x="105" y="560" font-family="monospace" font-size="15" fill="#4b5563">VERIFIED ID: ${shortId}</text>
+  <text x="105" y="584" font-family="monospace" font-size="15" fill="#4b5563">DATE: ${escapeXml(date)}</text>
+  <text x="1095" y="560" font-family="Georgia, serif, cursive" font-size="30" font-style="italic" fill="#10b981" text-anchor="end">Evergreener Lead</text>
+  <text x="1095" y="588" font-family="Arial, sans-serif" font-size="13" fill="#4b5563" text-anchor="end">evergreeners.dev/verify</text>
+</svg>`.trim();
+
+        reply.header('Content-Type', 'image/svg+xml');
+        reply.header('Cache-Control', 'public, max-age=86400');
+        return reply.send(svg);
+    });
+
+    // 7. GET /api/academy/review/:certId (Public — AI PR review)
+    instance.get('/api/academy/review/:certId', async (req, reply) => {
+        const { certId } = req.params as { certId: string };
+
+        const row = await db.select({
+            score: schema.academyReviews.score,
+            summary: schema.academyReviews.summary,
+            strengths: schema.academyReviews.strengths,
+            improvements: schema.academyReviews.improvements,
+            prUrl: schema.academyReviews.prUrl,
+            checkedAt: schema.academyReviews.checkedAt,
+        })
+        .from(schema.academyReviews)
+        .where(eq(schema.academyReviews.certId, certId))
+        .limit(1);
+
+        if (!row.length) {
+            return { success: true, review: null };
+        }
+
+        return {
+            success: true,
+            review: {
+                score: row[0].score,
+                summary: row[0].summary,
+                strengths: row[0].strengths,
+                improvements: row[0].improvements,
+                prUrl: row[0].prUrl,
+                checkedAt: row[0].checkedAt,
+            }
+        };
     });
 
 });

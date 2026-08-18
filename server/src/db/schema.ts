@@ -39,6 +39,9 @@ export const users = mySchema.table('users', {
     academyJoinedAt: timestamp('academy_joined_at'),
     academyPrUrl: text('academy_pr_url'),
     academyCertId: text('academy_cert_id'),
+    academyLessonsCompleted: integer('academy_lessons_completed').default(0),
+    academyLastActiveAt: timestamp('academy_last_active_at'),
+    academyLastNudgedAt: timestamp('academy_last_nudged_at'),
 });
 
 export const sessions = mySchema.table('sessions', {
@@ -182,6 +185,52 @@ export const userBadges = mySchema.table('user_badges', {
     // Ensure a user can't earn the same badge twice
     uniqueUserBadge: unique('user_badges_user_id_badge_id_unique').on(table.userId, table.badgeId),
 }));
+
+// ─── Academy Waitlist ──────────────────────────────────────────────────────────
+// Email capture shown to visitors before the Academy launch gate opens.
+
+export const academyWaitlist = mySchema.table('academy_waitlist', {
+    id: serial('id').primaryKey(),
+    email: text('email').notNull().unique(),
+    createdAt: timestamp('created_at').defaultNow(),
+});
+
+// Per-lesson progress (server-backed, replaces localStorage-only tracking)
+export const lessonProgress = mySchema.table('lesson_progress', {
+    id: serial('id').primaryKey(),
+    userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    lessonId: text('lesson_id').notNull(),
+    completedAt: timestamp('completed_at').defaultNow().notNull(),
+}, (table) => ({
+    uniqueLessonProgress: unique('lesson_progress_user_lesson_unique').on(table.userId, table.lessonId),
+}));
+// AI-generated review for a submitted capstone PR
+export const academyReviews = mySchema.table('academy_reviews', {
+    id: serial('id').primaryKey(),
+    userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    certId: text('cert_id').notNull(),
+    prUrl: text('pr_url').notNull(),
+    score: integer('score').notNull(),
+    summary: text('summary'),
+    strengths: jsonb('strengths').$type<string[]>(),
+    improvements: jsonb('improvements').$type<string[]>(),
+    checkedAt: timestamp('checked_at').defaultNow().notNull(),
+}, (table) => ({
+    uniqueReviewCert: unique('academy_reviews_cert_id_unique').on(table.certId),
+}));
+
+// Curriculum lessons (DB-backed source of truth for the student portal)
+export const academyLessons = mySchema.table('academy_lessons', {
+    id: text('id').primaryKey(),       // e.g. "1.1"
+    week: integer('week').notNull(),   // 1–4
+    weekTitle: text('week_title').notNull(),
+    title: text('title').notNull(),
+    duration: text('duration').notNull(),
+    description: text('description').notNull(),
+    content: text('content').notNull(),
+    lab: text('lab').notNull(),        // LearnGitBranching level slug
+    sortOrder: integer('sort_order').notNull().default(0),
+});
 
 // ─── The Eye: Watchlist ────────────────────────────────────────────────────────
 

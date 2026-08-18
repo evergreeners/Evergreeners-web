@@ -143,6 +143,11 @@ export default function Academy() {
   const [isEnrolling, setIsEnrolling] = useState(false);
   const [timeLeft, setTimeLeft] = useState(getAcademyTimeLeft());
 
+  // Waitlist state (locked mode)
+  const [waitlistEmail, setWaitlistEmail] = useState(session?.user?.email || "");
+  const [isWaitlisting, setIsWaitlisting] = useState(false);
+  const [waitlisted, setWaitlisted] = useState(false);
+
   useEffect(() => {
     const timer = setInterval(() => setTimeLeft(getAcademyTimeLeft()), 1000);
     return () => clearInterval(timer);
@@ -267,6 +272,34 @@ export default function Academy() {
       toast.error(err.message || "Enrollment failed.");
     } finally {
       setIsEnrolling(false);
+    }
+  };
+
+  const handleWaitlist = async () => {
+    if (!waitlistEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(waitlistEmail.trim())) {
+      toast.error("Please enter a valid email address.");
+      return;
+    }
+    setIsWaitlisting(true);
+    try {
+      const res = await fetch(getApiUrl('/api/academy/waitlist'), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: waitlistEmail.trim(), name: session?.user?.name || undefined }),
+        credentials: "include"
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Could not join the waitlist.");
+      }
+      setWaitlisted(true);
+      toast.success("You're on the list!", {
+        description: `We'll email you when the Academy opens on ${ACADEMY_LAUNCH_DATE_LABEL}.`
+      });
+    } catch (err: any) {
+      toast.error(err.message || "Something went wrong. Please try again.");
+    } finally {
+      setIsWaitlisting(false);
     }
   };
 
@@ -841,8 +874,41 @@ export default function Academy() {
                     <div className="flex flex-col items-center bg-black/50 border border-white/5 px-3.5 py-1.5 rounded-xl min-w-[65px]">
                       <span className="text-2xl font-extrabold text-primary font-mono">{String(timeLeft.seconds).padStart(2, '0')}</span>
                       <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">Secs</span>
-                    </div>
+</div>
+              </div>
+            )}
+
+                {/* Waitlist — shown while the Academy is locked */}
+                {!academyOpen && !enrolled && !waitlisted && (
+                  <div className="mt-8 mx-auto max-w-md relative z-20">
+                    <p className="text-center text-sm text-muted-foreground mb-3">
+                      Doors open {ACADEMY_LAUNCH_DATE_LABEL}. Want a head start?
+                    </p>
+                    <form
+                      onSubmit={(e) => { e.preventDefault(); handleWaitlist(); }}
+                      className="flex flex-col sm:flex-row gap-2"
+                    >
+                      <Input
+                        type="email"
+                        value={waitlistEmail}
+                        onChange={(e) => setWaitlistEmail(e.target.value)}
+                        placeholder="you@example.com"
+                        className="bg-black/50 border-white/10 text-foreground placeholder:text-muted-foreground flex-1 h-11"
+                      />
+                      <Button
+                        type="submit"
+                        disabled={isWaitlisting}
+                        className="h-11 px-6 bg-primary text-black font-semibold hover:bg-primary/90"
+                      >
+                        {isWaitlisting ? "Joining..." : "Notify me at launch"}
+                      </Button>
+                    </form>
                   </div>
+                )}
+                {!academyOpen && !enrolled && waitlisted && (
+                  <p className="mt-8 text-center text-sm font-medium text-primary relative z-20">
+                    ✓ You're on the list. We'll email you at launch — {ACADEMY_LAUNCH_DATE_LABEL}.
+                  </p>
                 )}
 
                 <div className="pt-4 flex justify-center w-full relative z-20">

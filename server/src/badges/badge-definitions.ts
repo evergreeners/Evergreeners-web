@@ -41,6 +41,7 @@ export interface UserStats {
     hasSpeedRunnerQuest: boolean;      // completed a quest in < 1 hour
     isCountryLeader: boolean;          // #1 in their country (future feature, flag for now)
     academyGraduated?: boolean;        // graduated from Evergreeners Academy
+    academyLessonsCompleted?: number;  // lessons completed in the Academy (of 12)
 }
 
 export interface BadgeDefinition {
@@ -63,6 +64,14 @@ export const BADGES: BadgeDefinition[] = [
         rarity: 'rare',
         category: 'Academy',
         check: (s) => !!s.academyGraduated,
+    },
+    {
+        id: 'academy_scholar',
+        name: 'Academy Scholar',
+        description: 'Completed every lesson in the Evergreeners Academy curriculum.',
+        rarity: 'common',
+        category: 'Academy',
+        check: (s) => (s.academyLessonsCompleted || 0) >= 12,
     },
 
     // ── Onboarding (5) ──────────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 import { AcademyHeader } from "@/components/AcademyHeader";
 import { FloatingNav } from "@/components/FloatingNav";
 import { Section } from "@/components/Section";
-import { GraduationCap, BookOpen, Terminal, CheckCircle, ExternalLink, GitPullRequest, Trophy, MessageSquare, Disc, Award, ArrowRight, Loader2, Maximize2 } from "lucide-react";
+import { GraduationCap, BookOpen, Terminal, CheckCircle, ExternalLink, GitPullRequest, Trophy, MessageSquare, Disc, Award, ArrowRight, Loader2, Maximize2, Lock } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -216,12 +216,31 @@ export default function AcademyDashboard() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const [activeLesson, setActiveLesson] = useState<Lesson>(syllabus[0].lessons[0]);
+  const [activeLesson, setActiveLesson] = useState<Lesson | null>(null);
   const [completedLessons, setCompletedLessons] = useState<Set<string>>(new Set());
 
   // Capstone PR verification state
   const [prUrl, setPrUrl] = useState("");
   const [isVerifyingPr, setIsVerifyingPr] = useState(false);
+
+  // Fetch curriculum from the database, falling back to the bundled syllabus
+  const { data: lessonsData } = useQuery<{ success: boolean; weeks: Week[] }>({
+    queryKey: ['academyLessons'],
+    queryFn: async () => {
+      const res = await fetch(getApiUrl('/api/academy/lessons'), {
+        credentials: "include",
+        headers: {
+          ...(session?.session?.token ? { Authorization: `Bearer ${session.session.token}` } : {})
+        }
+      });
+      if (!res.ok) throw new Error("Failed to fetch lessons");
+      return res.json();
+    },
+    enabled: !!session,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const curriculum: Week[] = lessonsData?.weeks?.length ? lessonsData.weeks : syllabus;
 
   // Fetch academy status
   const { data: statusData, isLoading: isLoadingStatus } = useQuery({
@@ -239,15 +258,33 @@ export default function AcademyDashboard() {
     enabled: !!session,
   });
 
-  // Load completed lessons from local storage
+  // Fetch server-backed lesson progress
+  const { data: progressData } = useQuery({
+    queryKey: ['academyProgress', session?.user?.id],
+    queryFn: async () => {
+      const res = await fetch(getApiUrl('/api/academy/progress'), {
+        credentials: "include",
+        headers: {
+          ...(session?.session?.token ? { Authorization: `Bearer ${session.session.token}` } : {})
+        }
+      });
+      if (!res.ok) throw new Error("Failed to fetch progress");
+      return res.json();
+    },
+    enabled: !!session,
+  });
+
+  // Load completed lessons from server, falling back to legacy localStorage
   useEffect(() => {
-    if (session?.user?.id) {
+    if (progressData?.completed?.length) {
+      setCompletedLessons(new Set(progressData.completed));
+    } else if (session?.user?.id) {
       const saved = localStorage.getItem(`academy_completed_${session.user.id}`);
       if (saved) {
         setCompletedLessons(new Set(JSON.parse(saved)));
       }
     }
-  }, [session?.user?.id]);
+  }, [progressData, session?.user?.id]);
 
   // Protect route
   useEffect(() => {
@@ -257,25 +294,44 @@ export default function AcademyDashboard() {
     }
   }, [statusData, isLoadingStatus, navigate]);
 
-  const handleMarkComplete = (lessonId: string, forceState?: boolean) => {
-    setCompletedLessons(prev => {
-      const next = new Set(prev);
-      const targetState = forceState !== undefined ? forceState : !next.has(lessonId);
-      
-      if (targetState) {
-        next.add(lessonId);
-        toast.success("Lesson marked complete!", {
-          description: `Great job on finishing lesson ${lessonId}.`
-        });
-      } else {
-        next.delete(lessonId);
-      }
+  const handleMarkComplete = async (lessonId: string, forceState?: boolean) => {
+    if (isLessonLocked(lessonId)) return;
 
-      if (session?.user?.id) {
-        localStorage.setItem(`academy_completed_${session.user.id}`, JSON.stringify(Array.from(next)));
-      }
-      return next;
-    });
+    const completed = new Set(completedLessons);
+    const targetState = forceState !== undefined ? forceState : !completed.has(lessonId);
+
+    if (targetState) {
+      completed.add(lessonId);
+    } else {
+      completed.delete(lessonId);
+    }
+
+    setCompletedLessons(completed);
+    if (session?.user?.id) {
+      localStorage.setItem(`academy_completed_${session.user.id}`, JSON.stringify(Array.from(completed)));
+    }
+
+    try {
+      const res = await fetch(getApiUrl('/api/academy/lessons/complete'), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(session?.session?.token ? { Authorization: `Bearer ${session.session.token}` } : {})
+        },
+        body: JSON.stringify({ lessonId, completed: targetState }),
+        credentials: "include"
+      });
+      if (!res.ok) throw new Error("Failed to sync");
+      queryClient.invalidateQueries({ queryKey: ['academyProgress'] });
+    } catch {
+      // Keep local state; server sync will retry on next change
+    }
+
+    if (targetState) {
+      toast.success("Lesson marked complete!", {
+        description: `Great job on finishing lesson ${lessonId}.`
+      });
+    }
   };
 
   const handleVerifyPr = async (e: React.FormEvent) => {
@@ -316,20 +372,41 @@ export default function AcademyDashboard() {
   };
 
   // Calculations
-  const totalLessons = syllabus.reduce((acc, w) => acc + w.lessons.length, 0);
+  const allLessons = curriculum.flatMap(w => w.lessons);
+  const totalLessons = allLessons.length;
   const completionPercentage = Math.round((completedLessons.size / totalLessons) * 100);
-  const labUrl = getApiUrl(`/learn-git-branching/?level=${activeLesson.lab}`);
+  const labUrl = activeLesson ? getApiUrl(`/learn-git-branching/?level=${activeLesson.lab}`) : "";
 
-  if (isLoadingStatus || !statusData || statusData.status === 'none') {
+  // Set the first lesson as active once the curriculum is available
+  useEffect(() => {
+    if (!activeLesson && allLessons.length > 0) {
+      setActiveLesson(allLessons[0]);
+    }
+  }, [allLessons.length, activeLesson]);
+
+  if (isLoadingStatus || !statusData || statusData.status === 'none' || !activeLesson) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        <span className="text-sm text-muted-foreground mt-2">Checking enrollment status...</span>
+        <span className="text-sm text-muted-foreground mt-2">
+          {statusData?.status === 'none' ? "Checking enrollment status..." : "Loading your lesson..."}
+        </span>
       </div>
     );
   }
 
   const isGraduated = statusData.status === 'graduated';
+
+  // Daily lesson unlock — one new module per day since enrollment
+  const daysSinceJoin = statusData.joinedAt
+    ? Math.max(0, Math.floor((Date.now() - new Date(statusData.joinedAt).getTime()) / 86400000))
+    : 0;
+  const unlockedCount = isGraduated ? totalLessons : Math.max(1, Math.min(totalLessons, daysSinceJoin + 1));
+  const isLessonLocked = (lessonId: string) => {
+    if (isGraduated) return false;
+    const idx = allLessons.findIndex(l => l.id === lessonId);
+    return idx === -1 || idx >= unlockedCount;
+  };
 
   return (
     <div className="min-h-screen bg-background overflow-x-hidden custom-scrollbar relative">
@@ -389,6 +466,11 @@ export default function AcademyDashboard() {
               <span>{completedLessons.size} / {totalLessons} Lessons ({completionPercentage}%)</span>
             </div>
             <Progress value={completionPercentage} className="h-2.5" />
+            {!isGraduated && unlockedCount < totalLessons && (
+              <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                <Lock className="w-3 h-3" /> {unlockedCount} of {totalLessons} unlocked — a new lesson unlocks daily.
+              </p>
+            )}
           </div>
         </div>
 
@@ -401,7 +483,7 @@ export default function AcademyDashboard() {
             </h3>
             
             <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
-              {syllabus.map((week) => (
+              {curriculum.map((week) => (
                 <div key={week.number} className="space-y-2">
                   <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-2">
                     Week {week.number} — {week.title}
@@ -411,25 +493,34 @@ export default function AcademyDashboard() {
                     {week.lessons.map((lesson) => {
                       const isActive = activeLesson.id === lesson.id;
                       const isComplete = completedLessons.has(lesson.id);
+                      const locked = isLessonLocked(lesson.id);
+                      const nextUnlock = !locked ? false : unlockedCount === allLessons.findIndex(l => l.id === lesson.id);
                       return (
                         <button
                           key={lesson.id}
+                          disabled={locked}
                           onClick={() => setActiveLesson(lesson)}
                           className={`w-full text-left p-3 rounded-lg text-xs font-medium border transition-all flex items-center justify-between gap-3 ${
-                            isActive
+                            locked
+                              ? "opacity-45 cursor-not-allowed bg-secondary/10 border-transparent text-muted-foreground"
+                              : isActive
                               ? "bg-primary/10 border-primary/40 text-foreground"
                               : "bg-secondary/20 border-transparent text-muted-foreground hover:bg-secondary/40 hover:text-foreground"
                           }`}
                         >
                           <div className="flex items-center gap-2.5 min-w-0">
-                            {isComplete ? (
+                            {locked ? (
+                              <Lock className="w-4 h-4 text-muted-foreground shrink-0" />
+                            ) : isComplete ? (
                               <CheckCircle className="w-4 h-4 text-primary shrink-0" />
                             ) : (
                               <Terminal className="w-4 h-4 text-muted-foreground shrink-0" />
                             )}
                             <span className="truncate">{lesson.id} {lesson.title}</span>
                           </div>
-                          <span className="text-[10px] shrink-0 font-mono text-muted-foreground">{lesson.duration}</span>
+                          <span className="text-[10px] shrink-0 font-mono text-muted-foreground">
+                            {locked ? (nextUnlock ? "Unlocks next" : "Locked") : lesson.duration}
+                          </span>
                         </button>
                       );
                     })}

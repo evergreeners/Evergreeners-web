@@ -1,10 +1,31 @@
 import cron from 'node-cron';
 import { db } from './db/index.js';
-import { users, accounts } from './db/schema.js';
-import { eq, and } from 'drizzle-orm';
+import { users, accounts, lessonProgress } from './db/schema.js';
+import { eq, and, lt, or, isNull, isNotNull, ne, sql } from 'drizzle-orm';
 import { getGithubContributions } from './lib/github.js';
 import { updateUserGoals } from './lib/goals.js';
-import { sendDailyDigestEmail, sendStreakBrokenEmail } from './lib/email.js';
+import { sendDailyDigestEmail, sendStreakBrokenEmail, sendAcademyNudgeEmail, type AcademyTimeLeft, type DailyAcademyInfo } from './lib/email.js';
+
+const ACADEMY_LAUNCH_DATE = process.env.ACADEMY_LAUNCH_DATE || '2026-08-31T00:00:00Z';
+const LAUNCH_MS = new Date(ACADEMY_LAUNCH_DATE).getTime();
+
+function academyTimeLeft(): AcademyTimeLeft {
+    const difference = LAUNCH_MS - Date.now();
+    if (difference <= 0) return { days: 0, hours: 0, minutes: 0, seconds: 0 };
+    return {
+        days: Math.floor(difference / 86400000),
+        hours: Math.floor((difference / 3600000) % 24),
+        minutes: Math.floor((difference / 60000) % 60),
+        seconds: Math.floor((difference / 1000) % 60),
+    };
+}
+
+const academyLaunchDateLabel = new Date(ACADEMY_LAUNCH_DATE).toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+});
 
 export function setupCronJobs() {
     console.log("Setting up cron jobs...");
@@ -82,6 +103,46 @@ export function setupCronJobs() {
 
             console.log(`Checking ${usersToCheck.length} opted-in users for daily digest.`);
 
+            // Academy progress counts (one query for the whole run)
+            const progressRows = await db.select({
+                userId: lessonProgress.userId,
+                count: sql<number>`count(*)::int`,
+            }).from(lessonProgress).groupBy(lessonProgress.userId);
+            const academyProgressMap = new Map(progressRows.map((r) => [r.userId, r.count]));
+            const ACADEMY_TOTAL_LESSONS = 12;
+
+            const buildDailyAcademyInfo = (user: typeof users.$inferSelect): DailyAcademyInfo | null => {
+                const isEnrolled = !!user.academyStatus && user.academyStatus !== 'none';
+                const appUrl = process.env.APP_URL || 'https://evergreeners.dev';
+                const href = `${appUrl}/academy${isEnrolled ? '/dashboard' : ''}`;
+                const daysToLaunch = Math.max(0, Math.ceil((LAUNCH_MS - Date.now()) / 86400000));
+
+                if (!isEnrolled) {
+                    return { isEnrolled: false, daysToLaunch, launchDateLabel: academyLaunchDateLabel, timeLeft: academyTimeLeft(), href };
+                }
+
+                const completed = academyProgressMap.get(user.id) || 0;
+                const daysSinceJoin = user.academyJoinedAt
+                    ? Math.max(0, Math.floor((Date.now() - new Date(user.academyJoinedAt).getTime()) / 86400000))
+                    : 0;
+                const unlockedCount = Math.max(1, Math.min(ACADEMY_TOTAL_LESSONS, daysSinceJoin + 1));
+                let lockedUntil: number | null = null;
+                if (completed < ACADEMY_TOTAL_LESSONS && completed >= unlockedCount && unlockedCount < ACADEMY_TOTAL_LESSONS) {
+                    lockedUntil = 1;
+                }
+
+                return {
+                    isEnrolled: true,
+                    lessonsCompleted: completed,
+                    totalLessons: ACADEMY_TOTAL_LESSONS,
+                    lockedUntil,
+                    daysToLaunch,
+                    launchDateLabel: academyLaunchDateLabel,
+                    timeLeft: academyTimeLeft(),
+                    href,
+                };
+            };
+
             let sent = 0;
             let skipped = 0;
             let broken = 0;
@@ -154,6 +215,7 @@ export function setupCronJobs() {
                         totalCommits: user.totalCommits || 0,
                         weeklyCommits,
                         eyeInsight,
+                        academy: buildDailyAcademyInfo(user),
                     });
                     sent++;
                 } catch (err) {
@@ -166,6 +228,71 @@ export function setupCronJobs() {
             console.log(`Daily digest done. Sent: ${sent}, Streak-broken emails: ${broken}, Skipped (no streak): ${skipped}, Failed: ${failed}`);
         } catch (error) {
             console.error("Daily digest cron error:", error);
+        }
+    });
+
+    // ── Academy nudge at 6 PM ─────────────────────────────────────────────────
+    // Enrolled, opted-in students who've been inactive for 3+ days get a
+    // gentle reminder (max once every 3 days).
+    cron.schedule('0 18 * * *', async () => {
+        console.log("Running academy nudge emails...");
+
+        const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+        const threeDaysAgo = new Date(Date.now() - 3 * 86400000);
+
+        try {
+            const enrolledUsers = await db.select()
+                .from(users)
+                .where(and(
+                    eq(users.emailNotifications, true),
+                    ne(users.academyStatus, 'none'),
+                    ne(users.academyStatus, 'graduated'),
+                    isNotNull(users.academyStatus),
+                    isNotNull(users.email)
+                ));
+
+            const progressRows = await db.select({
+                userId: lessonProgress.userId,
+                count: sql<number>`count(*)::int`,
+            }).from(lessonProgress).groupBy(lessonProgress.userId);
+
+            const progressMap = new Map(progressRows.map((r) => [r.userId, r.count]));
+
+            let sent = 0;
+            for (const user of enrolledUsers) {
+                const lastActive = user.academyLastActiveAt || user.academyJoinedAt;
+                const inactiveTooLong = !lastActive || lastActive < threeDaysAgo;
+                const notNudgedRecently = !user.academyLastNudgedAt || user.academyLastNudgedAt < threeDaysAgo;
+
+                if (!inactiveTooLong || !notNudgedRecently || !user.email) continue;
+
+                try {
+                    const daysInactive = lastActive
+                        ? Math.max(1, Math.floor((Date.now() - new Date(lastActive).getTime()) / 86400000))
+                        : 3;
+                    const completed = progressMap.get(user.id) || 0;
+
+                    await sendAcademyNudgeEmail({
+                        to: user.email,
+                        name: user.name || user.username || 'there',
+                        lessonsCompleted: completed,
+                        totalLessons: 12,
+                        daysInactive,
+                        dashboardHref: `${process.env.APP_URL || 'https://evergreeners.dev'}/academy/dashboard`,
+                    });
+                    await db.update(users)
+                        .set({ academyLastNudgedAt: new Date(), updatedAt: new Date() })
+                        .where(eq(users.id, user.id));
+                    sent++;
+                } catch (err) {
+                    console.error(`Failed academy nudge for ${user.email}:`, err);
+                }
+                await sleep(600);
+            }
+
+            console.log(`Academy nudge done. Sent: ${sent}`);
+        } catch (error) {
+            console.error("Academy nudge cron error:", error);
         }
     });
 }
