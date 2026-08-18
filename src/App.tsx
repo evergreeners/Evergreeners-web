@@ -22,6 +22,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import Academy from "./pages/Academy";
 import AcademyDashboard from "./pages/AcademyDashboard";
 import AcademyVerify from "./pages/AcademyVerify";
+import AcademyLeaderboard from "./pages/AcademyLeaderboard";
 import ScrollToTop from "./components/ScrollToTop";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { PWAInstallPrompt } from "./components/PWAInstallPrompt";
@@ -107,6 +108,7 @@ const AppContents = () => {
           <Route path="/generator" element={<Generator />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/academy/dashboard" element={<AcademyDashboard />} />
+          <Route path="/academy/leaderboard" element={<AcademyLeaderboard />} />
           <Route path="/repo/:owner/:repo" element={<RepoDetail />} />
         </Route>
 
