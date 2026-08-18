@@ -141,30 +141,6 @@ export default function Academy() {
   // Enrollment state
   const [isEnrolling, setIsEnrolling] = useState(false);
 
-  // Target Date: August 31, 2026 at 00:00:00
-  const calculateTimeLeft = () => {
-    const difference = +new Date("2026-08-31T00:00:00") - +new Date();
-    let timeLeft = { days: 0, hours: 0, minutes: 0, seconds: 0 };
-    if (difference > 0) {
-      timeLeft = {
-        days: Math.floor(difference / (1000 * 60 * 60 * 24)),
-        hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
-        minutes: Math.floor((difference / 1000 / 60) % 60),
-        seconds: Math.floor((difference / 1000) % 60)
-      };
-    }
-    return timeLeft;
-  };
-
-  const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeLeft(calculateTimeLeft());
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
   // Check enrollment status
   const { data: statusData, isLoading: isLoadingStatus } = useQuery({
     queryKey: ['academyStatus'],
@@ -260,6 +236,7 @@ export default function Academy() {
           "Content-Type": "application/json",
           ...(session?.session?.token ? { Authorization: `Bearer ${session.session.token}` } : {})
         },
+        body: "{}",
         credentials: "include"
       });
 
@@ -727,12 +704,12 @@ export default function Academy() {
               title="Git Fundamentals"
               subtitle="Mastering the local repository workflow."
               focusTitle="Syllabus Focus"
-              focusDesc="Learn how Git tracks changes under the hood. You'll master stage management, branch creation, merging conflicts cleanly, and working safely with rebase."
+              focusDesc="Start from Git zero. Learn how Git stores snapshots and moves you through working directory, staging area, and committed history — then master the safety nets for undoing mistakes."
               topicsTitle="Core Competencies"
               topicsList={[
-                "• init, add, commit, branch, merge, rebase",
-                "• Writing semantic commit messages that tell a story",
-                "• Restoring files, resolving conflicts, and using reflog"
+                "• Interactive Lab: commits, branching & rebase (intro)",
+                "• git init, add, commit — the three stages of Git",
+                "• Undoing mistakes: reset, revert, and reflog"
               ]}
               icon={<Terminal className="w-12 h-12 text-primary" />}
             />
@@ -743,12 +720,12 @@ export default function Academy() {
               title="GitHub Mechanics"
               subtitle="Moving your local workflow to the cloud."
               focusTitle="Syllabus Focus"
-              focusDesc="Connect your local repositories to remote servers. Understand how to work with forks, pull requests, issue tracking, and synchronize upstream changes without losing history."
+              focusDesc="Take your local workflow to the cloud. Understand forks, upstream tracking, and pull requests, and learn to synchronize remote changes without losing history — then curate a portfolio that sells your work."
               topicsTitle="Core Competencies"
               topicsList={[
-                "• Forking, cloning, pushing, pulling, and tracking upstream",
-                "• Creating aesthetic, high-converting README pages",
-                "• Profile optimization, pinned repositories, and green graphs"
+                "• Interactive Lab: clone, fetch & pull (remote)",
+                "• Forks, upstream vs origin, and PR collaboration",
+                "• Portfolio READMEs, pinned repos & digital gardens"
               ]}
               icon={<Github className="w-12 h-12 text-primary" />}
             />
@@ -759,12 +736,12 @@ export default function Academy() {
               title="Open Source"
               subtitle="Diving into real-world codebases."
               focusTitle="Syllabus Focus"
-              focusDesc="Step beyond your personal projects. Learn to navigate large repositories, read documentation, locate beginner-friendly bugs, and follow project contribution guidelines."
+              focusDesc="Step beyond your personal projects. Learn to navigate unfamiliar codebases, locate beginner-friendly issues, and communicate cleanly with maintainers through the PR review loop."
               topicsTitle="Core Competencies"
               topicsList={[
-                "• Finding 'good first issues' and understanding licensing",
-                "• Reading project structures, code patterns, and tests first",
-                "• Writing clear PR descriptions and resolving review feedback"
+                "• Interactive Lab: relative refs & cherry-pick (rampup/move)",
+                "• Reading a codebase: entry points, imports, and tests",
+                "• Handling reviews with interactive rebase & PR hygiene"
               ]}
               icon={<Code className="w-12 h-12 text-primary" />}
             />
@@ -775,11 +752,11 @@ export default function Academy() {
               title="Consistency Systems"
               subtitle="Building sustainable habits for the long run."
               focusTitle="Syllabus Focus"
-              focusDesc="Develop a long-term contribution rhythm. Understand the difference between vanity streak padding and real open-source impact. Set up automated accountability checks."
+              focusDesc="Build a long-term contribution rhythm that outlasts motivation. Set habit loops, lean on accountability pods, and finish with a real, verifiable commit to an external repository."
               topicsTitle="Core Competencies"
               topicsList={[
-                "• Establishing sustainable, high-value contribution habits",
-                "• Participating in peer accountability check-ins and pods",
+                "• Interactive Lab: tracking & remote arguments (advanced)",
+                "• Sustainable habit loops and accountability pods",
                 "• Capstone PR submission, validation check, and graduation"
               ]}
               icon={<GraduationCap className="w-12 h-12 text-primary" />}
@@ -810,26 +787,6 @@ export default function Academy() {
                   Join the cohort to build consistency, master Git, and make your first verified open-source contributions.
                 </p>
 
-                {/* Countdown Timer */}
-                <div className="flex gap-3 md:gap-4 justify-center my-6 z-10">
-                  <div className="flex flex-col items-center bg-black/50 border border-white/5 px-3.5 py-1.5 rounded-xl min-w-[65px]">
-                    <span className="text-2xl font-extrabold text-primary font-mono">{String(timeLeft.days).padStart(2, '0')}</span>
-                    <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">Days</span>
-                  </div>
-                  <div className="flex flex-col items-center bg-black/50 border border-white/5 px-3.5 py-1.5 rounded-xl min-w-[65px]">
-                    <span className="text-2xl font-extrabold text-primary font-mono">{String(timeLeft.hours).padStart(2, '0')}</span>
-                    <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">Hours</span>
-                  </div>
-                  <div className="flex flex-col items-center bg-black/50 border border-white/5 px-3.5 py-1.5 rounded-xl min-w-[65px]">
-                    <span className="text-2xl font-extrabold text-primary font-mono">{String(timeLeft.minutes).padStart(2, '0')}</span>
-                    <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">Mins</span>
-                  </div>
-                  <div className="flex flex-col items-center bg-black/50 border border-white/5 px-3.5 py-1.5 rounded-xl min-w-[65px]">
-                    <span className="text-2xl font-extrabold text-primary font-mono">{String(timeLeft.seconds).padStart(2, '0')}</span>
-                    <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">Secs</span>
-                  </div>
-                </div>
-
                 <div className="space-y-3 max-w-md mx-auto text-sm text-muted-foreground/90 pb-6 text-left">
                   <div className="flex items-center gap-3">
                     <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />
@@ -854,14 +811,21 @@ export default function Academy() {
                 </div>
 
                 <div className="pt-4 flex justify-center w-full relative z-20">
-                  <button 
-                    disabled 
-                    className="academy-action-btn opacity-60 cursor-not-allowed border-primary/30 text-primary hover:text-primary active:scale-100 hover:scale-100 rotate-0 hover:rotate-0"
-                    style={{ animation: 'none', backgroundColor: '#0c0d0d' }}
-                  >
-                    <span>Coming Soon</span>
-                    <ArrowRight className="w-5 h-5" />
-                  </button>
+                  {enrolled ? (
+                    <Link to="/academy/dashboard" className="academy-action-btn">
+                      <span>Go to Student Portal</span>
+                      <ArrowRight className="w-5 h-5" />
+                    </Link>
+                  ) : (
+                    <button
+                      onClick={handleEnroll}
+                      disabled={isEnrolling}
+                      className="academy-action-btn"
+                    >
+                      <span>{isEnrolling ? "Enrolling..." : "Join Now"}</span>
+                      <ArrowRight className="w-5 h-5" />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

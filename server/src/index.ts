@@ -8,6 +8,7 @@ import { Octokit } from 'octokit';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs/promises';
+import { existsSync } from 'fs';
 import { auth } from './auth.js';
 import { toNodeHandler } from 'better-auth/node';
 import { createClient } from '@supabase/supabase-js';
@@ -168,6 +169,20 @@ server.register(fastifyStatic, {
     root: path.join(__dirname, '../public'),
     prefix: '/public/', // optional: default '/'
 });
+
+// Serve the LearnGitBranching study app so Academy lessons can embed it.
+// Point LGB_FRONTEND_PATH at the repo root (contains index.html + build/ + assets/).
+const lgbFrontendPath = process.env.LGB_FRONTEND_PATH || path.resolve(__dirname, '../../../learnGitBranching');
+if (existsSync(lgbFrontendPath)) {
+    server.register(fastifyStatic, {
+        root: lgbFrontendPath,
+        prefix: '/learn-git-branching/',
+        decorateReply: false,
+    });
+    console.log(`Serving LearnGitBranching at /learn-git-branching from ${lgbFrontendPath}`);
+} else {
+    console.warn(`LearnGitBranching frontend not found at ${lgbFrontendPath}; /learn-git-branching will not be served. Set LGB_FRONTEND_PATH to enable.`);
+}
 
 // GitHub OAuth is handled by better-auth in separate adapter
 
