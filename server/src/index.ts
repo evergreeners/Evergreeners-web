@@ -2102,6 +2102,270 @@ server.register(async (instance) => {
                 return reply.status(500).send({ message: "Failed to delete story" });
             }
         });
+
+        // ── Academy Management (admin) ──────────────────────────────────────
+
+        // GET /api/admin/academy/summary — dashboard stats
+        adminInstance.get('/api/admin/academy/summary', async (_req, reply) => {
+            try {
+                const waitlistCount = (await db.select({ count: sql<number>`count(*)::int` }).from(schema.academyWaitlist))[0]?.count || 0;
+                const lessonCount = (await db.select({ count: sql<number>`count(*)::int` }).from(schema.academyLessons))[0]?.count || 0;
+
+                const statusRows = await db.select({
+                    status: schema.users.academyStatus,
+                    count: sql<number>`count(*)::int`,
+                })
+                    .from(schema.users)
+                    .where(and(
+                        isNotNull(schema.users.academyStatus),
+                        ne(schema.users.academyStatus, 'none'),
+                        ne(schema.users.academyStatus, 'audit_completed')
+                    ))
+                    .groupBy(schema.users.academyStatus);
+
+                const reviewStats = await db.select({
+                    avgScore: sql<number>`round(avg(${schema.academyReviews.score}))::int`,
+                    count: sql<number>`count(*)::int`,
+                }).from(schema.academyReviews);
+
+                const byStatus: Record<string, number> = {};
+                for (const r of statusRows) byStatus[r.status || 'unknown'] = r.count;
+
+                return {
+                    success: true,
+                    summary: {
+                        waitlistCount,
+                        lessonCount,
+                        graduates: byStatus['graduated'] || 0,
+                        enrolled: byStatus['enrolled'] || 0,
+                        premium: byStatus['premium'] || 0,
+                        reviewsSubmitted: reviewStats[0]?.count || 0,
+                        avgReviewScore: reviewStats[0]?.avgScore || 0,
+                    }
+                };
+            } catch (error) {
+                console.error("Academy admin summary error:", error);
+                return reply.status(500).send({ message: "Failed to load academy summary" });
+            }
+        });
+
+        // GET /api/admin/academy/students — full cohort roster w/ progress + PR score
+        adminInstance.get('/api/admin/academy/students', async (_req, reply) => {
+            try {
+                const lessonCount = (await db.select({ count: sql<number>`count(*)::int` }).from(schema.academyLessons))[0]?.count || 0;
+                const students = await db.select({
+                    id: schema.users.id,
+                    name: schema.users.name,
+                    email: schema.users.email,
+                    username: schema.users.username,
+                    image: schema.users.image,
+                    academyStatus: schema.users.academyStatus,
+                    academyJoinedAt: schema.users.academyJoinedAt,
+                    academyPrUrl: schema.users.academyPrUrl,
+                    academyCertId: schema.users.academyCertId,
+                    academyLessonsCompleted: schema.users.academyLessonsCompleted,
+                    academyLastActiveAt: schema.users.academyLastActiveAt,
+                })
+                    .from(schema.users)
+                    .where(and(
+                        isNotNull(schema.users.academyStatus),
+                        ne(schema.users.academyStatus, 'none'),
+                        ne(schema.users.academyStatus, 'audit_completed')
+                    ))
+                    .orderBy(desc(schema.users.academyJoinedAt));
+
+                const reviewRows = await db.select({
+                    userId: schema.academyReviews.userId,
+                    score: schema.academyReviews.score,
+                    checkedAt: schema.academyReviews.checkedAt,
+                })
+                    .from(schema.academyReviews)
+                    .orderBy(desc(schema.academyReviews.checkedAt));
+                const latestScore = new Map<string, number>();
+                for (const r of reviewRows) {
+                    if (!latestScore.has(r.userId)) latestScore.set(r.userId, r.score);
+                }
+
+                return {
+                    success: true,
+                    students: students.map(s => ({
+                        ...s,
+                        prScore: latestScore.get(s.id) ?? null,
+                        totalLessons: lessonCount,
+                    })),
+                };
+            } catch (error) {
+                console.error("Academy admin students error:", error);
+                return reply.status(500).send({ message: "Failed to load academy students" });
+            }
+        });
+
+        // PATCH /api/admin/academy/students/:userId — update status / progress fields
+        adminInstance.patch<{ Params: { userId: string } }>('/api/admin/academy/students/:userId', async (req, reply) => {
+            try {
+                const { userId } = req.params;
+                const body = (req.body || {}) as {
+                    status?: string;
+                    lessonsCompleted?: number;
+                    prUrl?: string | null;
+                    certId?: string | null;
+                };
+
+                const allowedStatus = ['none', 'audit_completed', 'enrolled', 'premium', 'graduated'];
+                if (body.status !== undefined && !allowedStatus.includes(body.status)) {
+                    return reply.status(400).send({ message: "Invalid academy status" });
+                }
+
+                const set: Record<string, unknown> = { updatedAt: new Date() };
+                if (body.status !== undefined) set.academyStatus = body.status;
+                if (body.lessonsCompleted !== undefined) set.academyLessonsCompleted = body.lessonsCompleted;
+                if (body.prUrl !== undefined) set.academyPrUrl = body.prUrl;
+                if (body.certId !== undefined) set.academyCertId = body.certId;
+
+                const [updated] = await db.update(schema.users)
+                    .set(set)
+                    .where(eq(schema.users.id, userId))
+                    .returning({
+                        id: schema.users.id,
+                        name: schema.users.name,
+                        academyStatus: schema.users.academyStatus,
+                        academyLessonsCompleted: schema.users.academyLessonsCompleted,
+                        academyPrUrl: schema.users.academyPrUrl,
+                        academyCertId: schema.users.academyCertId,
+                    });
+
+                if (!updated) return reply.status(404).send({ message: "Student not found" });
+                return { success: true, student: updated };
+            } catch (error) {
+                console.error("Academy admin student update error:", error);
+                return reply.status(500).send({ message: "Failed to update student" });
+            }
+        });
+
+        // GET /api/admin/academy/lessons — manage curriculum
+        adminInstance.get('/api/admin/academy/lessons', async (_req, reply) => {
+            try {
+                const lessons = await db.select()
+                    .from(schema.academyLessons)
+                    .orderBy(schema.academyLessons.sortOrder);
+                return { success: true, lessons };
+            } catch (error) {
+                console.error("Academy admin lessons error:", error);
+                return reply.status(500).send({ message: "Failed to load lessons" });
+            }
+        });
+
+        // POST /api/admin/academy/lessons — create a lesson
+        adminInstance.post('/api/admin/academy/lessons', async (req, reply) => {
+            try {
+                const b = (req.body || {}) as Record<string, unknown>;
+                const id = String(b.id || '').trim();
+                if (!id) return reply.status(400).send({ message: "Lesson id is required" });
+                if (!b.title) return reply.status(400).send({ message: "Lesson title is required" });
+
+                await db.insert(schema.academyLessons).values({
+                    id,
+                    week: Number(b.week) || 1,
+                    weekTitle: String(b.weekTitle || ''),
+                    title: String(b.title),
+                    duration: String(b.duration || ''),
+                    description: String(b.description || ''),
+                    content: String(b.content || ''),
+                    lab: String(b.lab || ''),
+                    sortOrder: Number(b.sortOrder) || 0,
+                }).onConflictDoNothing();
+
+                return { success: true };
+            } catch (error) {
+                console.error("Academy admin lesson create error:", error);
+                return reply.status(500).send({ message: "Failed to create lesson" });
+            }
+        });
+
+        // PUT /api/admin/academy/lessons/:id — update a lesson
+        adminInstance.put<{ Params: { id: string } }>('/api/admin/academy/lessons/:id', async (req, reply) => {
+            try {
+                const { id } = req.params;
+                const b = (req.body || {}) as Record<string, unknown>;
+
+                const set: Record<string, unknown> = {};
+                if (b.week !== undefined) set.week = Number(b.week);
+                if (b.weekTitle !== undefined) set.weekTitle = String(b.weekTitle);
+                if (b.title !== undefined) set.title = String(b.title);
+                if (b.duration !== undefined) set.duration = String(b.duration);
+                if (b.description !== undefined) set.description = String(b.description);
+                if (b.content !== undefined) set.content = String(b.content);
+                if (b.lab !== undefined) set.lab = String(b.lab);
+                if (b.sortOrder !== undefined) set.sortOrder = Number(b.sortOrder);
+
+                const [updated] = await db.update(schema.academyLessons)
+                    .set(set)
+                    .where(eq(schema.academyLessons.id, id))
+                    .returning();
+                if (!updated) return reply.status(404).send({ message: "Lesson not found" });
+                return { success: true, lesson: updated };
+            } catch (error) {
+                console.error("Academy admin lesson update error:", error);
+                return reply.status(500).send({ message: "Failed to update lesson" });
+            }
+        });
+
+        // DELETE /api/admin/academy/lessons/:id — remove a lesson
+        adminInstance.delete<{ Params: { id: string } }>('/api/admin/academy/lessons/:id', async (req, reply) => {
+            try {
+                await db.delete(schema.academyLessons).where(eq(schema.academyLessons.id, req.params.id));
+                return { success: true };
+            } catch (error) {
+                console.error("Academy admin lesson delete error:", error);
+                return reply.status(500).send({ message: "Failed to delete lesson" });
+            }
+        });
+
+        // GET /api/admin/academy/waitlist — full waitlist
+        adminInstance.get('/api/admin/academy/waitlist', async (_req, reply) => {
+            try {
+                const rows = await db.select().from(schema.academyWaitlist).orderBy(desc(schema.academyWaitlist.createdAt));
+                return { success: true, waitlist: rows };
+            } catch (error) {
+                console.error("Academy admin waitlist error:", error);
+                return reply.status(500).send({ message: "Failed to load waitlist" });
+            }
+        });
+
+        // DELETE /api/admin/academy/waitlist/:id — remove a waitlist entry
+        adminInstance.delete<{ Params: { id: string } }>('/api/admin/academy/waitlist/:id', async (req, reply) => {
+            try {
+                await db.delete(schema.academyWaitlist).where(eq(schema.academyWaitlist.id, parseInt(req.params.id)));
+                return { success: true };
+            } catch (error) {
+                console.error("Academy admin waitlist delete error:", error);
+                return reply.status(500).send({ message: "Failed to remove waitlist entry" });
+            }
+        });
+
+        // GET /api/admin/academy/reviews — all AI PR reviews
+        adminInstance.get('/api/admin/academy/reviews', async (_req, reply) => {
+            try {
+                const rows = await db.select({
+                    id: schema.academyReviews.id,
+                    certId: schema.academyReviews.certId,
+                    prUrl: schema.academyReviews.prUrl,
+                    score: schema.academyReviews.score,
+                    summary: schema.academyReviews.summary,
+                    strengths: schema.academyReviews.strengths,
+                    improvements: schema.academyReviews.improvements,
+                    checkedAt: schema.academyReviews.checkedAt,
+                    userId: schema.academyReviews.userId,
+                })
+                    .from(schema.academyReviews)
+                    .orderBy(desc(schema.academyReviews.checkedAt));
+
+                return { success: true, reviews: rows };
+            } catch (error) {
+                console.error("Academy admin reviews error:", error);
+                return reply.status(500).send({ message: "Failed to load reviews" });
+            }
+        });
     });
 
     // GET /api/community/events
