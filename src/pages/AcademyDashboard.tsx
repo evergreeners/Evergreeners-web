@@ -3,7 +3,7 @@ import { FloatingNav } from "@/components/FloatingNav";
 import { Section } from "@/components/Section";
 import { GraduationCap, BookOpen, Terminal, CheckCircle, ExternalLink, GitPullRequest, Trophy, MessageSquare, Disc, Award, ArrowRight, Loader2, Maximize2, Lock } from "lucide-react";
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/lib/auth-client";
 import { getApiUrl } from "@/lib/api-config";
@@ -457,6 +457,9 @@ export default function AcademyDashboard() {
               <a href="https://discord.gg/evergreeners" target="_blank" rel="noopener noreferrer" className="ml-1 text-primary hover:underline inline-flex items-center gap-0.5">
                 <Disc className="w-3.5 h-3.5" /> Pod-Delta (Discord) <ExternalLink className="w-2.5 h-2.5" />
               </a>
+              <Link to="/academy/leaderboard" className="ml-3 text-primary hover:underline inline-flex items-center gap-1">
+                <Trophy className="w-3.5 h-3.5" /> Cohort Leaderboard
+              </Link>
             </p>
           </div>
 
