@@ -44,3 +44,6 @@ server/*.log
 
 # Supabase CLI
 supabase/.temp/
+
+# TypeScript build info
+*.tsbuildinfo

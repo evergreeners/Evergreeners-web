@@ -224,6 +224,107 @@ export async function sendWelcomeEmail(to: string, name: string, githubConnected
     }
 }
 
+export interface AcademyTimeLeft {
+    days: number;
+    hours: number;
+    minutes: number;
+    seconds: number;
+}
+
+export interface AcademyAnnouncementOptions {
+    to: string;
+    name: string;
+    launchDateLabel: string;
+    launchHref: string;
+    timeLeft: AcademyTimeLeft;
+}
+
+export async function sendAcademyAnnouncementEmail(opts: AcademyAnnouncementOptions) {
+    const { to, name, launchDateLabel, launchHref, timeLeft } = opts;
+    const displayName = name?.split(' ')[0] || 'there';
+    const pad = (n: number) => String(n).padStart(2, '0');
+
+    const countdownBox = (value: number, label: string) => `
+      <td align="center" style="padding:10px 14px;background-color:#000000;border:1px solid #1f1f1f;border-radius:10px;min-width:62px;">
+        <div style="font-family:ui-monospace,'SF Mono','Fira Code',monospace;font-size:26px;font-weight:700;color:#4ade80;line-height:1;">${pad(value)}</div>
+        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:9px;color:#52525b;letter-spacing:0.14em;text-transform:uppercase;margin-top:4px;">${label}</div>
+      </td>`;
+
+    const body = `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td style="padding-bottom:8px;">
+            <h1 class="text-heading" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',Helvetica,Arial,sans-serif;font-size:26px;font-weight:700;color:#09090b;letter-spacing:-0.4px;line-height:1.3;">
+              The Evergreeners Academy is coming, ${displayName}.
+            </h1>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding-bottom:4px;">
+            <p class="text-body" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;color:#52525b;line-height:1.75;">
+              On <strong style="color:#09090b;">${launchDateLabel}</strong> we open a 4-week, hands-on Git &amp; Open Source course. You'll practice with interactive git labs, ship a real open-source pull request, and earn a verifiable certificate — all free.
+            </p>
+          </td>
+        </tr>
+
+        ${divider}
+
+        <!-- Live countdown (static preview — interactive timer lives on evergreeners.dev/academy) -->
+        <tr>
+          <td style="padding-bottom:12px;">
+            <p class="text-muted" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:11px;color:#a1a1aa;letter-spacing:0.12em;text-transform:uppercase;font-weight:700;">The Academy opens in</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding-bottom:24px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;">
+              <tr style="border-collapse:separate;">
+                ${countdownBox(timeLeft.days, 'Days')}
+                <td style="width:6px;">&nbsp;</td>
+                ${countdownBox(timeLeft.hours, 'Hours')}
+                <td style="width:6px;">&nbsp;</td>
+                ${countdownBox(timeLeft.minutes, 'Mins')}
+                <td style="width:6px;">&nbsp;</td>
+                ${countdownBox(timeLeft.seconds, 'Secs')}
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <tr>
+          <td style="padding-bottom:8px;">
+            <p class="text-body" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;color:#52525b;line-height:1.75;">
+              A live countdown is ticking on the Academy page — follow your progress, audit your GitHub profile, and be first in line when doors open.
+            </p>
+          </td>
+        </tr>
+
+        ${divider}
+
+        <tr>
+          <td align="left" style="padding-top:4px;">
+            <a href="${launchHref}" class="cta" style="display:inline-block;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;font-weight:700;color:#000000;text-decoration:none;background-color:#4ade80;padding:13px 24px;border-radius:9999px;">
+              Visit the Academy →
+            </a>
+          </td>
+        </tr>
+      </table>`;
+
+    try {
+        const result = await getResend().emails.send({
+            from: FROM_EMAIL,
+            to,
+            subject: `The Evergreeners Academy opens ${launchDateLabel}`,
+            html: emailShell(body),
+        });
+        console.log(`Academy announcement email sent to ${to}:`, result.data?.id);
+        return result;
+    } catch (err) {
+        console.error(`Failed to send academy announcement email to ${to}:`, err);
+        throw err;
+    }
+}
+
 // ─── Daily Digest Email ───────────────────────────────────────────────────────
 // Sent every day at 8 PM regardless of commit status.
 // Two modes:

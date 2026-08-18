@@ -1,7 +1,7 @@
 import { AcademyHeader } from "@/components/AcademyHeader";
 import { FloatingNav } from "@/components/FloatingNav";
 import { Section } from "@/components/Section";
-import { GraduationCap, BookOpen, Video, Play, Pause, CheckCircle, ExternalLink, GitPullRequest, Trophy, MessageSquare, Disc, Award, ArrowRight, Loader2 } from "lucide-react";
+import { GraduationCap, BookOpen, Terminal, CheckCircle, ExternalLink, GitPullRequest, Trophy, MessageSquare, Disc, Award, ArrowRight, Loader2, Maximize2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -19,7 +19,7 @@ interface Lesson {
   duration: string;
   description: string;
   content: string;
-  videoUrl: string;
+  lab: string;
 }
 
 interface Week {
@@ -37,7 +37,7 @@ const syllabus: Week[] = [
         id: "1.1",
         title: "Why Git? (Understanding local repositories)",
         duration: "10:15",
-        videoUrl: "https://example.com/git-local",
+        lab: "intro1",
         description: "An absolute zero-to-one guide to local version control.",
         content: `### Why local Git is your foundation
 
@@ -51,7 +51,7 @@ Git is not GitHub. Git is a local version control system that tracks the snapsho
         id: "1.2",
         title: "Writing Commit Messages That Don't Suck",
         duration: "08:45",
-        videoUrl: "https://example.com/commits",
+        lab: "intro2",
         description: "The anatomy of professional commit logs.",
         content: `### Commit message engineering
 
@@ -64,7 +64,7 @@ Your Git history is your resume. Learn how to write conventional commit messages
         id: "1.3",
         title: "Undoing Mistakes: reset, revert, and reflog",
         duration: "12:30",
-        videoUrl: "https://example.com/undoing",
+        lab: "rampup4",
         description: "How to fix errors without losing your hard work.",
         content: `### The safety nets of Git
 
@@ -84,7 +84,7 @@ Every developer makes mistakes. Git provides tools to safely step back in time.
         id: "2.1",
         title: "Forks, Pull Requests, and Remote Syncing",
         duration: "11:00",
-        videoUrl: "https://example.com/forks-prs",
+        lab: "remote1",
         description: "Collab mechanics: upstream vs origin.",
         content: `### Collaboration under the hood
 
@@ -97,7 +97,7 @@ Working with remote servers requires mastering forks and pull requests.
         id: "2.2",
         title: "Portfolio READMEs that sell your work",
         duration: "09:15",
-        videoUrl: "https://example.com/readmes",
+        lab: "remote4",
         description: "Designing landing pages for your repositories.",
         content: `### Writing README files that invite engagement
 
@@ -110,7 +110,7 @@ A repository without a clean README is a repository that doesn't exist to recrui
         id: "2.3",
         title: "Pinned Repositories & Digital Gardens",
         duration: "07:30",
-        videoUrl: "https://example.com/pins",
+        lab: "remote3",
         description: "Curating your public profile.",
         content: `### Curating your developer workspace
 
@@ -128,7 +128,7 @@ Do not pin half-finished projects. Curate your public profile like an art galler
         id: "3.1",
         title: "Finding Beginner-Friendly Issues",
         duration: "10:45",
-        videoUrl: "https://example.com/issues",
+        lab: "rampup2",
         description: "Locating repository entrance gates.",
         content: `### Navigating the open-source landscape
 
@@ -141,7 +141,7 @@ Where do you start? Finding the right issue is half the battle.
         id: "3.2",
         title: "Reading a Codebase before editing",
         duration: "13:20",
-        videoUrl: "https://example.com/read-code",
+        lab: "move1",
         description: "Familiarizing yourself with external architectures.",
         content: `### Becoming a codebase detective
 
@@ -154,7 +154,7 @@ Do not jump straight to editing. Read first.
         id: "3.3",
         title: "Handling Reviews and PR Feedback",
         duration: "08:15",
-        videoUrl: "https://example.com/feedback",
+        lab: "move2",
         description: "Communicating with maintainers professionally.",
         content: `### The collaboration feedback loop
 
@@ -173,7 +173,7 @@ PR rejected? That is part of open source. Here is how to handle reviews.
         id: "4.1",
         title: "Building Sustainable Habits (Habit Loops)",
         duration: "09:40",
-        videoUrl: "https://example.com/habits",
+        lab: "remoteAdvanced3",
         description: "Keeping coding routines sustainable.",
         content: `### Constructing consistency systems
 
@@ -186,7 +186,7 @@ Green contribution graphs are not built overnight. They are built through habit 
         id: "4.2",
         title: "Accountability Pods & Communities",
         duration: "07:15",
-        videoUrl: "https://example.com/pods",
+        lab: "remoteAdvanced4",
         description: "Leaning on your peers for consistency.",
         content: `### Leveraging social proof
 
@@ -198,7 +198,7 @@ You do not have to walk this path alone. Accountability pods keep you on track.
         id: "4.3",
         title: "Capstone PR Verification",
         duration: "11:50",
-        videoUrl: "https://example.com/capstone",
+        lab: "remote5",
         description: "Unlocking graduation certificates.",
         content: `### Graduation and verification
 
@@ -218,11 +218,6 @@ export default function AcademyDashboard() {
 
   const [activeLesson, setActiveLesson] = useState<Lesson>(syllabus[0].lessons[0]);
   const [completedLessons, setCompletedLessons] = useState<Set<string>>(new Set());
-  
-  // Video player simulation state
-  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
-  const [videoProgress, setVideoProgress] = useState(0);
-  const [videoDurationSeconds, setVideoDurationSeconds] = useState(0);
 
   // Capstone PR verification state
   const [prUrl, setPrUrl] = useState("");
@@ -253,36 +248,6 @@ export default function AcademyDashboard() {
       }
     }
   }, [session?.user?.id]);
-
-  // Video progress simulator
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isVideoPlaying) {
-      // Parse duration from string e.g. "10:15"
-      const [m, s] = activeLesson.duration.split(":").map(Number);
-      const totalSec = m * 60 + s;
-      setVideoDurationSeconds(totalSec);
-
-      interval = setInterval(() => {
-        setVideoProgress(prev => {
-          if (prev >= 100) {
-            setIsVideoPlaying(false);
-            // Mark complete automatically when video finishes
-            handleMarkComplete(activeLesson.id, true);
-            return 0;
-          }
-          return prev + (100 / totalSec); // progress per second
-        });
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [isVideoPlaying, activeLesson]);
-
-  // Reset video progress when changing lessons
-  useEffect(() => {
-    setIsVideoPlaying(false);
-    setVideoProgress(0);
-  }, [activeLesson]);
 
   // Protect route
   useEffect(() => {
@@ -353,14 +318,7 @@ export default function AcademyDashboard() {
   // Calculations
   const totalLessons = syllabus.reduce((acc, w) => acc + w.lessons.length, 0);
   const completionPercentage = Math.round((completedLessons.size / totalLessons) * 100);
-
-  const getFormatTime = (progressPercent: number) => {
-    if (!videoDurationSeconds) return "0:00";
-    const currentSeconds = Math.round((progressPercent / 100) * videoDurationSeconds);
-    const m = Math.floor(currentSeconds / 60);
-    const s = currentSeconds % 60;
-    return `${m}:${s < 10 ? '0' : ''}${s}`;
-  };
+  const labUrl = getApiUrl(`/learn-git-branching/?level=${activeLesson.lab}`);
 
   if (isLoadingStatus || !statusData || statusData.status === 'none') {
     return (
@@ -467,7 +425,7 @@ export default function AcademyDashboard() {
                             {isComplete ? (
                               <CheckCircle className="w-4 h-4 text-primary shrink-0" />
                             ) : (
-                              <Video className="w-4 h-4 text-muted-foreground shrink-0" />
+                              <Terminal className="w-4 h-4 text-muted-foreground shrink-0" />
                             )}
                             <span className="truncate">{lesson.id} {lesson.title}</span>
                           </div>
@@ -532,49 +490,29 @@ export default function AcademyDashboard() {
           {/* Right Main Content Lesson Player */}
           <div className="lg:col-span-8 space-y-6">
             
-            {/* Loom-style Mock Video Player */}
-            <div className="rounded-xl border border-border bg-black aspect-video overflow-hidden shadow-2xl relative group">
-              {/* Fake Video Canvas background */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/80 p-6 select-none text-center">
-                <GraduationCap className="w-20 h-20 text-primary/20 mb-4 group-hover:scale-105 transition-transform" />
-                <span className="text-lg font-bold text-foreground mb-1">{activeLesson.title}</span>
-                <span className="text-xs text-muted-foreground font-mono">Evergreeners Academy Session {activeLesson.id}</span>
-                
-                {/* Play Overlay */}
-                {!isVideoPlaying && (
-                  <button 
-                    onClick={() => setIsVideoPlaying(true)}
-                    className="absolute w-16 h-16 rounded-full bg-primary text-black flex items-center justify-center shadow-lg hover:scale-110 transition-transform mt-8"
-                  >
-                    <Play className="w-6 h-6 fill-current ml-1" />
-                  </button>
-                )}
-              </div>
-
-              {/* Video Player Control Bar */}
-              <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent flex flex-col gap-2">
-                {/* Timeline slider */}
-                <div className="relative w-full h-1 bg-zinc-700 rounded-full overflow-hidden cursor-pointer">
-                  <div className="absolute top-0 left-0 h-full bg-primary" style={{ width: `${videoProgress}%` }} />
+            {/* Interactive Git Lab */}
+            <div className="rounded-xl border border-primary/20 bg-black overflow-hidden shadow-2xl">
+              <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-zinc-900/60 border-b border-border">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground min-w-0">
+                  <Terminal className="w-4 h-4 text-primary shrink-0" />
+                  <span className="font-mono truncate">Lab {activeLesson.id} · {activeLesson.title}</span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <button 
-                      onClick={() => setIsVideoPlaying(!isVideoPlaying)} 
-                      className="text-foreground hover:text-primary transition-colors focus:outline-none"
-                    >
-                      {isVideoPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 fill-current" />}
-                    </button>
-                    <span className="text-[10px] font-mono text-muted-foreground">
-                      {getFormatTime(videoProgress)} / {activeLesson.duration}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-semibold text-primary px-1.5 py-0.5 rounded bg-primary/10 border border-primary/20">Loom Embed</span>
-                  </div>
-                </div>
+                <a
+                  href={labUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-[#5aff94] transition-colors shrink-0"
+                >
+                  <Maximize2 className="w-3.5 h-3.5" /> Fullscreen
+                </a>
               </div>
+              <iframe
+                key={activeLesson.id}
+                src={labUrl}
+                title={`${activeLesson.id} — ${activeLesson.title}`}
+                className="w-full aspect-video bg-[#0b0b0b]"
+                loading="lazy"
+              />
             </div>
 
             {/* Lesson Text Content */}

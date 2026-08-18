@@ -8,6 +8,7 @@ import { Octokit } from 'octokit';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs/promises';
+import { existsSync } from 'fs';
 import { auth } from './auth.js';
 import { toNodeHandler } from 'better-auth/node';
 import { createClient } from '@supabase/supabase-js';
@@ -134,6 +135,16 @@ server.register(cors, {
     allowedHeaders: ["Content-Type", "Authorization", "Cookie"],
 });
 
+// ─── Academy launch gate ─────────────────────────────────────────────────────
+const ACADEMY_LAUNCH_DATE = process.env.ACADEMY_LAUNCH_DATE || '2026-08-31T00:00:00Z';
+const ACADEMY_LAUNCH_DATE_LABEL = new Date(ACADEMY_LAUNCH_DATE).toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+});
+const isAcademyOpen = () => Date.now() >= +new Date(ACADEMY_LAUNCH_DATE);
+
 // Extremely crucial for Vercel Rewrites & cross-origin authentication
 // This ensures that for ALL requests, better-auth and session handlers see the public host (e.g. evergreeners.dev)
 // and NOT the internal Railway host. This fixes 401s during sync and OAuth redirect issues.
@@ -168,6 +179,20 @@ server.register(fastifyStatic, {
     root: path.join(__dirname, '../public'),
     prefix: '/public/', // optional: default '/'
 });
+
+// Serve the LearnGitBranching study app so Academy lessons can embed it.
+// Point LGB_FRONTEND_PATH at the repo root (contains index.html + build/ + assets/).
+const lgbFrontendPath = process.env.LGB_FRONTEND_PATH || path.resolve(__dirname, '../../../learnGitBranching');
+if (existsSync(lgbFrontendPath)) {
+    server.register(fastifyStatic, {
+        root: lgbFrontendPath,
+        prefix: '/learn-git-branching/',
+        decorateReply: false,
+    });
+    console.log(`Serving LearnGitBranching at /learn-git-branching from ${lgbFrontendPath}`);
+} else {
+    console.warn(`LearnGitBranching frontend not found at ${lgbFrontendPath}; /learn-git-branching will not be served. Set LGB_FRONTEND_PATH to enable.`);
+}
 
 // GitHub OAuth is handled by better-auth in separate adapter
 
@@ -2766,12 +2791,21 @@ Keep the total response under 300 words. Be like a hype coach mixed with a ruthl
             joinedAt: user[0].academyJoinedAt,
             prUrl: user[0].academyPrUrl,
             certId: user[0].academyCertId,
-            name: user[0].name
+            name: user[0].name,
+            launchDate: ACADEMY_LAUNCH_DATE,
+            isLaunchOpen: isAcademyOpen()
         };
     });
 
     // 2. POST /api/academy/enroll (Authenticated)
     instance.post('/api/academy/enroll', async (req, reply) => {
+        if (!isAcademyOpen()) {
+            return reply.status(403).send({
+                message: `The Academy opens on ${ACADEMY_LAUNCH_DATE_LABEL}. Check back then to enroll.`,
+                launchDate: ACADEMY_LAUNCH_DATE
+            });
+        }
+
         const session = await getSessionFromRequest(req);
         if (!session) return reply.status(401).send({ message: "Unauthorized" });
 
