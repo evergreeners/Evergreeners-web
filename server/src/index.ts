@@ -21,7 +21,7 @@ import { setupCronJobs } from './cron.js';
 import { updateUserGoals } from './lib/goals.js';
 import { sendWelcomeEmail, sendAcademyWaitlistConfirmationEmail } from './lib/email.js';
 import { getOrGenerateEyeInsight } from './lib/eye.js';
-import { checkAndAwardBadges } from './badges/award-badges.js';
+import { checkAndAwardBadges, type UserStats } from './badges/award-badges.js';
 import { BADGES, getBadgeById } from './badges/badge-definitions.js';
 
 /**
@@ -2797,7 +2797,104 @@ Keep the total response under 300 words. Be like a hype coach mixed with a ruthl
         };
     });
 
-    // 2. POST /api/academy/waitlist (Public — email capture before launch)
+    // 2. GET /api/academy/progress (Authenticated)
+    instance.get('/api/academy/progress', async (req, reply) => {
+        const session = await getSessionFromRequest(req);
+        if (!session) return reply.status(401).send({ message: "Unauthorized" });
+        const userId = session.session.userId;
+
+        const rows = await db.select({ lessonId: schema.lessonProgress.lessonId })
+            .from(schema.lessonProgress)
+            .where(eq(schema.lessonProgress.userId, userId));
+
+        return {
+            success: true,
+            completed: rows.map((r) => r.lessonId),
+            count: rows.length,
+        };
+    });
+
+    // 3. POST /api/academy/lessons/complete (Authenticated)
+    instance.post('/api/academy/lessons/complete', async (req, reply) => {
+        const session = await getSessionFromRequest(req);
+        if (!session) return reply.status(401).send({ message: "Unauthorized" });
+        const userId = session.session.userId;
+
+        const { lessonId, completed } = (req.body || {}) as { lessonId?: string; completed?: boolean };
+        if (!lessonId) return reply.status(400).send({ message: "lessonId is required." });
+
+        const user = await db.query.users.findFirst({
+            where: eq(schema.users.id, userId),
+            columns: { id: true, academyStatus: true },
+        });
+        if (!user || user.academyStatus === 'none') {
+            return reply.status(403).send({ message: "You must be enrolled in the Academy to track lessons." });
+        }
+
+        if (completed) {
+            await db.insert(schema.lessonProgress)
+                .values({ userId, lessonId })
+                .onConflictDoNothing();
+        } else {
+            await db.delete(schema.lessonProgress)
+                .where(
+                    and(eq(schema.lessonProgress.userId, userId), eq(schema.lessonProgress.lessonId, lessonId))
+                );
+        }
+
+        const countRow = await db.select({ count: sql<number>`count(*)::int` })
+            .from(schema.lessonProgress)
+            .where(eq(schema.lessonProgress.userId, userId));
+        const count = countRow[0]?.count || 0;
+
+        await db.update(schema.users)
+            .set({
+                academyLessonsCompleted: count,
+                academyLastActiveAt: new Date(),
+                updatedAt: new Date(),
+            })
+            .where(eq(schema.users.id, userId));
+
+        if (completed) {
+            try {
+                const stats: UserStats = {
+                    totalCommits: 0,
+                    lateNightCommits: 0,
+                    currentStreak: 0,
+                    longestStreak: 0,
+                    hadBrokenStreak: false,
+                    questsCompleted: 0,
+                    questsAccepted: 0,
+                    overachieverQuests: 0,
+                    goalsCompleted: 0,
+                    goalsCompletedEarly: 0,
+                    accountAgeDays: 0,
+                    totalActiveDays: 0,
+                    isFirstDay: false,
+                    isProfilePublic: true,
+                    isGithubConnected: true,
+                    hasBio: false,
+                    hasLocation: false,
+                    leaderboardRank: null,
+                    profileViews: 0,
+                    fullYearGreen: false,
+                    isNewYearsCommit: false,
+                    isLunchBreakCommit: false,
+                    isFourAmCommit: false,
+                    hasSpeedRunnerQuest: false,
+                    isCountryLeader: false,
+                    academyLessonsCompleted: count,
+                };
+                await checkAndAwardBadges(userId, stats);
+            } catch (err) {
+                console.error('Error awarding academy scholar badge:', err);
+            }
+        }
+
+        return { success: true, count };
+    });
+
+    // 4. POST /api/academy/waitlist (Public — email capture before launch)
     instance.post('/api/academy/waitlist', async (req, reply) => {
         const { email, name } = (req.body || {}) as { email?: string; name?: string };
         const normalizedEmail = email?.trim().toLowerCase();

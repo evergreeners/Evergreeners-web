@@ -39,6 +39,8 @@ export const users = mySchema.table('users', {
     academyJoinedAt: timestamp('academy_joined_at'),
     academyPrUrl: text('academy_pr_url'),
     academyCertId: text('academy_cert_id'),
+    academyLessonsCompleted: integer('academy_lessons_completed').default(0),
+    academyLastActiveAt: timestamp('academy_last_active_at'),
 });
 
 export const sessions = mySchema.table('sessions', {
@@ -191,6 +193,16 @@ export const academyWaitlist = mySchema.table('academy_waitlist', {
     email: text('email').notNull().unique(),
     createdAt: timestamp('created_at').defaultNow(),
 });
+
+// Per-lesson progress (server-backed, replaces localStorage-only tracking)
+export const lessonProgress = mySchema.table('lesson_progress', {
+    id: serial('id').primaryKey(),
+    userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    lessonId: text('lesson_id').notNull(),
+    completedAt: timestamp('completed_at').defaultNow().notNull(),
+}, (table) => ({
+    uniqueLessonProgress: unique('lesson_progress_user_lesson_unique').on(table.userId, table.lessonId),
+}));
 
 // ─── The Eye: Watchlist ────────────────────────────────────────────────────────
 

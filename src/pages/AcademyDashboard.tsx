@@ -239,15 +239,33 @@ export default function AcademyDashboard() {
     enabled: !!session,
   });
 
-  // Load completed lessons from local storage
+  // Fetch server-backed lesson progress
+  const { data: progressData } = useQuery({
+    queryKey: ['academyProgress', session?.user?.id],
+    queryFn: async () => {
+      const res = await fetch(getApiUrl('/api/academy/progress'), {
+        credentials: "include",
+        headers: {
+          ...(session?.session?.token ? { Authorization: `Bearer ${session.session.token}` } : {})
+        }
+      });
+      if (!res.ok) throw new Error("Failed to fetch progress");
+      return res.json();
+    },
+    enabled: !!session,
+  });
+
+  // Load completed lessons from server, falling back to legacy localStorage
   useEffect(() => {
-    if (session?.user?.id) {
+    if (progressData?.completed?.length) {
+      setCompletedLessons(new Set(progressData.completed));
+    } else if (session?.user?.id) {
       const saved = localStorage.getItem(`academy_completed_${session.user.id}`);
       if (saved) {
         setCompletedLessons(new Set(JSON.parse(saved)));
       }
     }
-  }, [session?.user?.id]);
+  }, [progressData, session?.user?.id]);
 
   // Protect route
   useEffect(() => {
@@ -257,26 +275,44 @@ export default function AcademyDashboard() {
     }
   }, [statusData, isLoadingStatus, navigate]);
 
-  const handleMarkComplete = (lessonId: string, forceState?: boolean) => {
+  const handleMarkComplete = async (lessonId: string, forceState?: boolean) => {
     if (isLessonLocked(lessonId)) return;
-    setCompletedLessons(prev => {
-      const next = new Set(prev);
-      const targetState = forceState !== undefined ? forceState : !next.has(lessonId);
-      
-      if (targetState) {
-        next.add(lessonId);
-        toast.success("Lesson marked complete!", {
-          description: `Great job on finishing lesson ${lessonId}.`
-        });
-      } else {
-        next.delete(lessonId);
-      }
 
-      if (session?.user?.id) {
-        localStorage.setItem(`academy_completed_${session.user.id}`, JSON.stringify(Array.from(next)));
-      }
-      return next;
-    });
+    const completed = new Set(completedLessons);
+    const targetState = forceState !== undefined ? forceState : !completed.has(lessonId);
+
+    if (targetState) {
+      completed.add(lessonId);
+    } else {
+      completed.delete(lessonId);
+    }
+
+    setCompletedLessons(completed);
+    if (session?.user?.id) {
+      localStorage.setItem(`academy_completed_${session.user.id}`, JSON.stringify(Array.from(completed)));
+    }
+
+    try {
+      const res = await fetch(getApiUrl('/api/academy/lessons/complete'), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(session?.session?.token ? { Authorization: `Bearer ${session.session.token}` } : {})
+        },
+        body: JSON.stringify({ lessonId, completed: targetState }),
+        credentials: "include"
+      });
+      if (!res.ok) throw new Error("Failed to sync");
+      queryClient.invalidateQueries({ queryKey: ['academyProgress'] });
+    } catch {
+      // Keep local state; server sync will retry on next change
+    }
+
+    if (targetState) {
+      toast.success("Lesson marked complete!", {
+        description: `Great job on finishing lesson ${lessonId}.`
+      });
+    }
   };
 
   const handleVerifyPr = async (e: React.FormEvent) => {
