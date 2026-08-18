@@ -204,6 +204,21 @@ export const lessonProgress = mySchema.table('lesson_progress', {
     uniqueLessonProgress: unique('lesson_progress_user_lesson_unique').on(table.userId, table.lessonId),
 }));
 
+// AI-generated review for a submitted capstone PR
+export const academyReviews = mySchema.table('academy_reviews', {
+    id: serial('id').primaryKey(),
+    userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    certId: text('cert_id').notNull(),
+    prUrl: text('pr_url').notNull(),
+    score: integer('score').notNull(),
+    summary: text('summary'),
+    strengths: jsonb('strengths').$type<string[]>(),
+    improvements: jsonb('improvements').$type<string[]>(),
+    checkedAt: timestamp('checked_at').defaultNow().notNull(),
+}, (table) => ({
+    uniqueReviewCert: unique('academy_reviews_cert_id_unique').on(table.certId),
+}));
+
 // ─── The Eye: Watchlist ────────────────────────────────────────────────────────
 
 export const watchlist = mySchema.table('watchlist', {

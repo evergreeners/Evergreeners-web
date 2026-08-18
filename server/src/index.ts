@@ -22,6 +22,7 @@ import { updateUserGoals } from './lib/goals.js';
 import { sendWelcomeEmail, sendAcademyWaitlistConfirmationEmail } from './lib/email.js';
 import { getOrGenerateEyeInsight } from './lib/eye.js';
 import { checkAndAwardBadges, type UserStats } from './badges/award-badges.js';
+import { reviewPullRequest } from './lib/academy-review.js';
 import { BADGES, getBadgeById } from './badges/badge-definitions.js';
 
 /**
@@ -3152,6 +3153,27 @@ Keep the total response under 300 words. Be like a hype coach mixed with a ruthl
                 })
                 .where(eq(schema.users.id, userId));
 
+            // AI review of the merged PR (advisory — does not block graduation)
+            let review: Awaited<ReturnType<typeof reviewPullRequest>> = null;
+            try {
+                review = await reviewPullRequest(prUrl, token, githubUsername);
+                if (review) {
+                    await db.insert(schema.academyReviews)
+                        .values({
+                            userId,
+                            certId,
+                            prUrl,
+                            score: review.score,
+                            summary: review.summary,
+                            strengths: review.strengths,
+                            improvements: review.improvements,
+                        })
+                        .onConflictDoNothing();
+                }
+            } catch (err) {
+                console.error('PR auto-review failed:', err);
+            }
+
             const badgeStats = {
                 totalCommits: 0,
                 lateNightCommits: 0,
@@ -3186,7 +3208,8 @@ Keep the total response under 300 words. Be like a hype coach mixed with a ruthl
                 success: true,
                 message: "Pull request verified successfully! You have graduated!",
                 certId,
-                newBadges
+                newBadges,
+                review
             };
 
         } catch (err: any) {
@@ -3229,6 +3252,39 @@ Keep the total response under 300 words. Be like a hype coach mixed with a ruthl
             console.error("Get Certificate Error:", err);
             return reply.status(500).send({ message: "Failed to load certificate" });
         }
+    });
+
+    // 6. GET /api/academy/review/:certId (Public — AI PR review)
+    instance.get('/api/academy/review/:certId', async (req, reply) => {
+        const { certId } = req.params as { certId: string };
+
+        const row = await db.select({
+            score: schema.academyReviews.score,
+            summary: schema.academyReviews.summary,
+            strengths: schema.academyReviews.strengths,
+            improvements: schema.academyReviews.improvements,
+            prUrl: schema.academyReviews.prUrl,
+            checkedAt: schema.academyReviews.checkedAt,
+        })
+        .from(schema.academyReviews)
+        .where(eq(schema.academyReviews.certId, certId))
+        .limit(1);
+
+        if (!row.length) {
+            return { success: true, review: null };
+        }
+
+        return {
+            success: true,
+            review: {
+                score: row[0].score,
+                summary: row[0].summary,
+                strengths: row[0].strengths,
+                improvements: row[0].improvements,
+                prUrl: row[0].prUrl,
+                checkedAt: row[0].checkedAt,
+            }
+        };
     });
 
 });
