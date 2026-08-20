@@ -55,13 +55,23 @@ export function Header() {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 px-4 md:px-0">
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&display=swap');
+        .font-handwritten {
+          font-family: 'Caveat', cursive;
+          font-weight: 700;
+          transform: rotate(-2deg);
+        }
+      `}</style>
       <div className="glass-nav mt-4 rounded-2xl mx-auto max-w-5xl border border-primary/20 bg-primary/10">
         <div className="flex items-center justify-between py-3 px-4">
           <Link to="/dashboard" onClick={() => triggerHaptic()} className="flex items-center gap-2 group">
-            <div className="hidden md:flex items-center justify-center w-10 h-10 -ml-1">
-              <Logo className="w-6 h-6" />
-            </div>
-            <span className="font-semibold text-foreground hidden md:block">Evergreeners</span>
+            {!session && (
+              <div className="hidden md:flex items-center justify-center w-10 h-10 -ml-1">
+                <Logo className="w-6 h-6" />
+              </div>
+            )}
+            <span className="font-handwritten text-2xl text-primary hidden md:block">Evergreeners</span>
             <div className={cn(
               "md:hidden flex items-center justify-center w-9 h-9 rounded-xl transition-all duration-300 bg-transparent",
               currentPath === '/dashboard'

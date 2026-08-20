@@ -1,7 +1,7 @@
 import { Header } from "@/components/Header";
 import { FloatingNav } from "@/components/FloatingNav";
 import { Section } from "@/components/Section";
-import { Trophy, Medal, Flame, Crown, TrendingUp, TrendingDown, Minus, GitCommit } from "lucide-react";
+import { Trophy, Medal, Flame, Crown, GitCommit } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn, triggerHaptic } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -13,6 +13,7 @@ import { getApiUrl } from "@/lib/api-config";
 interface LeaderboardEntry {
   rank: number;
   previousRank: number;
+  tabRank?: number;
   username: string;
   avatar: string | null;
   streak: number;
@@ -42,6 +43,7 @@ type FilterType = "streak" | "commits" | "weekly" | "yesterday";
 
 export default function Leaderboard() {
   const [filter, setFilter] = useState<FilterType>("streak");
+  const [visibleCount, setVisibleCount] = useState(5);
   const { data: session } = useSession();
   const user = session?.user as unknown as AuthUser;
 
@@ -85,16 +87,18 @@ export default function Leaderboard() {
   } : null);
 
 
-  const getRankChange = (current: number, previous: number) => {
-    if (current < previous) return { icon: TrendingUp, class: "text-primary", text: `+${previous - current}` };
-    if (current > previous) return { icon: TrendingDown, class: "text-destructive", text: `-${current - previous}` };
-    return { icon: Minus, class: "text-muted-foreground", text: "0" };
-  };
-
-  const getCommitTrend = (today: number, yesterday: number) => {
-    if (today > yesterday) return { icon: TrendingUp, class: "text-primary", text: `+${today - yesterday}` };
-    if (today < yesterday) return { icon: TrendingDown, class: "text-destructive", text: `${today - yesterday}` };
-    return { icon: Minus, class: "text-muted-foreground", text: "0" };
+  // Metric shown for the active tab only (no cross-tab info)
+  const getTabMeta = (entry: LeaderboardEntry) => {
+    switch (filter) {
+      case "commits":
+        return { icon: Trophy, iconClass: "text-yellow-500", value: entry.totalCommits.toLocaleString(), label: `${entry.totalCommits.toLocaleString()} commits` };
+      case "weekly":
+        return { icon: GitCommit, iconClass: "text-green-500", value: (entry.weeklyCommits || 0).toLocaleString(), label: `${(entry.weeklyCommits || 0).toLocaleString()} this week` };
+      case "yesterday":
+        return { icon: Flame, iconClass: "text-orange-500", value: (entry.yesterdayCommits || 0).toLocaleString(), label: `${(entry.yesterdayCommits || 0).toLocaleString()} yesterday` };
+      default:
+        return { icon: Flame, iconClass: "text-primary", value: entry.streak.toLocaleString(), label: `${entry.streak.toLocaleString()} days` };
+    }
   };
 
   const getRankBadge = (rank: number) => {
@@ -110,17 +114,32 @@ export default function Leaderboard() {
     }
   };
 
-  // Sort based on filter (Client-side sorting of the top 50)
-  const sortedData = leaderboardData ? [...leaderboardData].sort((a, b) => {
-    if (filter === "streak") return b.streak - a.streak;
-    if (filter === "commits") return b.totalCommits - a.totalCommits;
-    if (filter === "weekly") return b.weeklyCommits - a.weeklyCommits;
-    if (filter === "yesterday") return b.yesterdayCommits - a.yesterdayCommits;
-    return b.streak - a.streak; // Default
-  }) : [];
+  // Sort based on filter (Client-side sorting), then keep only the top 15
+  // Streak/This Week/Yesterday only rank users with activity; other tabs show everyone.
+  const sortedData = leaderboardData
+    ? [...leaderboardData]
+      .filter(entry => {
+        if (filter === "streak") return entry.streak > 0;
+        if (filter === "weekly") return entry.weeklyCommits > 0;
+        if (filter === "yesterday") return entry.yesterdayCommits > 0;
+        return true;
+      })
+      .sort((a, b) => {
+        if (filter === "streak") return b.streak - a.streak;
+        if (filter === "commits") return b.totalCommits - a.totalCommits;
+        if (filter === "weekly") return b.weeklyCommits - a.weeklyCommits;
+        if (filter === "yesterday") return b.yesterdayCommits - a.yesterdayCommits;
+        return b.streak - a.streak; // Default
+      })
+      .map((entry, index) => ({ ...entry, tabRank: index + 1 }))
+      .slice(0, 15) as LeaderboardEntry[]
+    : [];
 
   const topThree = sortedData.slice(0, 3);
   const restOfLeaderboard = sortedData.slice(3);
+
+  // User's rank within the active tab (0 = unranked)
+  const userTabRank = currentUser ? sortedData.findIndex(e => e.username === currentUser.username) + 1 : 0;
 
   return (
     <div className="min-h-screen bg-background custom-scrollbar">
@@ -172,10 +191,16 @@ export default function Leaderboard() {
             {currentUser && (
               <Section className="animate-fade-up" style={{ animationDelay: "0.05s" }}>
                 <div className="p-4 rounded-xl border border-primary/30 bg-primary/10">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="relative">
-
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-4 min-w-0">
+                      <div className="w-10 text-center flex-shrink-0">
+                        {userTabRank > 0 ? (
+                          <span className="text-2xl font-bold text-primary">#{userTabRank}</span>
+                        ) : (
+                          <span className="text-2xl font-bold text-muted-foreground/50">—</span>
+                        )}
+                      </div>
+                      <div className="relative flex-shrink-0">
                         <div className={cn("w-12 h-12 rounded-full border-2 overflow-hidden", currentUser.bestRank === 1 ? "border-yellow-500/50 shadow-[0_0_10px_rgba(234,179,8,0.4)]" : "border-primary")}>
                           <img src={currentUser.avatar || ""} alt={currentUser.username} className="w-full h-full object-cover" />
                         </div>
@@ -184,43 +209,26 @@ export default function Leaderboard() {
                             <span className="text-[8px]">🐐</span>
                           </div>
                         )}
-                        {currentUser.rank > 0 && (
-                          <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center">
-                            #{currentUser.rank}
-                          </div>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-medium">Your Position</p>
+                        <p className="text-sm text-muted-foreground truncate">@{currentUser.username}</p>
+                        {userTabRank === 0 && (
+                          <p className="text-sm font-medium text-muted-foreground">You're not in the top 15</p>
                         )}
                       </div>
-                      <div>
-                        <p className="font-medium">Your Position</p>
-                        <p className="text-sm text-muted-foreground">@{currentUser.username}</p>
-                      </div>
                     </div>
-                    <div className="text-right">
-                      <div className="flex items-center gap-2">
-                        <Flame className="w-4 h-4 text-primary" />
-                        <span className="font-bold text-lg">{currentUser.streak} days</span>
-                      </div>
-                      <div className="flex items-center gap-1 text-sm">
-                        {(() => {
-                          const weeklyCommits = currentUser.weeklyCommits || 0;
-                          if (weeklyCommits > 0) {
-                            return (
-                              <>
-                                <TrendingUp className="w-3 h-3 text-primary" />
-                                <span className="text-primary">{weeklyCommits} this week</span>
-                              </>
-                            );
-                          } else {
-                            return (
-                              <>
-                                <Minus className="w-3 h-3 text-muted-foreground" />
-                                <span className="text-muted-foreground">{weeklyCommits} this week</span>
-                              </>
-                            );
-                          }
-                        })()}
-                      </div>
-                    </div>
+                    {(() => {
+                      const { icon: PosIcon, iconClass, label } = getTabMeta(currentUser);
+                      return (
+                        <div className="text-right flex-shrink-0">
+                          <div className="flex items-center gap-2">
+                            <PosIcon className={cn("w-4 h-4", iconClass)} />
+                            <span className="font-bold text-lg">{label}</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               </Section>
@@ -238,6 +246,7 @@ export default function Leaderboard() {
                   key={tab.key}
                   onClick={() => {
                     setFilter(tab.key);
+                    setVisibleCount(5);
                     triggerHaptic();
                   }}
                   className={cn(
@@ -270,12 +279,7 @@ export default function Leaderboard() {
                         )}
                       </div>
                       <p className="text-sm font-medium truncate max-w-[80px] text-center">{topThree[1].username}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {filter === "streak" && `${topThree[1].streak} days`}
-                        {filter === "commits" && `${topThree[1].totalCommits} commits`}
-                        {filter === "weekly" && `${topThree[1].weeklyCommits} this week`}
-                        {filter === "yesterday" && `${topThree[1].yesterdayCommits} yesterday`}
-                      </p>
+                      <p className="text-xs text-muted-foreground">{getTabMeta(topThree[1]).label}</p>
                       <div className="w-20 h-24 bg-secondary/50 rounded-t-xl mt-2 flex items-center justify-center border-t border-x border-gray-400/30">
                         <Medal className="w-8 h-8 text-gray-400" />
                       </div>
@@ -297,12 +301,7 @@ export default function Leaderboard() {
                         )}
                       </div>
                       <p className="text-sm font-medium truncate max-w-[100px] text-center">{topThree[0].username}</p>
-                      <p className="text-xs text-primary font-bold">
-                        {filter === "streak" && `${topThree[0].streak} days`}
-                        {filter === "commits" && `${topThree[0].totalCommits} commits`}
-                        {filter === "weekly" && `${topThree[0].weeklyCommits} this week`}
-                        {filter === "yesterday" && `${topThree[0].yesterdayCommits} yesterday`}
-                      </p>
+                      <p className="text-xs text-primary font-bold">{getTabMeta(topThree[0]).label}</p>
                       <div className="w-24 h-32 bg-primary/20 rounded-t-xl mt-2 flex items-center justify-center border-t border-x border-primary/30">
                         <Trophy className="w-10 h-10 text-yellow-400" />
                       </div>
@@ -323,12 +322,7 @@ export default function Leaderboard() {
                         )}
                       </div>
                       <p className="text-sm font-medium truncate max-w-[80px] text-center">{topThree[2].username}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {filter === "streak" && `${topThree[2].streak} days`}
-                        {filter === "commits" && `${topThree[2].totalCommits} commits`}
-                        {filter === "weekly" && `${topThree[2].weeklyCommits} this week`}
-                        {filter === "yesterday" && `${topThree[2].yesterdayCommits} yesterday`}
-                      </p>
+                      <p className="text-xs text-muted-foreground">{getTabMeta(topThree[2]).label}</p>
                       <div className="w-20 h-20 bg-secondary/50 rounded-t-xl mt-2 flex items-center justify-center border-t border-x border-amber-600/30">
                         <Medal className="w-8 h-8 text-amber-600" />
                       </div>
@@ -341,9 +335,9 @@ export default function Leaderboard() {
             {/* Full Leaderboard */}
             <Section title="Rankings" className="animate-fade-up" style={{ animationDelay: "0.2s" }}>
               <div className="space-y-2">
-                {restOfLeaderboard.map((entry, index) => {
-                  const change = getRankChange(entry.rank, entry.previousRank);
+                {(filter === "streak" ? restOfLeaderboard : restOfLeaderboard.slice(0, visibleCount)).map((entry, index) => {
                   const isUser = user && (entry.username === user.username);
+                  const { icon: RowIcon, iconClass, value, label } = getTabMeta(entry);
 
                   return (
                     <div
@@ -358,7 +352,7 @@ export default function Leaderboard() {
                     >
                       <div className="flex items-center gap-3 min-w-0 flex-1">
                         <div className="w-8 text-center flex-shrink-0">
-                          {getRankBadge(entry.rank)}
+                          {getRankBadge(entry.tabRank || 0)}
                         </div>
                         <div className="relative flex-shrink-0">
                           <div className={cn("w-10 h-10 rounded-full border overflow-hidden", entry.bestRank === 1 ? "border-yellow-500/50 shadow-[0_0_8px_rgba(234,179,8,0.4)]" : "border-border")}>
@@ -375,48 +369,53 @@ export default function Leaderboard() {
                             @{entry.username}
                             {isUser && <span className="ml-2 text-xs opacity-70">(You)</span>}
                           </p>
-                          <p className="text-xs text-muted-foreground truncate">{entry.totalCommits.toLocaleString()} commits</p>
+                          <p className="text-xs text-muted-foreground truncate">{label}</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3 flex-shrink-0">
-                        <div className="flex items-center gap-1">
-                          <change.icon className={cn("w-3 h-3", change.class)} />
-                          <span className={cn("text-xs hidden sm:block", change.class)}>{change.text}</span>
-                        </div>
-                        <div className="flex items-center gap-1 min-w-[60px] justify-end">
-                          {filter === "streak" && <Flame className="w-4 h-4 text-primary" />}
-                          {filter === "commits" && <Trophy className="w-4 h-4 text-yellow-500" />}
-                          {filter === "weekly" && <GitCommit className="w-4 h-4 text-green-500" />}
-                          {filter === "yesterday" && <Flame className="w-4 h-4 text-orange-500" />}
-
-                          <span className="font-bold">
-                            {filter === "streak" && entry.streak}
-                            {filter === "commits" && entry.totalCommits.toLocaleString()}
-                            {filter === "weekly" && (entry.weeklyCommits || 0)}
-                            {filter === "yesterday" && (entry.yesterdayCommits || 0)}
-                          </span>
-                        </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <RowIcon className={cn("w-4 h-4", iconClass)} />
+                        <span className="font-bold">{value}</span>
                       </div>
                     </div>
                   );
                 })}
               </div>
+
+              {/* View More - show next 5 (only on tabs that show the top 15) */}
+              {filter !== "streak" && restOfLeaderboard.length > visibleCount && (
+                <div className="text-center mt-4 animate-fade-up" style={{ animationDelay: "0.25s" }}>
+                  <button
+                    onClick={() => {
+                      setVisibleCount(c => c + 5);
+                      triggerHaptic();
+                    }}
+                    className="px-6 py-3 rounded-xl border border-border bg-secondary/30 hover:bg-secondary/50 transition-all duration-300 text-sm font-medium"
+                  >
+                    View More
+                  </button>
+                </div>
+              )}
+
+              {/* End note - once the full top 15 is revealed */}
+              {(filter === "streak" ? sortedData.length > 0 : visibleCount >= restOfLeaderboard.length) && (
+                <div className="text-center mt-6 px-4 animate-fade-up" style={{ animationDelay: "0.3s" }}>
+                  <p className="text-sm text-muted-foreground">
+                    {filter === "streak"
+                      ? "Only active streaks make this list — and if you're not on it, yours is just waiting to be lit. Every legend up here started with a single day. Keep the flame alive, and soon they'll be looking up at you."
+                      : filter === "weekly"
+                        ? "Wondering why you're not on this list? Everyone here shipped at least one commit this week. No commits, no spot — drop one before Sunday and you could be next."
+                        : filter === "yesterday"
+                          ? "Wondering why you're not on this list? Everyone here shipped a commit yesterday. No commits yesterday, no spot — make one today and you could be next."
+                          : "These are the top 15 on the platform — but there's a whole community out there pushing every day. Keep committing, stay consistent, and your spot on this list could be next."}
+                  </p>
+                </div>
+              )}
             </Section>
 
-            {/* Load More */}
             {/* Empty State */}
             {topThree.length === 0 && (
               <div className="text-center py-20 text-muted-foreground animate-fade-up">
-                <p>No active leaders yet. Be the first to start a streak!</p>
-              </div>
-            )}
-
-            {/* Load More - Only show if we likely have more data (limit is 50) */}
-            {leaderboardData && leaderboardData.length >= 50 && (
-              <div className="text-center animate-fade-up" style={{ animationDelay: "0.25s" }}>
-                <button className="px-6 py-3 rounded-xl border border-border bg-secondary/30 hover:bg-secondary/50 transition-all duration-300 text-sm font-medium">
-                  Load More
-                </button>
+                <p>No one's on the leaderboard yet. Join and be the first!</p>
               </div>
             )}
           </>
