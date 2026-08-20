@@ -788,16 +788,17 @@ server.register(async (instance) => {
                 bestRank: schema.users.bestRank,
             })
                 .from(schema.users)
-                .where(gt(schema.users.streak, 0))
-                .orderBy(desc(schema.users.streak))
+                .orderBy(desc(schema.users.streak), desc(schema.users.totalCommits))
                 .limit(50);
 
-            console.log(`Fetching leaderboard. Found ${topUsers.length} users with streak > 0`);
+            console.log(`Fetching leaderboard. Found ${topUsers.length} users`);
 
             // Update best ranks asynchronously (don't block the response)
             (async () => {
                 for (let i = 0; i < topUsers.length; i++) {
                     const user = topUsers[i];
+                    // Only assign ranks to active streakers so inactive users never earn badges
+                    if (!user.streak) continue;
                     const currentRank = i + 1;
                     // Update if this is their first rank or if current rank is better (lower number = better)
                     if (!user.bestRank || currentRank < user.bestRank) {

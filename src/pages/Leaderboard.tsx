@@ -42,6 +42,7 @@ type FilterType = "streak" | "commits" | "weekly" | "yesterday";
 
 export default function Leaderboard() {
   const [filter, setFilter] = useState<FilterType>("streak");
+  const [visibleCount, setVisibleCount] = useState(5);
   const { data: session } = useSession();
   const user = session?.user as unknown as AuthUser;
 
@@ -111,7 +112,11 @@ export default function Leaderboard() {
   };
 
   // Sort based on filter (Client-side sorting of the top 50)
-  const sortedData = leaderboardData ? [...leaderboardData].sort((a, b) => {
+  // Streak tab only shows users with an active streak (> 0), so the View More
+  // button never appears there since only active streakers are ranked.
+  const sortedData = leaderboardData ? [...leaderboardData]
+    .filter(entry => filter === "streak" ? entry.streak > 0 : true)
+    .sort((a, b) => {
     if (filter === "streak") return b.streak - a.streak;
     if (filter === "commits") return b.totalCommits - a.totalCommits;
     if (filter === "weekly") return b.weeklyCommits - a.weeklyCommits;
@@ -238,6 +243,7 @@ export default function Leaderboard() {
                   key={tab.key}
                   onClick={() => {
                     setFilter(tab.key);
+                    setVisibleCount(5);
                     triggerHaptic();
                   }}
                   className={cn(
@@ -341,7 +347,7 @@ export default function Leaderboard() {
             {/* Full Leaderboard */}
             <Section title="Rankings" className="animate-fade-up" style={{ animationDelay: "0.2s" }}>
               <div className="space-y-2">
-                {restOfLeaderboard.map((entry, index) => {
+                {restOfLeaderboard.slice(0, visibleCount).map((entry, index) => {
                   const change = getRankChange(entry.rank, entry.previousRank);
                   const isUser = user && (entry.username === user.username);
 
@@ -401,22 +407,27 @@ export default function Leaderboard() {
                   );
                 })}
               </div>
+
+              {/* View More - Show next 5 entries */}
+              {restOfLeaderboard.length > visibleCount && (
+                <div className="text-center mt-4 animate-fade-up" style={{ animationDelay: "0.25s" }}>
+                  <button
+                    onClick={() => {
+                      setVisibleCount(c => c + 5);
+                      triggerHaptic();
+                    }}
+                    className="px-6 py-3 rounded-xl border border-border bg-secondary/30 hover:bg-secondary/50 transition-all duration-300 text-sm font-medium"
+                  >
+                    View More
+                  </button>
+                </div>
+              )}
             </Section>
 
-            {/* Load More */}
             {/* Empty State */}
             {topThree.length === 0 && (
               <div className="text-center py-20 text-muted-foreground animate-fade-up">
                 <p>No active leaders yet. Be the first to start a streak!</p>
-              </div>
-            )}
-
-            {/* Load More - Only show if we likely have more data (limit is 50) */}
-            {leaderboardData && leaderboardData.length >= 50 && (
-              <div className="text-center animate-fade-up" style={{ animationDelay: "0.25s" }}>
-                <button className="px-6 py-3 rounded-xl border border-border bg-secondary/30 hover:bg-secondary/50 transition-all duration-300 text-sm font-medium">
-                  Load More
-                </button>
               </div>
             )}
           </>
