@@ -43,7 +43,6 @@ type FilterType = "streak" | "commits" | "weekly" | "yesterday";
 
 export default function Leaderboard() {
   const [filter, setFilter] = useState<FilterType>("streak");
-  const [visibleCount, setVisibleCount] = useState(5);
   const { data: session } = useSession();
   const user = session?.user as unknown as AuthUser;
 
@@ -114,19 +113,20 @@ export default function Leaderboard() {
     }
   };
 
-  // Sort based on filter (Client-side sorting of the top 50)
-  // Streak tab only shows users with an active streak (> 0), so the View More
-  // button never appears there since only active streakers are ranked.
-  const sortedData = leaderboardData ? [...leaderboardData]
-    .filter(entry => filter === "streak" ? entry.streak > 0 : true)
-    .sort((a, b) => {
-    if (filter === "streak") return b.streak - a.streak;
-    if (filter === "commits") return b.totalCommits - a.totalCommits;
-    if (filter === "weekly") return b.weeklyCommits - a.weeklyCommits;
-    if (filter === "yesterday") return b.yesterdayCommits - a.yesterdayCommits;
-    return b.streak - a.streak; // Default
-  })
-    .map((entry, index) => ({ ...entry, tabRank: index + 1 })) as LeaderboardEntry[]
+  // Sort based on filter (Client-side sorting), then keep only the top 15
+  // Streak tab only ranks users with an active streak (> 0); other tabs show everyone.
+  const sortedData = leaderboardData
+    ? [...leaderboardData]
+      .filter(entry => filter === "streak" ? entry.streak > 0 : true)
+      .sort((a, b) => {
+        if (filter === "streak") return b.streak - a.streak;
+        if (filter === "commits") return b.totalCommits - a.totalCommits;
+        if (filter === "weekly") return b.weeklyCommits - a.weeklyCommits;
+        if (filter === "yesterday") return b.yesterdayCommits - a.yesterdayCommits;
+        return b.streak - a.streak; // Default
+      })
+      .map((entry, index) => ({ ...entry, tabRank: index + 1 }))
+      .slice(0, 15) as LeaderboardEntry[]
     : [];
 
   const topThree = sortedData.slice(0, 3);
@@ -185,10 +185,16 @@ export default function Leaderboard() {
             {currentUser && (
               <Section className="animate-fade-up" style={{ animationDelay: "0.05s" }}>
                 <div className="p-4 rounded-xl border border-primary/30 bg-primary/10">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="relative">
-
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-4 min-w-0">
+                      <div className="w-10 text-center flex-shrink-0">
+                        {userTabRank > 0 ? (
+                          <span className="text-2xl font-bold text-primary">#{userTabRank}</span>
+                        ) : (
+                          <span className="text-2xl font-bold text-muted-foreground/50">—</span>
+                        )}
+                      </div>
+                      <div className="relative flex-shrink-0">
                         <div className={cn("w-12 h-12 rounded-full border-2 overflow-hidden", currentUser.bestRank === 1 ? "border-yellow-500/50 shadow-[0_0_10px_rgba(234,179,8,0.4)]" : "border-primary")}>
                           <img src={currentUser.avatar || ""} alt={currentUser.username} className="w-full h-full object-cover" />
                         </div>
@@ -197,24 +203,19 @@ export default function Leaderboard() {
                             <span className="text-[8px]">🐐</span>
                           </div>
                         )}
-                        {userTabRank > 0 && (
-                          <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center">
-                            #{userTabRank}
-                          </div>
-                        )}
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <p className="font-medium">Your Position</p>
-                        <p className="text-sm text-muted-foreground">@{currentUser.username}</p>
-                        <p className={cn("text-sm font-bold", userTabRank > 0 ? "text-primary" : "text-muted-foreground")}>
-                          {userTabRank > 0 ? `Rank #${userTabRank}` : "Unranked on this tab"}
-                        </p>
+                        <p className="text-sm text-muted-foreground truncate">@{currentUser.username}</p>
+                        {userTabRank === 0 && (
+                          <p className="text-sm font-medium text-muted-foreground">You're not in the top 15</p>
+                        )}
                       </div>
                     </div>
                     {(() => {
                       const { icon: PosIcon, iconClass, label } = getTabMeta(currentUser);
                       return (
-                        <div className="text-right">
+                        <div className="text-right flex-shrink-0">
                           <div className="flex items-center gap-2">
                             <PosIcon className={cn("w-4 h-4", iconClass)} />
                             <span className="font-bold text-lg">{label}</span>
@@ -239,7 +240,6 @@ export default function Leaderboard() {
                   key={tab.key}
                   onClick={() => {
                     setFilter(tab.key);
-                    setVisibleCount(5);
                     triggerHaptic();
                   }}
                   className={cn(
@@ -328,7 +328,7 @@ export default function Leaderboard() {
             {/* Full Leaderboard */}
             <Section title="Rankings" className="animate-fade-up" style={{ animationDelay: "0.2s" }}>
               <div className="space-y-2">
-                {restOfLeaderboard.slice(0, visibleCount).map((entry, index) => {
+                {restOfLeaderboard.map((entry, index) => {
                   const isUser = user && (entry.username === user.username);
                   const { icon: RowIcon, iconClass, value, label } = getTabMeta(entry);
 
@@ -373,27 +373,12 @@ export default function Leaderboard() {
                   );
                 })}
               </div>
-
-              {/* View More - Show next 5 entries */}
-              {restOfLeaderboard.length > visibleCount && (
-                <div className="text-center mt-4 animate-fade-up" style={{ animationDelay: "0.25s" }}>
-                  <button
-                    onClick={() => {
-                      setVisibleCount(c => c + 5);
-                      triggerHaptic();
-                    }}
-                    className="px-6 py-3 rounded-xl border border-border bg-secondary/30 hover:bg-secondary/50 transition-all duration-300 text-sm font-medium"
-                  >
-                    View More
-                  </button>
-                </div>
-              )}
             </Section>
 
             {/* Empty State */}
             {topThree.length === 0 && (
               <div className="text-center py-20 text-muted-foreground animate-fade-up">
-                <p>No active leaders yet. Be the first to start a streak!</p>
+                <p>No one's on the leaderboard yet. Join and be the first!</p>
               </div>
             )}
           </>
