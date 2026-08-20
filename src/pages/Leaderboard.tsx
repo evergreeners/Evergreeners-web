@@ -397,14 +397,16 @@ export default function Leaderboard() {
               )}
 
               {/* End note - once the full top 15 is revealed */}
-              {filter !== "streak" && visibleCount >= restOfLeaderboard.length && (
+              {(filter === "streak" ? sortedData.length > 0 : visibleCount >= restOfLeaderboard.length) && (
                 <div className="text-center mt-6 px-4 animate-fade-up" style={{ animationDelay: "0.3s" }}>
                   <p className="text-sm text-muted-foreground">
-                    {filter === "weekly"
-                      ? "Wondering why you're not on this list? Everyone here shipped at least one commit this week. No commits, no spot — drop one before Sunday and you could be next."
-                      : filter === "yesterday"
-                        ? "Wondering why you're not on this list? Everyone here shipped a commit yesterday. No commits yesterday, no spot — make one today and you could be next."
-                        : "These are the top 15 on the platform — but there's a whole community out there pushing every day. Keep committing, stay consistent, and your spot on this list could be next."}
+                    {filter === "streak"
+                      ? "Only active streaks make this list — and if you're not on it, yours is just waiting to be lit. Every legend up here started with a single day. Keep the flame alive, and soon they'll be looking up at you."
+                      : filter === "weekly"
+                        ? "Wondering why you're not on this list? Everyone here shipped at least one commit this week. No commits, no spot — drop one before Sunday and you could be next."
+                        : filter === "yesterday"
+                          ? "Wondering why you're not on this list? Everyone here shipped a commit yesterday. No commits yesterday, no spot — make one today and you could be next."
+                          : "These are the top 15 on the platform — but there's a whole community out there pushing every day. Keep committing, stay consistent, and your spot on this list could be next."}
                   </p>
                 </div>
               )}
