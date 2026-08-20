@@ -18,6 +18,7 @@ export const users = mySchema.table('users', {
     isPublic: boolean('is_public').default(true).notNull(),
     anonymousName: text('anonymous_name'),
     streak: integer('streak').default(0),
+    longestStreak: integer('longest_streak').default(0), // Best streak ever achieved
     totalCommits: integer('total_commits').default(0),
     todayCommits: integer('today_commits').default(0), // New field for daily tracking
     yesterdayCommits: integer('yesterday_commits').default(0),

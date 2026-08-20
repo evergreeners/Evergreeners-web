@@ -1,0 +1,1 @@
+ALTER TABLE "evergreeners"."users" ADD COLUMN "longest_streak" integer DEFAULT 0;
