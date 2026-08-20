@@ -92,6 +92,13 @@
       "when": 1783106593295,
       "tag": "0012_shallow_smasher",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1787245531961,
+      "tag": "0013_add_longest_streak",
+      "breakpoints": true
     }
   ]
 }

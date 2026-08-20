@@ -56,6 +56,7 @@ export const auth = betterAuth({
             isPublic: { type: "boolean" },
             anonymousName: { type: "string" },
             streak: { type: "number" },
+            longestStreak: { type: "number" },
             totalCommits: { type: "number" },
             todayCommits: { type: "number" }, // Field for daily stats
             isGithubConnected: { type: "boolean" },

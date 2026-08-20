@@ -413,7 +413,18 @@ server.register(async (instance) => {
 
                 throw err;
             }
-            const { totalCommits, currentStreak, todayCommits, yesterdayCommits, weeklyCommits, activeDays, totalProjects, projects, contributionCalendar, totalPullRequests, languages } = contribStats;
+            const { totalCommits, currentStreak, longestStreak: computedLongest, todayCommits, yesterdayCommits, weeklyCommits, activeDays, totalProjects, projects, contributionCalendar, totalPullRequests, languages } = contribStats;
+
+            // Keep the true longest streak: never let it shrink, and backfill from the calendar
+            const existingStreakRow = await db.select({ longestStreak: schema.users.longestStreak })
+                .from(schema.users)
+                .where(eq(schema.users.id, userId))
+                .limit(1);
+            const longestStreak = Math.max(
+                existingStreakRow[0]?.longestStreak ?? 0,
+                computedLongest ?? 0,
+                currentStreak
+            );
 
             // 4. Update User Profile
             console.log("Updating DB with streak:", currentStreak, "commits:", totalCommits);
@@ -421,6 +432,7 @@ server.register(async (instance) => {
                 .set({
                     // Only update stats, preserve user's custom profile data
                     streak: currentStreak,
+                    longestStreak,
                     totalCommits: totalCommits,
                     todayCommits: todayCommits,
                     yesterdayCommits: yesterdayCommits,
@@ -464,7 +476,7 @@ server.register(async (instance) => {
                 totalCommits,
                 lateNightCommits: 0, // tracked separately via contribution analysis
                 currentStreak,
-                longestStreak: currentStreak, // best approximation from sync data
+                longestStreak, // true longest streak from calendar + history
                 hadBrokenStreak: false,
                 questsCompleted: questCompletedRows.length,
                 questsAccepted: questAcceptedRows.length,
@@ -1104,7 +1116,7 @@ server.register(async (instance) => {
                     totalCommits: profile?.totalCommits ?? 0,
                     lateNightCommits: 0,
                     currentStreak: profile?.streak ?? 0,
-                    longestStreak: profile?.streak ?? 0,
+                    longestStreak: profile?.longestStreak ?? 0,
                     hadBrokenStreak: false,
                     questsCompleted: completedQuestRows.length,
                     questsAccepted: acceptedQuestRows.length,
@@ -1551,7 +1563,7 @@ server.register(async (instance) => {
                 totalCommits: userProfile?.totalCommits ?? 0,
                 lateNightCommits: 0,
                 currentStreak: userProfile?.streak ?? 0,
-                longestStreak: userProfile?.streak ?? 0,
+                longestStreak: userProfile?.longestStreak ?? 0,
                 hadBrokenStreak: false,
                 questsCompleted: completedQuestRows.length,
                 questsAccepted: questRows.length,
@@ -1678,7 +1690,7 @@ server.register(async (instance) => {
                     totalCommits: profile?.totalCommits ?? 0,
                     lateNightCommits: 0,
                     currentStreak: profile?.streak ?? 0,
-                    longestStreak: profile?.streak ?? 0,
+                    longestStreak: profile?.longestStreak ?? 0,
                     hadBrokenStreak: false,
                     questsCompleted: completedQuestRows.length,
                     questsAccepted: questRows.length,

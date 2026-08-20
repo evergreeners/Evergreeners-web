@@ -99,6 +99,18 @@ export async function getGithubContributions(username: string, token: string) {
         }
     }
 
+    // Longest streak = longest run of consecutive days with contributions across the calendar
+    let longestStreak = 0;
+    let run = 0;
+    for (const day of allDays) {
+        if (day.contributionCount > 0) {
+            run++;
+            if (run > longestStreak) longestStreak = run;
+        } else {
+            run = 0;
+        }
+    }
+
     // Calculate Yesterday's Commits
     const yesterdayData = allDays.find((d: any) => d.date === yesterdayStr);
     const yesterdayCommits = yesterdayData ? yesterdayData.contributionCount : 0;
@@ -156,6 +168,7 @@ export async function getGithubContributions(username: string, token: string) {
     return {
         totalCommits,
         currentStreak,
+        longestStreak,
         todayCommits,
         yesterdayCommits,
         weeklyCommits,
