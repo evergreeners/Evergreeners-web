@@ -1,7 +1,7 @@
 import { Header } from "@/components/Header";
 import { FloatingNav } from "@/components/FloatingNav";
 import { Section } from "@/components/Section";
-import { Trophy, Medal, Flame, Crown, TrendingUp, TrendingDown, Minus, GitCommit } from "lucide-react";
+import { Trophy, Medal, Flame, Crown, GitCommit } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn, triggerHaptic } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -13,6 +13,7 @@ import { getApiUrl } from "@/lib/api-config";
 interface LeaderboardEntry {
   rank: number;
   previousRank: number;
+  tabRank?: number;
   username: string;
   avatar: string | null;
   streak: number;
@@ -86,16 +87,18 @@ export default function Leaderboard() {
   } : null);
 
 
-  const getRankChange = (current: number, previous: number) => {
-    if (current < previous) return { icon: TrendingUp, class: "text-primary", text: `+${previous - current}` };
-    if (current > previous) return { icon: TrendingDown, class: "text-destructive", text: `-${current - previous}` };
-    return { icon: Minus, class: "text-muted-foreground", text: "0" };
-  };
-
-  const getCommitTrend = (today: number, yesterday: number) => {
-    if (today > yesterday) return { icon: TrendingUp, class: "text-primary", text: `+${today - yesterday}` };
-    if (today < yesterday) return { icon: TrendingDown, class: "text-destructive", text: `${today - yesterday}` };
-    return { icon: Minus, class: "text-muted-foreground", text: "0" };
+  // Metric shown for the active tab only (no cross-tab info)
+  const getTabMeta = (entry: LeaderboardEntry) => {
+    switch (filter) {
+      case "commits":
+        return { icon: Trophy, iconClass: "text-yellow-500", value: entry.totalCommits.toLocaleString(), label: `${entry.totalCommits.toLocaleString()} commits` };
+      case "weekly":
+        return { icon: GitCommit, iconClass: "text-green-500", value: (entry.weeklyCommits || 0).toLocaleString(), label: `${(entry.weeklyCommits || 0).toLocaleString()} this week` };
+      case "yesterday":
+        return { icon: Flame, iconClass: "text-orange-500", value: (entry.yesterdayCommits || 0).toLocaleString(), label: `${(entry.yesterdayCommits || 0).toLocaleString()} yesterday` };
+      default:
+        return { icon: Flame, iconClass: "text-primary", value: entry.streak.toLocaleString(), label: `${entry.streak.toLocaleString()} days` };
+    }
   };
 
   const getRankBadge = (rank: number) => {
@@ -122,10 +125,15 @@ export default function Leaderboard() {
     if (filter === "weekly") return b.weeklyCommits - a.weeklyCommits;
     if (filter === "yesterday") return b.yesterdayCommits - a.yesterdayCommits;
     return b.streak - a.streak; // Default
-  }) : [];
+  })
+    .map((entry, index) => ({ ...entry, tabRank: index + 1 })) as LeaderboardEntry[]
+    : [];
 
   const topThree = sortedData.slice(0, 3);
   const restOfLeaderboard = sortedData.slice(3);
+
+  // User's rank within the active tab (0 = unranked)
+  const userTabRank = currentUser ? sortedData.findIndex(e => e.username === currentUser.username) + 1 : 0;
 
   return (
     <div className="min-h-screen bg-background custom-scrollbar">
@@ -189,43 +197,31 @@ export default function Leaderboard() {
                             <span className="text-[8px]">🐐</span>
                           </div>
                         )}
-                        {currentUser.rank > 0 && (
+                        {userTabRank > 0 && (
                           <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center">
-                            #{currentUser.rank}
+                            #{userTabRank}
                           </div>
                         )}
                       </div>
                       <div>
                         <p className="font-medium">Your Position</p>
                         <p className="text-sm text-muted-foreground">@{currentUser.username}</p>
+                        <p className={cn("text-sm font-bold", userTabRank > 0 ? "text-primary" : "text-muted-foreground")}>
+                          {userTabRank > 0 ? `Rank #${userTabRank}` : "Unranked on this tab"}
+                        </p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="flex items-center gap-2">
-                        <Flame className="w-4 h-4 text-primary" />
-                        <span className="font-bold text-lg">{currentUser.streak} days</span>
-                      </div>
-                      <div className="flex items-center gap-1 text-sm">
-                        {(() => {
-                          const weeklyCommits = currentUser.weeklyCommits || 0;
-                          if (weeklyCommits > 0) {
-                            return (
-                              <>
-                                <TrendingUp className="w-3 h-3 text-primary" />
-                                <span className="text-primary">{weeklyCommits} this week</span>
-                              </>
-                            );
-                          } else {
-                            return (
-                              <>
-                                <Minus className="w-3 h-3 text-muted-foreground" />
-                                <span className="text-muted-foreground">{weeklyCommits} this week</span>
-                              </>
-                            );
-                          }
-                        })()}
-                      </div>
-                    </div>
+                    {(() => {
+                      const { icon: PosIcon, iconClass, label } = getTabMeta(currentUser);
+                      return (
+                        <div className="text-right">
+                          <div className="flex items-center gap-2">
+                            <PosIcon className={cn("w-4 h-4", iconClass)} />
+                            <span className="font-bold text-lg">{label}</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               </Section>
@@ -276,12 +272,7 @@ export default function Leaderboard() {
                         )}
                       </div>
                       <p className="text-sm font-medium truncate max-w-[80px] text-center">{topThree[1].username}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {filter === "streak" && `${topThree[1].streak} days`}
-                        {filter === "commits" && `${topThree[1].totalCommits} commits`}
-                        {filter === "weekly" && `${topThree[1].weeklyCommits} this week`}
-                        {filter === "yesterday" && `${topThree[1].yesterdayCommits} yesterday`}
-                      </p>
+                      <p className="text-xs text-muted-foreground">{getTabMeta(topThree[1]).label}</p>
                       <div className="w-20 h-24 bg-secondary/50 rounded-t-xl mt-2 flex items-center justify-center border-t border-x border-gray-400/30">
                         <Medal className="w-8 h-8 text-gray-400" />
                       </div>
@@ -303,12 +294,7 @@ export default function Leaderboard() {
                         )}
                       </div>
                       <p className="text-sm font-medium truncate max-w-[100px] text-center">{topThree[0].username}</p>
-                      <p className="text-xs text-primary font-bold">
-                        {filter === "streak" && `${topThree[0].streak} days`}
-                        {filter === "commits" && `${topThree[0].totalCommits} commits`}
-                        {filter === "weekly" && `${topThree[0].weeklyCommits} this week`}
-                        {filter === "yesterday" && `${topThree[0].yesterdayCommits} yesterday`}
-                      </p>
+                      <p className="text-xs text-primary font-bold">{getTabMeta(topThree[0]).label}</p>
                       <div className="w-24 h-32 bg-primary/20 rounded-t-xl mt-2 flex items-center justify-center border-t border-x border-primary/30">
                         <Trophy className="w-10 h-10 text-yellow-400" />
                       </div>
@@ -329,12 +315,7 @@ export default function Leaderboard() {
                         )}
                       </div>
                       <p className="text-sm font-medium truncate max-w-[80px] text-center">{topThree[2].username}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {filter === "streak" && `${topThree[2].streak} days`}
-                        {filter === "commits" && `${topThree[2].totalCommits} commits`}
-                        {filter === "weekly" && `${topThree[2].weeklyCommits} this week`}
-                        {filter === "yesterday" && `${topThree[2].yesterdayCommits} yesterday`}
-                      </p>
+                      <p className="text-xs text-muted-foreground">{getTabMeta(topThree[2]).label}</p>
                       <div className="w-20 h-20 bg-secondary/50 rounded-t-xl mt-2 flex items-center justify-center border-t border-x border-amber-600/30">
                         <Medal className="w-8 h-8 text-amber-600" />
                       </div>
@@ -348,8 +329,8 @@ export default function Leaderboard() {
             <Section title="Rankings" className="animate-fade-up" style={{ animationDelay: "0.2s" }}>
               <div className="space-y-2">
                 {restOfLeaderboard.slice(0, visibleCount).map((entry, index) => {
-                  const change = getRankChange(entry.rank, entry.previousRank);
                   const isUser = user && (entry.username === user.username);
+                  const { icon: RowIcon, iconClass, value, label } = getTabMeta(entry);
 
                   return (
                     <div
@@ -364,7 +345,7 @@ export default function Leaderboard() {
                     >
                       <div className="flex items-center gap-3 min-w-0 flex-1">
                         <div className="w-8 text-center flex-shrink-0">
-                          {getRankBadge(entry.rank)}
+                          {getRankBadge(entry.tabRank || 0)}
                         </div>
                         <div className="relative flex-shrink-0">
                           <div className={cn("w-10 h-10 rounded-full border overflow-hidden", entry.bestRank === 1 ? "border-yellow-500/50 shadow-[0_0_8px_rgba(234,179,8,0.4)]" : "border-border")}>
@@ -381,27 +362,12 @@ export default function Leaderboard() {
                             @{entry.username}
                             {isUser && <span className="ml-2 text-xs opacity-70">(You)</span>}
                           </p>
-                          <p className="text-xs text-muted-foreground truncate">{entry.totalCommits.toLocaleString()} commits</p>
+                          <p className="text-xs text-muted-foreground truncate">{label}</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3 flex-shrink-0">
-                        <div className="flex items-center gap-1">
-                          <change.icon className={cn("w-3 h-3", change.class)} />
-                          <span className={cn("text-xs hidden sm:block", change.class)}>{change.text}</span>
-                        </div>
-                        <div className="flex items-center gap-1 min-w-[60px] justify-end">
-                          {filter === "streak" && <Flame className="w-4 h-4 text-primary" />}
-                          {filter === "commits" && <Trophy className="w-4 h-4 text-yellow-500" />}
-                          {filter === "weekly" && <GitCommit className="w-4 h-4 text-green-500" />}
-                          {filter === "yesterday" && <Flame className="w-4 h-4 text-orange-500" />}
-
-                          <span className="font-bold">
-                            {filter === "streak" && entry.streak}
-                            {filter === "commits" && entry.totalCommits.toLocaleString()}
-                            {filter === "weekly" && (entry.weeklyCommits || 0)}
-                            {filter === "yesterday" && (entry.yesterdayCommits || 0)}
-                          </span>
-                        </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <RowIcon className={cn("w-4 h-4", iconClass)} />
+                        <span className="font-bold">{value}</span>
                       </div>
                     </div>
                   );
