@@ -43,6 +43,7 @@ type FilterType = "streak" | "commits" | "weekly" | "yesterday";
 
 export default function Leaderboard() {
   const [filter, setFilter] = useState<FilterType>("streak");
+  const [visibleCount, setVisibleCount] = useState(5);
   const { data: session } = useSession();
   const user = session?.user as unknown as AuthUser;
 
@@ -240,6 +241,7 @@ export default function Leaderboard() {
                   key={tab.key}
                   onClick={() => {
                     setFilter(tab.key);
+                    setVisibleCount(5);
                     triggerHaptic();
                   }}
                   className={cn(
@@ -328,7 +330,7 @@ export default function Leaderboard() {
             {/* Full Leaderboard */}
             <Section title="Rankings" className="animate-fade-up" style={{ animationDelay: "0.2s" }}>
               <div className="space-y-2">
-                {restOfLeaderboard.map((entry, index) => {
+                {(filter === "streak" ? restOfLeaderboard : restOfLeaderboard.slice(0, visibleCount)).map((entry, index) => {
                   const isUser = user && (entry.username === user.username);
                   const { icon: RowIcon, iconClass, value, label } = getTabMeta(entry);
 
@@ -373,6 +375,32 @@ export default function Leaderboard() {
                   );
                 })}
               </div>
+
+              {/* View More - show next 5 (only on tabs that show the top 15) */}
+              {filter !== "streak" && restOfLeaderboard.length > visibleCount && (
+                <div className="text-center mt-4 animate-fade-up" style={{ animationDelay: "0.25s" }}>
+                  <button
+                    onClick={() => {
+                      setVisibleCount(c => c + 5);
+                      triggerHaptic();
+                    }}
+                    className="px-6 py-3 rounded-xl border border-border bg-secondary/30 hover:bg-secondary/50 transition-all duration-300 text-sm font-medium"
+                  >
+                    View More
+                  </button>
+                </div>
+              )}
+
+              {/* End note - once the full top 15 is revealed */}
+              {filter !== "streak" && restOfLeaderboard.length > 0 && visibleCount >= restOfLeaderboard.length && (
+                <div className="text-center mt-6 px-4 animate-fade-up" style={{ animationDelay: "0.3s" }}>
+                  <p className="text-sm text-muted-foreground">
+                    These are the top 15 on the platform — but there's a whole community out there
+                    pushing every day. Keep committing, stay consistent, and your spot on this list
+                    could be next.
+                  </p>
+                </div>
+              )}
             </Section>
 
             {/* Empty State */}
