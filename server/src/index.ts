@@ -192,7 +192,14 @@ if (existsSync(lgbFrontendPath)) {
     });
     console.log(`Serving LearnGitBranching at /learn-git-branching from ${lgbFrontendPath}`);
 } else {
-    console.warn(`LearnGitBranching frontend not found at ${lgbFrontendPath}; /learn-git-branching will not be served. Set LGB_FRONTEND_PATH to enable.`);
+    server.get('/learn-git-branching*', async (req, reply) => {
+        const level = (req.query as any)?.level || '';
+        const targetUrl = level 
+            ? `https://learngitbranching.js.org/?NODEMO&level=${encodeURIComponent(level)}`
+            : `https://learngitbranching.js.org/?NODEMO`;
+        return reply.redirect(targetUrl, 302);
+    });
+    console.warn(`LearnGitBranching frontend not found at ${lgbFrontendPath}; proxying /learn-git-branching requests to https://learngitbranching.js.org.`);
 }
 
 // GitHub OAuth is handled by better-auth in separate adapter
