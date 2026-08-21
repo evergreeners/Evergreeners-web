@@ -153,18 +153,6 @@ export default function Academy() {
     return () => clearInterval(timer);
   }, []);
 
-  const academyOpen = isAcademyLaunchOpen();
-
-  // Waitlist social-proof count
-  const { data: waitlistData } = useQuery({
-    queryKey: ['academyWaitlistCount'],
-    queryFn: async () => {
-      const res = await fetch(getApiUrl('/api/academy/waitlist/count'));
-      if (!res.ok) throw new Error("Failed to fetch waitlist count");
-      return res.json();
-    },
-  });
-
   // Check enrollment status
   const { data: statusData, isLoading: isLoadingStatus } = useQuery({
     queryKey: ['academyStatus'],
@@ -179,6 +167,20 @@ export default function Academy() {
       return res.json();
     },
     enabled: !!session,
+  });
+
+  const academyOpen = isAcademyLaunchOpen();
+  const isAdmin = (session?.user as any)?.role === 'admin' || statusData?.isAdmin;
+  const canAccessAcademy = academyOpen || isAdmin;
+
+  // Waitlist social-proof count
+  const { data: waitlistData } = useQuery({
+    queryKey: ['academyWaitlistCount'],
+    queryFn: async () => {
+      const res = await fetch(getApiUrl('/api/academy/waitlist/count'));
+      if (!res.ok) throw new Error("Failed to fetch waitlist count");
+      return res.json();
+    },
   });
 
   const auditSteps = [
@@ -246,7 +248,7 @@ export default function Academy() {
   };
 
   const handleEnroll = async () => {
-    if (!isAcademyLaunchOpen()) {
+    if (!canAccessAcademy) {
       toast.error(`The Academy opens on ${ACADEMY_LAUNCH_DATE_LABEL}. Check back then to enroll.`);
       return;
     }
@@ -582,6 +584,31 @@ export default function Academy() {
 
       <main className="w-full max-w-[1400px] mx-auto px-4 md:px-8 pt-24 pb-32 md:pb-12 space-y-16 relative z-10">
         
+        {isAdmin && !academyOpen && (
+          <div className="w-full max-w-4xl mx-auto p-4 rounded-xl border border-amber-500/40 bg-amber-500/10 backdrop-blur-md flex flex-col sm:flex-row items-center justify-between gap-3 text-amber-300 text-sm shadow-lg shadow-amber-500/5">
+            <div className="flex items-center gap-2.5">
+              <ShieldCheck className="w-5 h-5 text-amber-400 shrink-0" />
+              <div>
+                <span className="font-bold text-amber-200">Admin Preview Mode Active:</span> You have pre-launch administrative access to test, enroll, and preview the Academy before the public launch on {ACADEMY_LAUNCH_DATE_LABEL}.
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Link
+                to="/academy/dashboard"
+                className="px-3.5 py-1.5 rounded-lg bg-primary text-black text-xs font-bold hover:bg-primary/90 transition-colors shadow-sm"
+              >
+                Preview Student Portal
+              </Link>
+              <Link
+                to="/admin"
+                className="px-3.5 py-1.5 rounded-lg bg-amber-500 text-black text-xs font-bold hover:bg-amber-400 transition-colors shadow-sm"
+              >
+                Back to Admin
+              </Link>
+            </div>
+          </div>
+        )}
+
         {/* Hero Section */}
         <section className="text-center py-12 space-y-6 animate-fade-in relative z-10">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-primary/20 bg-primary/10 text-primary text-xs font-semibold uppercase tracking-wider">
@@ -594,9 +621,9 @@ export default function Academy() {
             From Git zero to public repository hero. A highly focused 4-week syllabus designed to build verifiable GitHub credibility and launch your open-source journey.
           </p>
           <div className="flex flex-wrap justify-center gap-6 pt-4 relative z-10">
-            {enrolled ? (
+            {enrolled || isAdmin ? (
               <Link to="/academy/dashboard" className="academy-action-btn">
-                <span>Go to Student Portal</span>
+                <span>{isAdmin && !enrolled ? "Preview Student Portal" : "Go to Student Portal"}</span>
                 <ArrowRight className="w-5 h-5" />
               </Link>
             ) : (
@@ -933,13 +960,13 @@ export default function Academy() {
                       <span>Go to Student Portal</span>
                       <ArrowRight className="w-5 h-5" />
                     </Link>
-                  ) : academyOpen ? (
+                  ) : canAccessAcademy ? (
                     <button
                       onClick={handleEnroll}
                       disabled={isEnrolling}
                       className="academy-action-btn"
                     >
-                      <span>{isEnrolling ? "Enrolling..." : "Join Now"}</span>
+                      <span>{isEnrolling ? "Enrolling..." : (isAdmin && !academyOpen ? "Admin Join & Test" : "Join Now")}</span>
                       <ArrowRight className="w-5 h-5" />
                     </button>
                   ) : (
