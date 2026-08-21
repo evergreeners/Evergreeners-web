@@ -3044,12 +3044,15 @@ Keep the total response under 300 words. Be like a hype coach mixed with a ruthl
             academyPrUrl: schema.users.academyPrUrl,
             academyCertId: schema.users.academyCertId,
             name: schema.users.name,
+            role: schema.users.role,
         })
         .from(schema.users)
         .where(eq(schema.users.id, userId))
         .limit(1);
 
         if (!user.length) return reply.status(404).send({ message: "User not found" });
+
+        const isAdmin = user[0].role === 'admin';
 
         return {
             success: true,
@@ -3058,8 +3061,10 @@ Keep the total response under 300 words. Be like a hype coach mixed with a ruthl
             prUrl: user[0].academyPrUrl,
             certId: user[0].academyCertId,
             name: user[0].name,
+            role: user[0].role,
+            isAdmin,
             launchDate: ACADEMY_LAUNCH_DATE,
-            isLaunchOpen: isAcademyOpen()
+            isLaunchOpen: isAcademyOpen() || isAdmin
         };
     });
 
@@ -3241,17 +3246,19 @@ Keep the total response under 300 words. Be like a hype coach mixed with a ruthl
 
     // 3. POST /api/academy/enroll (Authenticated)
     instance.post('/api/academy/enroll', async (req, reply) => {
-        if (!isAcademyOpen()) {
+        const session = await getSessionFromRequest(req);
+        if (!session) return reply.status(401).send({ message: "Unauthorized" });
+
+        const userId = session.session.userId;
+        const user = await db.select({ role: schema.users.role }).from(schema.users).where(eq(schema.users.id, userId)).limit(1);
+        const isAdmin = user[0]?.role === 'admin';
+
+        if (!isAcademyOpen() && !isAdmin) {
             return reply.status(403).send({
                 message: `The Academy opens on ${ACADEMY_LAUNCH_DATE_LABEL}. Check back then to enroll.`,
                 launchDate: ACADEMY_LAUNCH_DATE
             });
         }
-
-        const session = await getSessionFromRequest(req);
-        if (!session) return reply.status(401).send({ message: "Unauthorized" });
-
-        const userId = session.session.userId;
 
         await db.update(schema.users)
             .set({

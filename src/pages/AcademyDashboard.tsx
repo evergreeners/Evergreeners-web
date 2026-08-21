@@ -1,7 +1,7 @@
 import { AcademyHeader } from "@/components/AcademyHeader";
 import { FloatingNav } from "@/components/FloatingNav";
 import { Section } from "@/components/Section";
-import { GraduationCap, BookOpen, Terminal, CheckCircle, ExternalLink, GitPullRequest, Trophy, MessageSquare, Disc, Award, ArrowRight, Loader2, Maximize2, Lock } from "lucide-react";
+import { GraduationCap, BookOpen, Terminal, CheckCircle, ExternalLink, GitPullRequest, Trophy, MessageSquare, Disc, Award, ArrowRight, Loader2, Maximize2, Lock, ShieldCheck } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
+import { isAcademyLaunchOpen, ACADEMY_LAUNCH_DATE_LABEL } from "@/lib/academy-launch";
 
 interface Lesson {
   id: string;
@@ -286,13 +287,21 @@ export default function AcademyDashboard() {
     }
   }, [progressData, session?.user?.id]);
 
+  const isAdmin = (session?.user as any)?.role === 'admin' || statusData?.isAdmin;
+  const academyOpen = isAcademyLaunchOpen();
+
   // Protect route
   useEffect(() => {
-    if (!isLoadingStatus && statusData && statusData.status === 'none') {
-      toast.warning("You must enroll to access the student portal.");
-      navigate("/academy");
+    if (!isLoadingStatus && statusData) {
+      if (!academyOpen && !isAdmin) {
+        toast.warning(`Evergreen Academy opens on ${ACADEMY_LAUNCH_DATE_LABEL}.`);
+        navigate("/academy");
+      } else if (statusData.status === 'none' && !isAdmin) {
+        toast.warning("You must enroll to access the student portal.");
+        navigate("/academy");
+      }
     }
-  }, [statusData, isLoadingStatus, navigate]);
+  }, [statusData, isLoadingStatus, isAdmin, academyOpen, navigate]);
 
   const handleMarkComplete = async (lessonId: string, forceState?: boolean) => {
     if (isLessonLocked(lessonId)) return;
@@ -384,12 +393,12 @@ export default function AcademyDashboard() {
     }
   }, [allLessons.length, activeLesson]);
 
-  if (isLoadingStatus || !statusData || statusData.status === 'none' || !activeLesson) {
+  if (isLoadingStatus || !statusData || (statusData.status === 'none' && !isAdmin) || !activeLesson) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
         <span className="text-sm text-muted-foreground mt-2">
-          {statusData?.status === 'none' ? "Checking enrollment status..." : "Loading your lesson..."}
+          {statusData?.status === 'none' && !isAdmin ? "Checking enrollment status..." : "Loading your lesson..."}
         </span>
       </div>
     );
@@ -397,13 +406,13 @@ export default function AcademyDashboard() {
 
   const isGraduated = statusData.status === 'graduated';
 
-  // Daily lesson unlock — one new module per day since enrollment
+  // Daily lesson unlock — one new module per day since enrollment (Admins get all lessons unlocked)
   const daysSinceJoin = statusData.joinedAt
     ? Math.max(0, Math.floor((Date.now() - new Date(statusData.joinedAt).getTime()) / 86400000))
     : 0;
-  const unlockedCount = isGraduated ? totalLessons : Math.max(1, Math.min(totalLessons, daysSinceJoin + 1));
+  const unlockedCount = (isGraduated || isAdmin) ? totalLessons : Math.max(1, Math.min(totalLessons, daysSinceJoin + 1));
   const isLessonLocked = (lessonId: string) => {
-    if (isGraduated) return false;
+    if (isGraduated || isAdmin) return false;
     const idx = allLessons.findIndex(l => l.id === lessonId);
     return idx === -1 || idx >= unlockedCount;
   };
@@ -445,15 +454,40 @@ export default function AcademyDashboard() {
 
       <main className="w-full max-w-[1600px] mx-auto px-4 md:px-8 pt-24 pb-32 md:pb-12 space-y-8 relative z-10">
         
+        {isAdmin && !academyOpen && (
+          <div className="w-full p-4 rounded-xl border border-amber-500/40 bg-amber-500/10 backdrop-blur-md flex flex-col sm:flex-row items-center justify-between gap-3 text-amber-300 text-sm shadow-lg shadow-amber-500/5">
+            <div className="flex items-center gap-2.5">
+              <ShieldCheck className="w-5 h-5 text-amber-400 shrink-0" />
+              <div>
+                <span className="font-bold text-amber-200">Admin Preview Mode:</span> You are viewing the Student Portal pre-launch (Public launch date: {ACADEMY_LAUNCH_DATE_LABEL}).
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Link
+                to="/academy"
+                className="px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground text-xs font-semibold hover:bg-secondary/80 transition-colors"
+              >
+                Academy Page
+              </Link>
+              <Link
+                to="/admin"
+                className="px-3 py-1.5 rounded-lg bg-amber-500 text-black text-xs font-bold hover:bg-amber-400 transition-colors"
+              >
+                Admin Dashboard
+              </Link>
+            </div>
+          </div>
+        )}
+
         {/* Top Header Card */}
         <div className="rounded-xl border border-primary/20 bg-primary/5 p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2">
             <div className="inline-flex items-center gap-1 text-primary text-xs font-bold uppercase tracking-wider">
               <GraduationCap className="w-4 h-4" /> Cohort Portal
             </div>
-            <h2 className="text-2xl font-bold">Welcome back, {statusData.name || "Student"}!</h2>
+            <h2 className="text-2xl font-bold">Welcome back, {statusData?.name || (session?.user as any)?.name || "Student"}!</h2>
             <p className="text-xs text-muted-foreground">
-              Tier: <strong className="text-primary capitalize">{statusData.status}</strong> • Pod: 
+              Tier: <strong className="text-primary capitalize">{isAdmin && statusData?.status === 'none' ? 'Admin Preview' : statusData?.status}</strong> • Pod: 
               <a href="https://discord.gg/evergreeners" target="_blank" rel="noopener noreferrer" className="ml-1 text-primary hover:underline inline-flex items-center gap-0.5">
                 <Disc className="w-3.5 h-3.5" /> Pod-Delta (Discord) <ExternalLink className="w-2.5 h-2.5" />
               </a>

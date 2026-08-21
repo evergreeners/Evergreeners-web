@@ -3,7 +3,7 @@ import { Header } from '@/components/Header';
 import { 
     Check, Star, Trash2, Award, 
     MessageSquare, Loader2, AlertCircle, ExternalLink, ShieldCheck,
-    BookOpen, GraduationCap, Plus, Save, X, Users, Inbox, Brain
+    BookOpen, GraduationCap, Plus, Save, X, Users, Inbox, Brain, Eye
 } from 'lucide-react';
 import { getApiUrl } from '@/lib/api-config';
 import { useSession } from '@/lib/auth-client';
@@ -609,6 +609,36 @@ export default function AdminDashboard() {
 
                 {tab === 'academy' && (
                     <div className="admin-section">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-border/40">
+                            <div>
+                                <h3 className="text-xl font-bold text-foreground flex items-center gap-2">
+                                    <GraduationCap className="text-primary w-5 h-5" /> Evergreeners Academy Management
+                                </h3>
+                                <p className="text-xs text-muted-foreground mt-1">Manage waitlist, enrolled cohort, curriculum lessons, and pre-launch preview access.</p>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2 shrink-0">
+                                <a
+                                    href="/academy"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-secondary text-secondary-foreground border border-white/10 font-semibold text-xs hover:bg-secondary/80 transition-all shadow-sm"
+                                >
+                                    <Eye size={14} />
+                                    <span>Public View (/academy)</span>
+                                    <ExternalLink size={12} className="opacity-70" />
+                                </a>
+                                <a
+                                    href="/academy/dashboard"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-primary text-black font-semibold text-xs hover:bg-primary/90 transition-all shadow-md shadow-primary/10"
+                                >
+                                    <GraduationCap size={14} />
+                                    <span>Student Portal (/academy/dashboard)</span>
+                                    <ExternalLink size={12} className="opacity-70" />
+                                </a>
+                            </div>
+                        </div>
                         {academyLoading && !summary ? (
                             <div className="admin-empty flex items-center justify-center py-12">
                                 <Loader2 className="animate-spin text-primary" size={24} />

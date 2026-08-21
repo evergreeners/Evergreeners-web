@@ -66,6 +66,8 @@ export function AcademyHeader() {
   });
 
   const enrolled = statusData?.status && statusData.status !== 'none';
+  const isAdmin = (session?.user as any)?.role === 'admin' || statusData?.isAdmin;
+  const canAccessPortal = enrolled || isAdmin;
 
   // Navigation Links
   const isMarketingPage = pathname === "/academy";
@@ -118,7 +120,7 @@ export function AcademyHeader() {
               <div className="w-px h-3.5 bg-white/10 last:hidden" />
             </span>
           ))}
-          {enrolled && (
+          {canAccessPortal && (
             <>
               <div className="w-px h-3.5 bg-white/10" />
               <Link
@@ -267,7 +269,7 @@ export function AcademyHeader() {
                       {link.label}
                     </a>
                   ))}
-                  {enrolled && (
+                  {canAccessPortal && (
                     <Link
                       to="/academy/dashboard"
                       onClick={() => setMobileMenuOpen(false)}
