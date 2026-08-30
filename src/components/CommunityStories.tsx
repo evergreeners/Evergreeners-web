@@ -84,10 +84,6 @@ export function CommunityStories() {
 
             <div className="container mx-auto px-4 max-w-7xl relative z-10">
                 <div className="community-header">
-                    <div className="community-eyebrow">
-                        <span className="community-eyebrow-dot" />
-                        10,000+ developers worldwide
-                    </div>
                     <h2>Join the community</h2>
                     <p>Real stories from real developers who turned consistency into their greatest competitive advantage.</p>
 

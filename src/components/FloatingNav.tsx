@@ -53,21 +53,22 @@ export function FloatingNav() {
           {navItems.map((item) => {
             const isActive = currentPath === item.href;
             return (
-              <li key={item.label}>
+              <li key={item.label} className="flex min-w-0">
                 <Link
                   to={item.href}
                   onClick={() => triggerHaptic()}
+                  aria-current={isActive ? "page" : undefined}
                   className={cn(
-                    "flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all duration-300",
+                    "flex items-center justify-center gap-1.5 px-2 py-2.5 rounded-xl transition-all duration-300",
                     isActive
-                      ? "border border-primary text-primary bg-transparent scale-105"
+                      ? "border border-primary text-primary bg-primary/10"
                       : "text-muted-foreground hover:text-foreground hover:bg-secondary border border-transparent"
                   )}
                 >
-                  <item.icon className={cn("w-4 h-4", isActive && "animate-scale-in")} />
+                  <item.icon className={cn("w-4 h-4 shrink-0", isActive && "animate-scale-in")} />
                   <span className={cn(
-                    "text-sm font-medium transition-all duration-200",
-                    isActive ? "block" : "hidden md:block"
+                    "text-sm font-medium whitespace-nowrap transition-all duration-200 overflow-hidden text-ellipsis",
+                    isActive ? "block" : "hidden"
                   )}>
                     {item.label}
                   </span>

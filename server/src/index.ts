@@ -2625,14 +2625,8 @@ server.register(async (instance) => {
 
     // GET /api/eye/stats/:username — fetch public GitHub stats for a watched user
     // Uses the authenticated user's own token to avoid unauthenticated rate-limits
-    instance.get('/api/eye/stats/:username', async (req, reply) => {
-        const session = await getSessionFromRequest(req);
-        if (!session) return reply.status(401).send({ message: 'Unauthorized' });
-
-        const userId = session.session.userId;
-        const { username } = req.params as { username: string };
-
-        // Get the caller's GitHub token
+    // Refresh GitHub stats for a single watchlist entry and cache them (no AI insight)
+    async function refreshGithubStats(userId: string, username: string) {
         const account = await db.select().from(schema.accounts)
             .where(and(
                 eq(schema.accounts.userId, userId),
@@ -2642,129 +2636,169 @@ server.register(async (instance) => {
 
         const token = account[0]?.accessToken;
 
-        try {
-            // Use the GitHub GraphQL API to fetch public contribution stats
-            const query = `
-                query($username: String!) {
-                    user(login: $username) {
-                        login
-                        name
-                        avatarUrl
-                        bio
-                        followers { totalCount }
-                        following { totalCount }
-                        repositories(ownerAffiliations: OWNER, privacy: PUBLIC) { totalCount }
-                        pullRequests(first: 0) { totalCount }
-                        contributionsCollection {
-                            totalCommitContributions
-                            totalPullRequestContributions
-                            contributionCalendar {
-                                totalContributions
-                                weeks {
-                                    contributionDays {
-                                        contributionCount
-                                        date
-                                    }
+        const query = `
+            query($username: String!) {
+                user(login: $username) {
+                    login
+                    name
+                    avatarUrl
+                    bio
+                    followers { totalCount }
+                    following { totalCount }
+                    repositories(ownerAffiliations: OWNER, privacy: PUBLIC) { totalCount }
+                    pullRequests(first: 0) { totalCount }
+                    contributionsCollection {
+                        totalCommitContributions
+                        totalPullRequestContributions
+                        contributionCalendar {
+                            totalContributions
+                            weeks {
+                                contributionDays {
+                                    contributionCount
+                                    date
                                 }
                             }
                         }
                     }
                 }
-            `;
-
-            const headers: Record<string, string> = {
-                'Content-Type': 'application/json',
-                'User-Agent': 'Evergreeners-App',
-            };
-            if (token) headers['Authorization'] = `Bearer ${token}`;
-
-            const ghRes = await fetch('https://api.github.com/graphql', {
-                method: 'POST',
-                headers,
-                body: JSON.stringify({ query, variables: { username } }),
-            });
-
-            if (!ghRes.ok) {
-                return reply.status(502).send({ message: 'GitHub API error' });
             }
+        `;
 
-            const data: any = await ghRes.json();
-            if (data.errors) {
-                const msg = data.errors[0]?.message || 'GitHub GraphQL error';
-                if (msg.includes('Could not resolve')) return reply.status(404).send({ message: `User "${username}" not found on GitHub.` });
-                return reply.status(502).send({ message: msg });
-            }
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+            'User-Agent': 'Evergreeners-App',
+        };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
 
-            const ghUser = data.data.user;
-            if (!ghUser) return reply.status(404).send({ message: `User "${username}" not found.` });
+        const ghRes = await fetch('https://api.github.com/graphql', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ query, variables: { username } }),
+        });
 
-            const cal = ghUser.contributionsCollection.contributionCalendar;
-            const allDays = cal.weeks.flatMap((w: any) => w.contributionDays).reverse();
+        if (!ghRes.ok) {
+            throw new Error('GitHub API error');
+        }
 
-            const todayStr = new Date().toISOString().split('T')[0];
-            const sevenDaysAgo = new Date(Date.now() - 6 * 86400000).toISOString().split('T')[0];
-            const thirtyDaysAgo = new Date(Date.now() - 29 * 86400000).toISOString().split('T')[0];
-            const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+        const data: any = await ghRes.json();
+        if (data.errors) {
+            const msg = data.errors[0]?.message || 'GitHub GraphQL error';
+            if (msg.includes('Could not resolve')) throw new Error(`User "${username}" not found on GitHub.`);
+            throw new Error(msg);
+        }
 
-            const weeklyCommits = allDays
-                .filter((d: any) => d.date >= sevenDaysAgo && d.date <= todayStr)
-                .reduce((acc: number, d: any) => acc + d.contributionCount, 0);
+        const ghUser = data.data.user;
+        if (!ghUser) throw new Error(`User "${username}" not found.`);
 
-            const monthlyCommits = allDays
-                .filter((d: any) => d.date >= thirtyDaysAgo && d.date <= todayStr)
-                .reduce((acc: number, d: any) => acc + d.contributionCount, 0);
+        const cal = ghUser.contributionsCollection.contributionCalendar;
+        const allDays = cal.weeks.flatMap((w: any) => w.contributionDays).reverse();
 
-            const todayCommits = allDays.find((d: any) => d.date === todayStr)?.contributionCount || 0;
+        const todayStr = new Date().toISOString().split('T')[0];
+        const sevenDaysAgo = new Date(Date.now() - 6 * 86400000).toISOString().split('T')[0];
+        const thirtyDaysAgo = new Date(Date.now() - 29 * 86400000).toISOString().split('T')[0];
+        const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split('T')[0];
 
-            // Streak
-            let currentStreak = 0;
-            const startIndex = allDays.findIndex((d: any) => d.contributionCount > 0);
-            if (startIndex !== -1) {
-                const lastDate = allDays[startIndex].date;
-                if (lastDate >= yesterdayStr) {
-                    for (let i = startIndex; i < allDays.length; i++) {
-                        if (allDays[i].contributionCount > 0) currentStreak++;
-                        else break;
-                    }
+        const weeklyCommits = allDays
+            .filter((d: any) => d.date >= sevenDaysAgo && d.date <= todayStr)
+            .reduce((acc: number, d: any) => acc + d.contributionCount, 0);
+
+        const monthlyCommits = allDays
+            .filter((d: any) => d.date >= thirtyDaysAgo && d.date <= todayStr)
+            .reduce((acc: number, d: any) => acc + d.contributionCount, 0);
+
+        const todayCommits = allDays.find((d: any) => d.date === todayStr)?.contributionCount || 0;
+
+        let currentStreak = 0;
+        const startIndex = allDays.findIndex((d: any) => d.contributionCount > 0);
+        if (startIndex !== -1) {
+            const lastDate = allDays[startIndex].date;
+            if (lastDate >= yesterdayStr) {
+                for (let i = startIndex; i < allDays.length; i++) {
+                    if (allDays[i].contributionCount > 0) currentStreak++;
+                    else break;
                 }
             }
+        }
 
-            // Last 30 days for sparkline
-            const last30 = allDays
-                .filter((d: any) => d.date >= thirtyDaysAgo)
-                .reverse()
-                .map((d: any) => ({ date: d.date, count: d.contributionCount }));
+        const last30 = allDays
+            .filter((d: any) => d.date >= thirtyDaysAgo)
+            .reverse()
+            .map((d: any) => ({ date: d.date, count: d.contributionCount }));
 
-            const stats = {
-                login: ghUser.login,
-                name: ghUser.name,
-                avatarUrl: ghUser.avatarUrl,
-                bio: ghUser.bio,
-                followers: ghUser.followers.totalCount,
-                following: ghUser.following.totalCount,
-                publicRepos: ghUser.repositories.totalCount,
-                totalPRs: ghUser.pullRequests.totalCount,
-                totalContributions: cal.totalContributions,
-                weeklyCommits,
-                monthlyCommits,
-                todayCommits,
-                currentStreak,
-                last30,
-                fetchedAt: new Date().toISOString(),
-            };
+        const stats = {
+            login: ghUser.login,
+            name: ghUser.name,
+            avatarUrl: ghUser.avatarUrl,
+            bio: ghUser.bio,
+            followers: ghUser.followers.totalCount,
+            following: ghUser.following.totalCount,
+            publicRepos: ghUser.repositories.totalCount,
+            totalPRs: ghUser.pullRequests.totalCount,
+            totalContributions: cal.totalContributions,
+            weeklyCommits,
+            monthlyCommits,
+            todayCommits,
+            currentStreak,
+            last30,
+            fetchedAt: new Date().toISOString(),
+        };
 
-            // Cache the stats in the DB
-            await db.update(schema.watchlist)
-                .set({ cachedStats: stats, lastRefreshed: new Date() })
-                .where(and(
-                    eq(schema.watchlist.userId, userId),
-                    eq(schema.watchlist.githubUsername, username)
-                ));
+        await db.update(schema.watchlist)
+            .set({ cachedStats: stats, lastRefreshed: new Date() })
+            .where(and(
+                eq(schema.watchlist.userId, userId),
+                eq(schema.watchlist.githubUsername, username)
+            ));
 
+        return stats;
+    }
+
+    // GET /api/eye/stats/:username — fetch public GitHub stats for a watched user
+    // Uses the authenticated user's own token to avoid unauthenticated rate-limits
+    instance.get('/api/eye/stats/:username', async (req, reply) => {
+        const session = await getSessionFromRequest(req);
+        if (!session) return reply.status(401).send({ message: 'Unauthorized' });
+
+        const userId = session.session.userId;
+        const { username } = req.params as { username: string };
+
+        try {
+            const stats = await refreshGithubStats(userId, username);
             return { stats };
         } catch (error) {
             console.error('Eye stats fetch error:', error);
-            return reply.status(500).send({ message: 'Failed to fetch GitHub stats' });
+            const message = error instanceof Error ? error.message : 'Failed to fetch GitHub stats';
+            return reply.status(500).send({ message });
+        }
+    });
+
+    // POST /api/eye/watchlist/refresh — refresh cached GitHub stats for ALL watchlist
+    // entries of the current user. Does NOT generate the AI insight.
+    instance.post('/api/eye/watchlist/refresh', async (req, reply) => {
+        const session = await getSessionFromRequest(req);
+        if (!session) return reply.status(401).send({ message: 'Unauthorized' });
+
+        const userId = session.session.userId;
+        try {
+            const entries = await db.select()
+                .from(schema.watchlist)
+                .where(eq(schema.watchlist.userId, userId));
+
+            if (entries.length === 0) {
+                return { refreshed: 0, failed: 0, total: 0 };
+            }
+
+            const results = await Promise.allSettled(
+                entries.map((e) => refreshGithubStats(userId, e.githubUsername))
+            );
+
+            const refreshed = results.filter((r) => r.status === 'fulfilled').length;
+            const failed = results.length - refreshed;
+
+            return { refreshed, failed, total: entries.length };
+        } catch (error) {
+            console.error('Eye watchlist refresh error:', error);
+            return reply.status(500).send({ message: 'Failed to refresh watchlist' });
         }
     });
 

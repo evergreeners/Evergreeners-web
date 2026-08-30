@@ -130,14 +130,6 @@ export default function Landing() {
 
                         {/* Left Column: Text */}
                         <div className="space-y-8 relative z-20">
-                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-muted-foreground text-xs font-mono tracking-wider animate-in fade-in slide-in-from-left-4 duration-700">
-                                <span className="relative flex h-2 w-2">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-                                </span>
-                                SYSTEM ONLINE v1.0
-                            </div>
-
                             <h1 className="text-5xl md:text-7xl font-bold tracking-tighter leading-[1.1] min-h-[3.3em] lg:min-h-[2.2em]">
                                 Own Your <br />
                                 <span className="text-primary block">
@@ -298,7 +290,6 @@ export default function Landing() {
                 <section className="py-32 container mx-auto px-4 max-w-7xl">
                     <div className="flex items-end justify-between mb-12">
                         <div>
-                            <span className="text-primary font-mono text-sm tracking-wider uppercase mb-4 block">System Capabilities</span>
                             <h2 className="text-4xl md:text-5xl font-bold tracking-tight">
                                 Engineered for <span className="text-white">Scale</span>
                             </h2>
