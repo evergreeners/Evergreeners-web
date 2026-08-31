@@ -29,7 +29,7 @@ It includes detailed guides on:
 
 ---
 
-## 🧱 Architecture Overview
+## Architecture Overview
 
 ```text
 Browser (React)
