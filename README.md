@@ -4,7 +4,7 @@
   <p><strong>Track your consistency. Grow your legacy.</strong></p>
 </div>
 
-Evergreeners is a developer-focused habit and contribution tracking application — a **digital garden** where consistency compounds over time. It helps users visualize daily activity, maintain streaks, and build a lasting record of effort.
+Evergreeners is a developer-focused habit and contribution tracking application.. a **digital garden** where consistency compounds over time. It helps users visualize daily activity, maintain streaks, and build a lasting record of effort.
 
 ## 📚 Documentation
 
