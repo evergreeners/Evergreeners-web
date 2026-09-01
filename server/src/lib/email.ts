@@ -102,6 +102,33 @@ const academyCountdownTable = (tl: AcademyTimeLeft) => `
     </tr>
   </table>`;
 
+// Time remaining until local midnight (streak reset). Baked at send-time.
+function getTimeUntilMidnight() {
+    const now = new Date();
+    const midnight = new Date(now);
+    midnight.setHours(24, 0, 0, 0);
+    const diff = Math.max(0, midnight.getTime() - now.getTime());
+    return {
+        hours: Math.floor(diff / 3600000),
+        minutes: Math.floor((diff % 3600000) / 60000),
+        seconds: Math.floor((diff % 60000) / 1000),
+    };
+}
+
+const midnightCountdownTable = () => {
+    const tl = getTimeUntilMidnight();
+    return `
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;">
+    <tr style="border-collapse:separate;">
+      ${countdownBox(tl.hours, 'Hours')}
+      <td style="width:6px;">&nbsp;</td>
+      ${countdownBox(tl.minutes, 'Mins')}
+      <td style="width:6px;">&nbsp;</td>
+      ${countdownBox(tl.seconds, 'Secs')}
+    </tr>
+  </table>`;
+};
+
 // ─── Welcome Email ────────────────────────────────────────────────────────────
 
 export async function sendWelcomeEmail(to: string, name: string, githubConnected = false) {
@@ -682,13 +709,16 @@ export async function sendDailyDigestEmail(opts: DailyDigestOptions) {
         </tr>
 
         ${!committed ? `
-        <!-- Warning note (only shown when no commits) -->
+        <!-- Warning note + time-until-midnight countdown (only shown when no commits) -->
         <tr>
-          <td style="padding-bottom:24px;">
+          <td style="padding-bottom:12px;">
             <p class="text-muted" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;color:#71717a;line-height:1.75;">
-              Push something small — a fix, a note, a doc update. The day resets at midnight.
+              Push something small — a fix, a note, a doc update. The day resets at midnight:
             </p>
           </td>
+        </tr>
+        <tr>
+          <td style="padding-bottom:24px;">${midnightCountdownTable()}</td>
         </tr>` : ''}
 
         <!-- CTA -->
@@ -726,8 +756,9 @@ export async function sendDailyDigestEmail(opts: DailyDigestOptions) {
           </td>
         </tr>` : ''}
 
-        <!-- Academy block (enrolled students: progress; everyone: launch countdown) -->
-        ${academy ? `
+        <!-- Academy block (enrolled students: progress; everyone: launch countdown).
+             Skipped for the streak-at-risk digest so the midnight countdown stays the focus. -->
+        ${academy && committed ? `
         ${divider}
         <tr>
           <td class="stat-box" style="padding:24px;background-color:#fafafa;border:1px solid #e4e4e7;border-radius:12px;">
