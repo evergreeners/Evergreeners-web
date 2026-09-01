@@ -148,7 +148,7 @@ function TooltipContentSide({ day }: { day: ContributionDay }) {
   });
 
   return (
-    <TooltipContent side="bottom" className="bg-zinc-900 border border-zinc-800 text-xs">
+    <TooltipContent className="bg-zinc-900 border border-zinc-800 text-xs">
       <p className="font-medium text-white">
         {day.contributionCount === 0 ? "No contributions" : `${day.contributionCount} contributions`}
       </p>
