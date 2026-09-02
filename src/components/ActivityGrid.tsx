@@ -122,7 +122,7 @@ export function ActivityGrid({ data, loading, weeks: weekCount }: ActivityGridPr
                             )}
                           />
                         </TooltipTrigger>
-                        <TooltipContentSide day={day} />
+                        <TooltipContentSide day={day} side={dayIndex === 0 ? "bottom" : "top"} />
                       </Tooltip>
                     </TooltipProvider>
                   ))}
@@ -138,7 +138,7 @@ export function ActivityGrid({ data, loading, weeks: weekCount }: ActivityGridPr
   );
 }
 
-function TooltipContentSide({ day }: { day: ContributionDay }) {
+function TooltipContentSide({ day, side = "top" }: { day: ContributionDay; side?: "top" | "bottom" }) {
   const date = new Date(day.date);
   const formattedDate = date.toLocaleDateString(undefined, {
     weekday: 'long',
@@ -148,7 +148,7 @@ function TooltipContentSide({ day }: { day: ContributionDay }) {
   });
 
   return (
-    <TooltipContent className="bg-zinc-900 border border-zinc-800 text-xs">
+    <TooltipContent side={side} className="bg-zinc-900 border border-zinc-800 text-xs">
       <p className="font-medium text-white">
         {day.contributionCount === 0 ? "No contributions" : `${day.contributionCount} contributions`}
       </p>
