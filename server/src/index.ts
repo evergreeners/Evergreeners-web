@@ -702,6 +702,120 @@ server.register(async (instance) => {
         return { user: { ...user[0], emailNotifications: user[0].emailNotifications ?? true } };
     });
 
+    // Check if the current user has a password (email/password credential) set up
+    instance.get('/api/user/password-status', async (req, reply) => {
+        const session = await getSessionFromRequest(req);
+        if (!session) {
+            return reply.status(401).send({ message: "Unauthorized" });
+        }
+
+        const userId = session.session.userId;
+
+        const credentialAccounts = await db.select()
+            .from(schema.accounts)
+            .where(and(
+                eq(schema.accounts.userId, userId),
+                eq(schema.accounts.providerId, 'credential')
+            ))
+            .limit(1);
+
+        const hasPassword = credentialAccounts.length > 0 && !!credentialAccounts[0].password;
+
+        return { hasPassword };
+    });
+
+    // Set (add) a password for the current user — enables email/password sign-in alongside GitHub
+    // Uses better-auth's server-side setPassword (it is not exposed as an HTTP route)
+    instance.post('/api/user/password', async (req, reply) => {
+        const session = await getSessionFromRequest(req);
+        if (!session) {
+            return reply.status(401).send({ message: "Unauthorized" });
+        }
+
+        const userId = session.session.userId;
+        const body = req.body as any;
+        const newPassword = body?.newPassword;
+
+        if (!newPassword || typeof newPassword !== "string") {
+            return reply.status(400).send({ message: "Password is required" });
+        }
+        if (newPassword.length < 8) {
+            return reply.status(400).send({ message: "Password must be at least 8 characters" });
+        }
+
+        try {
+            // Build headers so better-auth can resolve the authenticated session
+            const headers = new Headers();
+            Object.entries(req.headers).forEach(([key, value]) => {
+                if (Array.isArray(value)) {
+                    value.forEach(v => headers.append(key, v));
+                } else if (typeof value === 'string') {
+                    headers.set(key, value);
+                }
+            });
+
+            // If the user already has a password, reject to avoid silently overwriting it.
+            const credentialAccounts = await db.select()
+                .from(schema.accounts)
+                .where(and(
+                    eq(schema.accounts.userId, userId),
+                    eq(schema.accounts.providerId, 'credential')
+                ))
+                .limit(1);
+
+            if (credentialAccounts.length > 0 && !!credentialAccounts[0].password) {
+                return reply.status(400).send({ message: "You already have a password set. Use the password change flow instead." });
+            }
+
+            const result = await auth.api.setPassword({
+                body: { newPassword },
+                headers,
+            });
+
+            return { success: true, status: result?.status ?? true };
+        } catch (error: any) {
+            console.error("Set password error:", error);
+            return reply.status(500).send({
+                message: error?.body?.message || error?.message || "Failed to set password"
+            });
+        }
+    });
+
+    // Public helper: given an email, report whether the account exists and has a password.
+    // Used by the login/signup pages to give a friendlier message to GitHub-only users who
+    // attempt email/password sign-in (better-auth returns a generic "invalid credentials" error).
+    // Deliberately only reveals whether an email has a password — never the email itself — to
+    // limit account enumeration.
+    instance.post('/api/account-has-password', async (req, reply) => {
+        const body = req.body as any;
+        const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
+
+        if (!email) {
+            return reply.status(400).send({ message: "Email is required" });
+        }
+
+        const user = await db.select()
+            .from(schema.users)
+            .where(eq(schema.users.email, email))
+            .limit(1);
+
+        if (!user.length) {
+            return { exists: false };
+        }
+
+        const credentialAccounts = await db.select()
+            .from(schema.accounts)
+            .where(and(
+                eq(schema.accounts.userId, user[0].id),
+                eq(schema.accounts.providerId, 'credential')
+            ))
+            .limit(1);
+
+        const hasPassword = credentialAccounts.length > 0 && !!credentialAccounts[0].password;
+
+        return { exists: true, hasPassword };
+    });
+
     // GET Public User Profile by Username
     instance.get('/api/user/profile/:username', async (req, reply) => {
         const { username } = req.params as { username: string };
