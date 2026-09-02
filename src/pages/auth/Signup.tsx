@@ -48,9 +48,33 @@ export default function Signup() {
 
                 window.location.href = "/dashboard";
             },
-            onError: (ctx) => {
+            onError: async (ctx) => {
                 setError(ctx.error.message);
                 setLoading(false);
+
+                // If an account with this email already exists (e.g. signed up via GitHub),
+                // guide them to sign in instead.
+                if (email) {
+                    try {
+                        const res = await fetch(`${API_BASE_URL}/api/account-has-password`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ email }),
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            if (data.exists) {
+                                setError(
+                                    data.hasPassword
+                                        ? "An account with this email already exists. Please sign in instead."
+                                        : "An account with this email already exists (via GitHub). Please sign in with GitHub instead."
+                                );
+                            }
+                        }
+                    } catch (_) {
+                        // Ignore — keep the default error message
+                    }
+                }
             }
         });
     };

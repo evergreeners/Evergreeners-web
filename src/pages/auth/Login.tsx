@@ -7,6 +7,7 @@ import { ArrowLeft, Github, Command } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { useState } from "react";
 import { signIn } from "@/lib/auth-client";
+import { getApiUrl } from "@/lib/api-config";
 import { Loader } from "@/components/ui/loader";
 import { Logo } from "@/components/Logo";
 import "@/pages/auth/auth-animations.css";
@@ -17,11 +18,13 @@ export default function Login() {
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
+    const [showGithubHint, setShowGithubHint] = useState(false);
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         setError("");
+        setShowGithubHint(false);
         await signIn.email({
             email,
             password
@@ -32,10 +35,31 @@ export default function Login() {
                 localStorage.setItem("login_success", "true");
                 window.location.href = "/dashboard";
             },
-            onError: (ctx) => {
+            onError: async (ctx) => {
                 console.error("Login error object:", ctx);
                 setError(ctx.error.message);
                 setLoading(false);
+
+                // If login failed, check whether this email belongs to a GitHub-only
+                // account (no password set). If so, guide them to sign in via GitHub.
+                if (email) {
+                    try {
+                        const res = await fetch(getApiUrl("/api/account-has-password"), {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ email }),
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            if (data.exists && !data.hasPassword) {
+                                setError("This account was created with GitHub and doesn't have a password. Please sign in with GitHub below.");
+                                setShowGithubHint(true);
+                            }
+                        }
+                    } catch (_) {
+                        // Ignore — fall back to the default error message
+                    }
+                }
             }
         });
     };
@@ -136,12 +160,12 @@ export default function Login() {
 
                         <Button
                             variant="outline"
-                            className="w-full h-11 border-border hover:bg-secondary/50 flex items-center gap-2"
+                            className={`w-full h-11 border-border flex items-center gap-2 ${showGithubHint ? "bg-primary/10 border-primary/50 text-primary hover:bg-primary/20" : "hover:bg-secondary/50"}`}
                             onClick={handleGithubLogin}
                             type="button"
                         >
                             <Github className="w-4 h-4" />
-                            GitHub
+                            {showGithubHint ? "Sign in with GitHub" : "GitHub"}
                         </Button>
                     </div>
 

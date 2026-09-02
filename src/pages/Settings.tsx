@@ -3,7 +3,7 @@ import { FloatingNav } from "@/components/FloatingNav";
 import { Section } from "@/components/Section";
 import {
   Globe, Bell, Shield, Moon, Trash2, LogOut,
-  ChevronRight, Github, Clock, Eye, RefreshCw, Download
+  ChevronRight, Github, Clock, Eye, RefreshCw, Download, KeyRound, Check
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -39,6 +39,12 @@ export default function Settings() {
   const [isGithubConnected, setIsGithubConnected] = useState(false);
   const [githubUsername, setGithubUsername] = useState("");
   const [showDisconnectInfo, setShowDisconnectInfo] = useState(false);
+
+  const [hasPassword, setHasPassword] = useState<boolean | null>(null);
+  const [showAddPassword, setShowAddPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [savingPassword, setSavingPassword] = useState(false);
 
   const { data: session } = useSession();
 
@@ -102,6 +108,66 @@ export default function Settings() {
     };
     fetchSettings();
   }, [session]);
+
+  // Fetch whether the current user has a password set (email/password sign-in enabled)
+  useEffect(() => {
+    const fetchPasswordStatus = async () => {
+      if (!session) return;
+      try {
+        const res = await fetch(getApiUrl("/api/user/password-status"), {
+          credentials: "include",
+          headers: {
+            ...(session?.session?.token ? { Authorization: `Bearer ${session.session.token}` } : {})
+          }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setHasPassword(!!data.hasPassword);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    fetchPasswordStatus();
+  }, [session]);
+
+  // Save a newly-chosen password for a GitHub-only user
+  const handleAddPassword = async () => {
+    if (newPassword.length < 8) {
+      toast.error("Password must be at least 8 characters");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+
+    setSavingPassword(true);
+    try {
+      const res = await fetch(getApiUrl("/api/user/password"), {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          ...(session?.session?.token ? { Authorization: `Bearer ${session.session.token}` } : {})
+        },
+        body: JSON.stringify({ newPassword }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || "Failed to set password");
+      }
+      toast.success("Password set! You can now sign in with email and password.");
+      setHasPassword(true);
+      setShowAddPassword(false);
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to set password");
+    } finally {
+      setSavingPassword(false);
+    }
+  };
 
   // Persist notification preference to backend
   const saveNotificationPref = async (value: boolean) => {
@@ -353,6 +419,116 @@ export default function Settings() {
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
+              </div>
+            </Section>
+
+            {/* Password Section */}
+            <Section title="Password" className="animate-fade-up" style={{ animationDelay: "0.15s" }}>
+              <div className="space-y-1 rounded-xl border border-border overflow-hidden">
+                {hasPassword ? (
+                  <div className="flex items-center justify-between p-4 bg-secondary/30">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
+                        <KeyRound className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="font-medium">Password Set</p>
+                        <p className="text-sm text-muted-foreground">
+                          You can sign in with your email and password
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 text-sm text-primary">
+                      <Check className="w-4 h-4" /> Enabled
+                    </div>
+                  </div>
+                ) : hasPassword === false ? (
+                  <>
+                    {!showAddPassword ? (
+                      <button
+                        onClick={() => setShowAddPassword(true)}
+                        className="w-full flex items-center justify-between p-4 bg-secondary/30 hover:bg-secondary/50 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center">
+                            <KeyRound className="w-5 h-5 text-muted-foreground" />
+                          </div>
+                          <div className="text-left">
+                            <p className="font-medium">Add Password</p>
+                            <p className="text-sm text-muted-foreground">
+                              Set a password to sign in with email as well as GitHub
+                            </p>
+                          </div>
+                        </div>
+                        <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                      </button>
+                    ) : (
+                      <div className="p-4 bg-secondary/30 space-y-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
+                            <KeyRound className="w-5 h-5 text-primary" />
+                          </div>
+                          <div>
+                            <p className="font-medium">Add Password</p>
+                            <p className="text-sm text-muted-foreground">
+                              You'll be able to sign in with email or GitHub
+                            </p>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <input
+                            type="password"
+                            placeholder="New password"
+                            autoComplete="new-password"
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            className="w-full p-3 rounded-xl bg-background border border-border focus:border-primary focus:outline-none transition-colors"
+                          />
+                          <input
+                            type="password"
+                            placeholder="Confirm password"
+                            autoComplete="new-password"
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            className="w-full p-3 rounded-xl bg-background border border-border focus:border-primary focus:outline-none transition-colors"
+                          />
+                          <p className="text-xs text-muted-foreground">Must be at least 8 characters</p>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={handleAddPassword}
+                            disabled={savingPassword}
+                            className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
+                          >
+                            {savingPassword ? "Saving..." : "Save Password"}
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            onClick={() => {
+                              setShowAddPassword(false);
+                              setNewPassword("");
+                              setConfirmPassword("");
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="flex items-center justify-between p-4 bg-secondary/30">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center">
+                        <KeyRound className="w-5 h-5 text-muted-foreground" />
+                      </div>
+                      <div>
+                        <p className="font-medium">Password</p>
+                        <p className="text-sm text-muted-foreground">Loading...</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </Section>
 
