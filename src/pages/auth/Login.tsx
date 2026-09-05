@@ -54,6 +54,9 @@ export default function Login() {
                             if (data.exists && !data.hasPassword) {
                                 setError("This account was created with GitHub and doesn't have a password. Please sign in with GitHub below.");
                                 setShowGithubHint(true);
+                            } else if (data.exists && data.passwordLoginDisabled) {
+                                setError("Password login is disabled for this account. Please sign in with GitHub below.");
+                                setShowGithubHint(true);
                             }
                         }
                     } catch (_) {

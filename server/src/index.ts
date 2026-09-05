@@ -721,7 +721,36 @@ server.register(async (instance) => {
 
         const hasPassword = credentialAccounts.length > 0 && !!credentialAccounts[0].password;
 
-        return { hasPassword };
+        const userRows = await db.select().from(schema.users).where(eq(schema.users.id, userId)).limit(1);
+        const passwordLoginDisabled = userRows.length > 0 && !!userRows[0].passwordLoginDisabled;
+
+        return { hasPassword, passwordLoginDisabled };
+    });
+
+    // Toggle whether email/password sign-in is disabled for this user
+    instance.put('/api/user/password-login', async (req, reply) => {
+        const session = await getSessionFromRequest(req);
+        if (!session) {
+            return reply.status(401).send({ message: "Unauthorized" });
+        }
+
+        const userId = session.session.userId;
+        const body = req.body as any;
+
+        if (typeof body.disabled !== 'boolean') {
+            return reply.status(400).send({ message: 'disabled must be a boolean' });
+        }
+
+        try {
+            await db.update(schema.users)
+                .set({ passwordLoginDisabled: body.disabled, updatedAt: new Date() })
+                .where(eq(schema.users.id, userId));
+
+            return { success: true, passwordLoginDisabled: body.disabled };
+        } catch (error) {
+            console.error('Password login toggle error:', error);
+            return reply.status(500).send({ message: 'Failed to update password login setting' });
+        }
     });
 
     // Set (add) a password for the current user — enables email/password sign-in alongside GitHub
@@ -813,7 +842,10 @@ server.register(async (instance) => {
 
         const hasPassword = credentialAccounts.length > 0 && !!credentialAccounts[0].password;
 
-        return { exists: true, hasPassword };
+        // Return whether the user has disabled password login entirely
+        const passwordLoginDisabled = !!user[0].passwordLoginDisabled;
+
+        return { exists: true, hasPassword, passwordLoginDisabled };
     });
 
     // GET Public User Profile by Username
@@ -892,6 +924,55 @@ server.register(async (instance) => {
             return reply.status(500).send({ message: "Failed to delete account", error: String(error) });
         }
     });
+
+    // GET /api/user/export — export all of the user's personal data (GDPR-style data portability)
+    instance.get('/api/user/export', async (req, reply) => {
+        const session = await getSessionFromRequest(req);
+        if (!session) {
+            return reply.status(401).send({ message: "Unauthorized" });
+        }
+
+        const userId = session.session.userId;
+
+        try {
+            const [userRows, goalRows, questRows, badgeRows, watchRows, lessonRows] = await Promise.all([
+                db.select().from(schema.users).where(eq(schema.users.id, userId)).limit(1),
+                db.select().from(schema.goals).where(eq(schema.goals.userId, userId)),
+                db.select().from(schema.userQuests).where(eq(schema.userQuests.userId, userId)),
+                db.select().from(schema.userBadges).where(eq(schema.userBadges.userId, userId)),
+                db.select().from(schema.watchlist).where(eq(schema.watchlist.userId, userId)),
+                db.select().from(schema.lessonProgress).where(eq(schema.lessonProgress.userId, userId)),
+            ]);
+
+            if (!userRows.length) {
+                return reply.status(404).send({ message: "User not found" });
+            }
+
+            const user = userRows[0];
+            // Exclude sensitive fields from export
+            const {
+                emailVerified,
+                ...safeUser
+            } = user;
+
+            const exportedAt = new Date().toISOString();
+
+            return {
+                exportedAt,
+                exportVersion: 1,
+                profile: safeUser,
+                goals: goalRows,
+                quests: questRows,
+                badges: badgeRows,
+                watchlist: watchRows,
+                lessonProgress: lessonRows,
+            };
+        } catch (error) {
+            console.error("Export data error:", error);
+            return reply.status(500).send({ message: "Failed to export data" });
+        }
+    });
+
     // Leaderboard Endpoint
     instance.get('/api/leaderboard', async (req, reply) => {
         try {
@@ -1579,6 +1660,26 @@ server.register(async (instance) => {
                         // Could be total commits or daily
                         current = user[0].totalCommits || 0;
                     }
+                } else if (body.type === 'commits_monthly') {
+                    const contribData = user[0].contributionData as any[] || [];
+                    const now = new Date();
+                    const cm = now.getUTCMonth();
+                    const cy = now.getUTCFullYear();
+                    current = contribData.reduce((sum: number, day: any) => {
+                        const d = new Date(day.date);
+                        return (d.getUTCMonth() === cm && d.getUTCFullYear() === cy)
+                            ? sum + (day.contributionCount || 0)
+                            : sum;
+                    }, 0);
+                } else if (body.type === 'commits_yearly') {
+                    const contribData = user[0].contributionData as any[] || [];
+                    const cy = new Date().getUTCFullYear();
+                    current = contribData.reduce((sum: number, day: any) => {
+                        const d = new Date(day.date);
+                        return d.getUTCFullYear() === cy
+                            ? sum + (day.contributionCount || 0)
+                            : sum;
+                    }, 0);
                 } else if (body.type === 'days') {
                     current = user[0].activeDays || 0;
                 } else if (body.type === 'projects') {

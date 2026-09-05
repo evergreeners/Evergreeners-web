@@ -41,6 +41,7 @@ export default function Settings() {
   const [showDisconnectInfo, setShowDisconnectInfo] = useState(false);
 
   const [hasPassword, setHasPassword] = useState<boolean | null>(null);
+  const [passwordLoginDisabled, setPasswordLoginDisabled] = useState(false);
   const [showAddPassword, setShowAddPassword] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -123,6 +124,7 @@ export default function Settings() {
         if (res.ok) {
           const data = await res.json();
           setHasPassword(!!data.hasPassword);
+          setPasswordLoginDisabled(!!data.passwordLoginDisabled);
         }
       } catch (e) {
         console.error(e);
@@ -166,6 +168,36 @@ export default function Settings() {
       toast.error(error instanceof Error ? error.message : "Failed to set password");
     } finally {
       setSavingPassword(false);
+    }
+  };
+
+  // Disable (or re-enable) email/password sign-in
+  const handleTogglePasswordLogin = async () => {
+    const next = !passwordLoginDisabled;
+    const previous = passwordLoginDisabled;
+
+    // Disabling password login requires the user to have an alternative (GitHub) sign-in method
+    if (next && !isGithubConnected) {
+      toast.error("You must have GitHub connected to disable password login");
+      return;
+    }
+
+    setPasswordLoginDisabled(next);
+    try {
+      const res = await fetch(getApiUrl("/api/user/password-login"), {
+        method: "PUT",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          ...(session?.session?.token ? { Authorization: `Bearer ${session.session.token}` } : {})
+        },
+        body: JSON.stringify({ disabled: next }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      toast.success(next ? "Password login disabled" : "Password login enabled");
+    } catch (error) {
+      setPasswordLoginDisabled(previous);
+      toast.error("Failed to update password login setting");
     }
   };
 
@@ -231,7 +263,31 @@ export default function Settings() {
 
   const handleExportData = () => {
     toast.promise(
-      new Promise((resolve) => setTimeout(resolve, 1500)),
+      (async () => {
+        const res = await fetch(getApiUrl("/api/user/export"), {
+          credentials: "include",
+          headers: {
+            ...(session?.session?.token ? { Authorization: `Bearer ${session.session.token}` } : {})
+          }
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.message || "Failed to export data");
+        }
+        const data = await res.json();
+        const json = JSON.stringify(data, null, 2);
+        const blob = new Blob([json], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        const username = session?.user?.name || data?.profile?.username || "user";
+        a.download = `evergreeners-data-${username}-${new Date().toISOString().split("T")[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        return data;
+      })(),
       {
         loading: "Preparing export...",
         success: "Data exported! Check your downloads.",
@@ -426,22 +482,53 @@ export default function Settings() {
             <Section title="Password" className="animate-fade-up" style={{ animationDelay: "0.15s" }}>
               <div className="space-y-1 rounded-xl border border-border overflow-hidden">
                 {hasPassword ? (
-                  <div className="flex items-center justify-between p-4 bg-secondary/30">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
-                        <KeyRound className="w-5 h-5 text-primary" />
+                  <>
+                    <div className="flex items-center justify-between p-4 bg-secondary/30">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
+                          <KeyRound className="w-5 h-5 text-primary" />
+                        </div>
+                        <div>
+                          <p className="font-medium">Password Set</p>
+                          <p className="text-sm text-muted-foreground">
+                            You can sign in with your email and password
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium">Password Set</p>
-                        <p className="text-sm text-muted-foreground">
-                          You can sign in with your email and password
-                        </p>
+                      <div className="flex items-center gap-1 text-sm text-primary">
+                        <Check className="w-4 h-4" /> Enabled
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 text-sm text-primary">
-                      <Check className="w-4 h-4" /> Enabled
+                    <div className="flex items-center justify-between p-4 bg-secondary/30">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center">
+                          <Shield className="w-5 h-5 text-muted-foreground" />
+                        </div>
+                        <div>
+                          <p className="font-medium">Password Login</p>
+                          <p className="text-sm text-muted-foreground">
+                            {passwordLoginDisabled
+                              ? "Disabled — sign in with GitHub only"
+                              : "Enabled — sign in with email and password"}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        disabled={!isGithubConnected}
+                        onClick={handleTogglePasswordLogin}
+                        className={cn(
+                          "w-12 h-6 rounded-full p-1 transition-colors duration-300",
+                          !passwordLoginDisabled ? "bg-primary" : "bg-muted",
+                          !isGithubConnected && "cursor-not-allowed opacity-50"
+                        )}
+                      >
+                        <div className={cn(
+                          "w-4 h-4 rounded-full bg-white transition-transform duration-300",
+                          !passwordLoginDisabled ? "translate-x-6" : "translate-x-0"
+                        )} />
+                      </button>
                     </div>
-                  </div>
+                  </>
                 ) : hasPassword === false ? (
                   <>
                     {!showAddPassword ? (
