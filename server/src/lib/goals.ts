@@ -15,6 +15,10 @@ export async function updateUserGoals(userId: string, stats: {
 
     const userGoals = await db.select().from(schema.goals).where(eq(schema.goals.userId, userId));
 
+    const now = new Date();
+    const currentMonth = now.getUTCMonth();
+    const currentYear = now.getUTCFullYear();
+
     for (const goal of userGoals) {
         let newCurrent = goal.current;
 
@@ -22,6 +26,24 @@ export async function updateUserGoals(userId: string, stats: {
             newCurrent = currentStreak;
         } else if (goal.type === 'commits' && goal.title.toLowerCase().includes('weekly')) {
             newCurrent = weeklyCommits;
+        } else if (goal.type === 'commits_monthly') {
+            let monthlyCommits = 0;
+            for (const day of contributionCalendar) {
+                const d = new Date(day.date);
+                if (d.getUTCMonth() === currentMonth && d.getUTCFullYear() === currentYear) {
+                    monthlyCommits += day.contributionCount || 0;
+                }
+            }
+            newCurrent = monthlyCommits;
+        } else if (goal.type === 'commits_yearly') {
+            let yearlyCommits = 0;
+            for (const day of contributionCalendar) {
+                const d = new Date(day.date);
+                if (d.getUTCFullYear() === currentYear) {
+                    yearlyCommits += day.contributionCount || 0;
+                }
+            }
+            newCurrent = yearlyCommits;
         } else if (goal.type === 'days') {
             if (goal.dueDate && daysOfWeek.includes(goal.dueDate)) {
                 const startIndex = daysOfWeek.indexOf(goal.dueDate);

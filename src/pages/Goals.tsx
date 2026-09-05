@@ -52,6 +52,8 @@ interface Goal {
 const goalTemplates = [
   { type: "streak", title: "Maintain streak", icon: Flame, defaultTarget: 30, description: "Track consecutive days of GitHub contributions" },
   { type: "commits", title: "Weekly commits", icon: GitCommit, defaultTarget: 20, description: "Count commits made in the last 7 days (rolling window)" },
+  { type: "commits_monthly", title: "Monthly commits", icon: GitCommit, defaultTarget: 50, description: "Count commits made in the current calendar month" },
+  { type: "commits_yearly", title: "Yearly commits", icon: GitCommit, defaultTarget: 500, description: "Count commits made in the current calendar year" },
   { type: "days", title: "Code X days/week", icon: Calendar, defaultTarget: 5, description: "Track active coding days in the current week (Mon-Sun)" },
   { type: "projects", title: "Contribute to repos", icon: BookOpen, defaultTarget: 3, description: "Number of repositories you've contributed to" },
 ];
@@ -63,7 +65,7 @@ export default function Goals() {
   const [isAddingGoal, setIsAddingGoal] = useState(false);
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
   const [newGoalType, setNewGoalType] = useState<string | null>(null);
-  const [newGoalTarget, setNewGoalTarget] = useState(30);
+  const [newGoalTarget, setNewGoalTarget] = useState("30");
   const [newGoalStartDay, setNewGoalStartDay] = useState("Monday");
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingGoal, setIsSavingGoal] = useState(false);
@@ -155,6 +157,12 @@ export default function Goals() {
   const completedGoals = goals.filter(g => g.completed);
 
   const addGoal = async (template: typeof goalTemplates[0]) => {
+    const target = parseInt(newGoalTarget, 10);
+    if (!target || target < 1) {
+      toast.error("Target must be at least 1");
+      setNewGoalType(null);
+      return;
+    }
     setIsCreatingGoal(true);
     try {
       const res = await fetch(`${API_URL}/api/goals`, {
@@ -163,10 +171,10 @@ export default function Goals() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: template.type === 'days'
-            ? `Code ${newGoalTarget} days (${newGoalStartDay}-${getEndDay(newGoalStartDay, newGoalTarget)})`
-            : `${template.title} (${newGoalTarget})`,
+            ? `Code ${target} days (${newGoalStartDay}-${getEndDay(newGoalStartDay, target)})`
+            : `${template.title} (${target})`,
           type: template.type,
-          target: newGoalTarget,
+          target: target,
           current: 0,
           dueDate: template.type === 'days' ? newGoalStartDay : (template.type === 'commits' ? 'Sunday' : undefined)
         })
@@ -181,7 +189,7 @@ export default function Goals() {
       };
 
       setNewGoalType(null);
-      setNewGoalTarget(30);
+      setNewGoalTarget("30");
       toast.success("Goal created!");
 
       // Refresh list to ensure we get correct completed status and synced data
@@ -212,6 +220,10 @@ export default function Goals() {
   };
 
   const updateGoalTarget = async (id: number, newTarget: number) => {
+    if (!newTarget || newTarget < 1) {
+      toast.error("Target must be at least 1");
+      return;
+    }
     setIsSavingGoal(true);
     try {
       // Find existing to get title prefix
@@ -281,7 +293,7 @@ export default function Goals() {
                         key={template.type}
                         onClick={() => {
                           setNewGoalType(template.type);
-                          setNewGoalTarget(template.defaultTarget);
+                          setNewGoalTarget(String(template.defaultTarget));
                           triggerHaptic();
                         }}
                         className="p-4 rounded-xl border border-border bg-secondary/30 hover:bg-secondary/50 transition-all duration-300 text-left group"
@@ -308,22 +320,21 @@ export default function Goals() {
                       <div className="flex-1">
                         <label className="text-sm text-muted-foreground">Target {newGoalType === 'days' && `(Max: ${7 - daysOfWeek.indexOf(newGoalStartDay)})`}</label>
                         <input
-                          type="number"
+                          type="text"
+                          inputMode="numeric"
                           value={newGoalTarget}
                           onChange={(e) => {
-                            let val = parseInt(e.target.value) || 0;
+                            const cleaned = e.target.value.replace(/[^0-9]/g, "");
                             if (newGoalType === 'days') {
                               const max = 7 - daysOfWeek.indexOf(newGoalStartDay);
-                              if (val > max) val = max;
-                              if (val < 1) val = 1;
-                            } else {
-                              if (val < 1) val = 1;
+                              const val = cleaned === "" ? 0 : parseInt(cleaned, 10);
+                              if (val > max) return;
                             }
-                            setNewGoalTarget(val);
+                            setNewGoalTarget(cleaned);
                           }}
                           className="w-full mt-2 p-3 rounded-xl bg-secondary border border-border focus:border-primary focus:outline-none transition-colors"
-                          min={1}
-                          max={newGoalType === 'days' ? (7 - daysOfWeek.indexOf(newGoalStartDay)) : undefined}
+                          placeholder="Enter target"
+                          maxLength={4}
                         />
                       </div>
                       {newGoalType === 'days' && (
@@ -335,7 +346,8 @@ export default function Goals() {
                               const newStart = e.target.value;
                               setNewGoalStartDay(newStart);
                               const max = 7 - daysOfWeek.indexOf(newStart);
-                              if (newGoalTarget > max) setNewGoalTarget(max);
+                              const targetNum = parseInt(newGoalTarget, 10) || 0;
+                              if (targetNum > max) setNewGoalTarget(String(max));
                             }}
                             className="w-full mt-2 p-3 rounded-xl bg-secondary border border-border focus:border-primary focus:outline-none transition-colors appearance-none cursor-pointer"
                           >
@@ -490,15 +502,19 @@ export default function Goals() {
                             <div>
                               <label className="text-sm text-muted-foreground">Target</label>
                               <input
-                                type="number"
+                                type="text"
+                                inputMode="numeric"
                                 defaultValue={editingGoal?.target}
                                 onChange={(e) => {
                                   if (editingGoal) {
-                                    setEditingGoal({ ...editingGoal, target: parseInt(e.target.value) || 1 });
+                                    const cleaned = e.target.value.replace(/[^0-9]/g, "");
+                                    const val = cleaned === "" ? 0 : parseInt(cleaned, 10);
+                                    setEditingGoal({ ...editingGoal, target: val });
                                   }
                                 }}
                                 className="w-full mt-2 p-3 rounded-xl bg-secondary border border-border focus:border-primary focus:outline-none transition-colors"
-                                min={1}
+                                placeholder="Enter target"
+                                maxLength={4}
                               />
                             </div>
                             <Button

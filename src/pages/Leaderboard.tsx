@@ -218,17 +218,6 @@ export default function Leaderboard() {
                         )}
                       </div>
                     </div>
-                    {(() => {
-                      const { icon: PosIcon, iconClass, label } = getTabMeta(currentUser);
-                      return (
-                        <div className="text-right flex-shrink-0">
-                          <div className="flex items-center gap-2">
-                            <PosIcon className={cn("w-4 h-4", iconClass)} />
-                            <span className="font-bold text-lg">{label}</span>
-                          </div>
-                        </div>
-                      );
-                    })()}
                   </div>
                 </div>
               </Section>

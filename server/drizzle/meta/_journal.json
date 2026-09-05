@@ -92,6 +92,13 @@
       "when": 1783106593295,
       "tag": "0012_shallow_smasher",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1788394353998,
+      "tag": "0013_hesitant_onslaught",
+      "breakpoints": true
     }
   ]
 }
