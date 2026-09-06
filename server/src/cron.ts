@@ -5,9 +5,13 @@ import { eq, and, lt, or, isNull, isNotNull, ne, sql } from 'drizzle-orm';
 import { getGithubContributions } from './lib/github.js';
 import { updateUserGoals } from './lib/goals.js';
 import { sendDailyDigestEmail, sendStreakBrokenEmail, sendAcademyNudgeEmail, type AcademyTimeLeft, type DailyAcademyInfo } from './lib/email.js';
+import { createNotificationIfMissing } from './lib/notifications.js';
 
 const ACADEMY_LAUNCH_DATE = process.env.ACADEMY_LAUNCH_DATE || '2026-08-31T00:00:00Z';
 const LAUNCH_MS = new Date(ACADEMY_LAUNCH_DATE).getTime();
+
+// Streak milestones worth celebrating
+const STREAK_MILESTONES = [7, 14, 30, 60, 100, 150, 200, 300, 365];
 
 function academyTimeLeft(): AcademyTimeLeft {
     const difference = LAUNCH_MS - Date.now();
@@ -66,6 +70,23 @@ export function setupCronJobs() {
                     await updateUserGoals(user.id, {
                         currentStreak, weeklyCommits, activeDays, totalProjects, contributionCalendar
                     });
+
+                    // Streak notifications: milestone celebration or broken-streak heads-up
+                    if (currentStreak > 0 && STREAK_MILESTONES.includes(currentStreak)) {
+                        await createNotificationIfMissing(user.id, {
+                            type: 'streak',
+                            title: `${currentStreak}-day streak! 🔥`,
+                            message: `You just hit a ${currentStreak}-day streak. Keep the flame alive.`,
+                            link: '/dashboard',
+                        });
+                    } else if (currentStreak === 0 && yesterdayCommits > 0) {
+                        await createNotificationIfMissing(user.id, {
+                            type: 'streak',
+                            title: 'Streak broken 😔',
+                            message: `Your ${yesterdayCommits}-day streak ended. Start a new one today — the leaderboard is waiting.`,
+                            link: '/dashboard',
+                        });
+                    }
                 } catch (err) {
                     console.error(`Failed to sync user ${user.username}:`, err);
                 }

@@ -1239,3 +1239,251 @@ export async function sendBadgeAwardedEmail(opts: BadgeAwardedEmailOptions) {
         console.error(`Failed to send badge email to ${to}:`, err);
     }
 }
+
+// ─── Goal Completed Email ────────────────────────────────────────────────────
+export interface GoalCompletedEmailOptions {
+    to: string;
+    name: string;
+    goalTitle: string;
+    goalType: string;
+    target: number;
+    current: number;
+    goalsUrl: string;
+}
+
+export async function sendGoalCompletedEmail(opts: GoalCompletedEmailOptions) {
+    const { to, name, goalTitle, goalType, target, current, goalsUrl } = opts;
+    const displayName = name?.split(' ')[0] || 'there';
+
+    const subject = `Goal complete: ${goalTitle} 🎯`;
+
+    const body = `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td style="padding-bottom:12px;">
+             <span style="display:inline-block;padding:4px 10px;border-radius:12px;background-color:#f4f4f5;font-family:ui-monospace,'SF Mono',monospace;font-size:11px;font-weight:600;color:#52525b;letter-spacing:0.05em;text-transform:uppercase;">
+              Goal Achieved
+            </span>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding-bottom:12px;">
+            <h1 class="text-heading" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',Helvetica,Arial,sans-serif;font-size:24px;font-weight:700;color:#09090b;letter-spacing:-0.4px;line-height:1.3;">
+              You did it, ${displayName}!
+            </h1>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding-bottom:4px;">
+            <p class="text-body" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;color:#52525b;line-height:1.75;">
+              You've hit your goal — <strong>"${goalTitle}"</strong> is complete. Clarity, focus, results.
+            </p>
+          </td>
+        </tr>
+
+        ${divider}
+
+        <!-- Stat box: goal progress -->
+        <tr>
+          <td style="padding-bottom:24px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td class="stat-box" style="padding:16px 24px;background-color:#fafafa;border:1px solid #e4e4e7;border-radius:8px;text-align:center;">
+                  <p class="stat-label" style="margin:0 0 4px;font-family:ui-monospace,'SF Mono',monospace;font-size:10px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:#a1a1aa;">${goalType}</p>
+                  <p style="margin:0;font-family:ui-monospace,'SF Mono','Fira Code',monospace;font-size:28px;font-weight:700;line-height:1;color:#10b981;">
+                    ${current}<span class="stat-unit" style="font-size:12px;font-weight:400;color:#a1a1aa;margin-left:3px;">/ ${target}</span>
+                  </p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- CTA -->
+        <tr>
+          <td>
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="background-color:#10b981;border-radius:7px;">
+                  <a href="${goalsUrl}" style="display:inline-block;padding:11px 22px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;color:#ffffff;text-decoration:none;letter-spacing:-0.1px;">
+                    View Goals
+                  </a>
+                </td>
+                <td style="padding-left:20px;">
+                  <a href="${APP_URL}/dashboard" class="cta-secondary" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;color:#71717a;text-decoration:none;">
+                    Back to dashboard &rarr;
+                  </a>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>`;
+
+    try {
+        const result = await getResend().emails.send({
+            from: FROM_EMAIL,
+            to,
+            subject,
+            html: emailShell(body),
+        });
+        console.log(`Goal completed email sent to ${to} for [${goalTitle}]:`, result.data?.id);
+        return result;
+    } catch (err) {
+        console.error(`Failed to send goal completed email to ${to}:`, err);
+        throw err;
+    }
+}
+
+// ─── Quest Completed Email (to the solver) ───────────────────────────────────
+export interface QuestCompletedEmailOptions {
+    to: string;
+    name: string;
+    questTitle: string;
+    questUrl: string;
+}
+
+export async function sendQuestCompletedEmail(opts: QuestCompletedEmailOptions) {
+    const { to, name, questTitle, questUrl } = opts;
+    const displayName = name?.split(' ')[0] || 'there';
+
+    const subject = `Quest complete: ${questTitle} 🎉`;
+
+    const body = `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td style="padding-bottom:12px;">
+             <span style="display:inline-block;padding:4px 10px;border-radius:12px;background-color:#f4f4f5;font-family:ui-monospace,'SF Mono',monospace;font-size:11px;font-weight:600;color:#52525b;letter-spacing:0.05em;text-transform:uppercase;">
+              Quest Solved
+            </span>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding-bottom:12px;">
+            <h1 class="text-heading" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',Helvetica,Arial,sans-serif;font-size:24px;font-weight:700;color:#09090b;letter-spacing:-0.4px;line-height:1.3;">
+              Quest complete, ${displayName}.
+            </h1>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding-bottom:4px;">
+            <p class="text-body" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;color:#52525b;line-height:1.75;">
+              You solved <strong>"${questTitle}"</strong>. Ship. Ship. Ship. The community sees the kind of builder you are.
+            </p>
+          </td>
+        </tr>
+
+        ${divider}
+
+        <!-- CTA -->
+        <tr>
+          <td>
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="background-color:#10b981;border-radius:7px;">
+                  <a href="${questUrl}" style="display:inline-block;padding:11px 22px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;color:#ffffff;text-decoration:none;letter-spacing:-0.1px;">
+                    View Quests
+                  </a>
+                </td>
+                <td style="padding-left:20px;">
+                  <a href="${APP_URL}/dashboard" class="cta-secondary" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;color:#71717a;text-decoration:none;">
+                    Back to dashboard &rarr;
+                  </a>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>`;
+
+    try {
+        const result = await getResend().emails.send({
+            from: FROM_EMAIL,
+            to,
+            subject,
+            html: emailShell(body),
+        });
+        console.log(`Quest completed email sent to ${to} for [${questTitle}]:`, result.data?.id);
+        return result;
+    } catch (err) {
+        console.error(`Failed to send quest completed email to ${to}:`, err);
+        throw err;
+    }
+}
+
+// ─── Quest Solved Email (to the uploader) ────────────────────────────────────
+export interface QuestSolvedEmailOptions {
+    to: string;
+    name: string;
+    solverName: string;
+    questTitle: string;
+    questUrl: string;
+}
+
+export async function sendQuestSolvedEmail(opts: QuestSolvedEmailOptions) {
+    const { to, name, solverName, questTitle, questUrl } = opts;
+    const displayName = name?.split(' ')[0] || 'there';
+
+    const subject = `${solverName} solved your quest "${questTitle}"`;
+
+    const body = `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td style="padding-bottom:12px;">
+             <span style="display:inline-block;padding:4px 10px;border-radius:12px;background-color:#f4f4f5;font-family:ui-monospace,'SF Mono',monospace;font-size:11px;font-weight:600;color:#52525b;letter-spacing:0.05em;text-transform:uppercase;">
+              Quest Solved
+            </span>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding-bottom:12px;">
+            <h1 class="text-heading" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',Helvetica,Arial,sans-serif;font-size:24px;font-weight:700;color:#09090b;letter-spacing:-0.4px;line-height:1.3;">
+              ${solverName} solved your quest, ${displayName}.
+            </h1>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding-bottom:4px;">
+            <p class="text-body" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;color:#52525b;line-height:1.75;">
+              Someone just completed <strong>"${questTitle}"</strong>, the quest you uploaded. Your work is helping the community level up.
+            </p>
+          </td>
+        </tr>
+
+        ${divider}
+
+        <!-- CTA -->
+        <tr>
+          <td>
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="background-color:#10b981;border-radius:7px;">
+                  <a href="${questUrl}" style="display:inline-block;padding:11px 22px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;color:#ffffff;text-decoration:none;letter-spacing:-0.1px;">
+                    View Quests
+                  </a>
+                </td>
+                <td style="padding-left:20px;">
+                  <a href="${APP_URL}/dashboard" class="cta-secondary" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;color:#71717a;text-decoration:none;">
+                    Back to dashboard &rarr;
+                  </a>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>`;
+
+    try {
+        const result = await getResend().emails.send({
+            from: FROM_EMAIL,
+            to,
+            subject,
+            html: emailShell(body),
+        });
+        console.log(`Quest solved email sent to ${to} for [${questTitle}]:`, result.data?.id);
+        return result;
+    } catch (err) {
+        console.error(`Failed to send quest solved email to ${to}:`, err);
+        throw err;
+    }
+}
