@@ -8,6 +8,7 @@ import * as schema from '../db/schema.js';
 import { eq, inArray } from 'drizzle-orm';
 import { BADGES, type BadgeDefinition, type UserStats } from './badge-definitions.js';
 import { sendBadgeAwardedEmail } from '../lib/email.js';
+import { createNotification } from '../lib/notifications.js';
 
 export type { UserStats } from './badge-definitions.js';
 
@@ -63,7 +64,7 @@ export async function checkAndAwardBadges(
         )
         .onConflictDoNothing();
 
-    // 4. Send email notifications (Async, non-blocking)
+    // 4. Send email + in-app/push notifications (Async, non-blocking)
     (async () => {
         try {
             // Get user email and notification preference
@@ -75,6 +76,15 @@ export async function checkAndAwardBadges(
                     emailNotifications: true,
                 }
             });
+
+            for (const badge of newlyQualified) {
+                await createNotification(userId, {
+                    type: 'badge',
+                    title: `New badge: ${badge.name} 🏆`,
+                    message: badge.description,
+                    link: '/profile',
+                });
+            }
 
             if (user?.email && user.emailNotifications) {
                 for (const badge of newlyQualified) {
@@ -88,7 +98,7 @@ export async function checkAndAwardBadges(
                 }
             }
         } catch (err) {
-            console.error('Error sending badge award emails:', err);
+            console.error('Error sending badge award notifications:', err);
         }
     })();
 

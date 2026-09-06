@@ -3,12 +3,18 @@ import { FloatingNav } from "@/components/FloatingNav";
 import { Section } from "@/components/Section";
 import {
   Globe, Bell, Shield, Moon, Trash2, LogOut,
-  ChevronRight, Github, Clock, Eye, RefreshCw, Download, KeyRound, Check
+  ChevronRight, Github, Clock, Eye, RefreshCw, Download, KeyRound, Check, BellRing
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { getApiUrl } from "@/lib/api-config";
+import {
+  isPushSupported,
+  getCurrentSubscription,
+  enablePushNotifications,
+  disablePushNotifications,
+} from "@/lib/push";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { signOut, authClient, useSession } from "@/lib/auth-client";
@@ -35,6 +41,10 @@ export default function Settings() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [savingNotif, setSavingNotif] = useState(false);
+
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushSupported, setPushSupported] = useState(false);
+  const [savingPush, setSavingPush] = useState(false);
 
   const [isGithubConnected, setIsGithubConnected] = useState(false);
   const [githubUsername, setGithubUsername] = useState("");
@@ -222,6 +232,47 @@ export default function Settings() {
       setEmailNotifications(!value);
     } finally {
       setSavingNotif(false);
+    }
+  };
+
+  // Browser push notifications
+  useEffect(() => {
+    const supported = isPushSupported();
+    setPushSupported(supported);
+    if (!supported) return;
+
+    getCurrentSubscription().then((sub) => {
+      if (sub) {
+        setPushEnabled(true);
+      } else if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+        // Permission was already granted on this device — heal the subscription
+        enablePushNotifications()
+          .then((ok) => setPushEnabled(ok))
+          .catch(() => setPushEnabled(false));
+      }
+    });
+  }, []);
+
+  const handleTogglePush = async () => {
+    if (savingPush) return;
+
+    const next = !pushEnabled;
+    setSavingPush(true);
+
+    try {
+      if (next) {
+        const ok = await enablePushNotifications();
+        setPushEnabled(ok);
+        toast.success(ok ? "Push notifications enabled 🔔" : "Could not enable push notifications");
+      } else {
+        await disablePushNotifications();
+        setPushEnabled(false);
+        toast.success("Push notifications disabled");
+      }
+    } catch {
+      toast.error("Failed to update push notification setting");
+    } finally {
+      setSavingPush(false);
     }
   };
 
@@ -657,6 +708,42 @@ export default function Settings() {
                     <div className={cn(
                       "w-4 h-4 rounded-full bg-white transition-transform duration-300",
                       emailNotifications && isGithubConnected ? "translate-x-6" : "translate-x-0"
+                    )} />
+                  </button>
+                </div>
+
+                {/* Push Notifications */}
+                <div className={cn(
+                  "flex items-center justify-between p-4 bg-secondary/30",
+                  !pushSupported && "opacity-50"
+                )}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center">
+                      <BellRing className="w-5 h-5 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <p className="font-medium">Push Notifications</p>
+                      <p className="text-sm text-muted-foreground">
+                        {pushSupported
+                          ? pushEnabled
+                            ? "Alert me in my browser when something happens"
+                            : "Browser notifications even when Evergreeners is closed"
+                          : "Your browser doesn't support push notifications"}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    disabled={!pushSupported || savingPush}
+                    onClick={handleTogglePush}
+                    className={cn(
+                      "w-12 h-6 rounded-full p-1 transition-colors duration-300",
+                      pushEnabled ? "bg-primary" : "bg-muted",
+                      (!pushSupported || savingPush) && "cursor-not-allowed"
+                    )}
+                  >
+                    <div className={cn(
+                      "w-4 h-4 rounded-full bg-white transition-transform duration-300",
+                      pushEnabled ? "translate-x-6" : "translate-x-0"
                     )} />
                   </button>
                 </div>
