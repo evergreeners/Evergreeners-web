@@ -18,8 +18,9 @@ import * as schema from './db/schema.js';
 import { eq, and, desc, gt, sql, ne, isNotNull, isNull } from 'drizzle-orm';
 import { getGithubContributions, checkQuestProgress } from './lib/github.js';
 import { setupCronJobs } from './cron.js';
-import { updateUserGoals } from './lib/goals.js';
-import { sendWelcomeEmail, sendAcademyWaitlistConfirmationEmail, sendAcademyGraduationEmail } from './lib/email.js';
+import { updateUserGoals, notifyGoalCompletion } from './lib/goals.js';
+import { sendWelcomeEmail, sendAcademyWaitlistConfirmationEmail, sendAcademyGraduationEmail, sendQuestCompletedEmail, sendQuestSolvedEmail } from './lib/email.js';
+import { getVapidPublicKey, createNotification } from './lib/notifications.js';
 import { getOrGenerateEyeInsight } from './lib/eye.js';
 import { checkAndAwardBadges, type UserStats } from './badges/award-badges.js';
 import { reviewPullRequest } from './lib/academy-review.js';
@@ -1277,10 +1278,64 @@ server.register(async (instance) => {
             const progress = await checkQuestProgress(username, account[0].accessToken, quest[0].repoUrl);
 
             if (progress.status === 'completed') {
+                // Detect whether this is a fresh completion (avoid duplicate emails on re-checks)
+                const priorQuestRow = await db.select().from(schema.userQuests)
+                    .where(and(eq(schema.userQuests.userId, userId), eq(schema.userQuests.questId, parseInt(id))))
+                    .limit(1);
+                const wasAlreadyCompleted = priorQuestRow[0]?.status === 'completed';
+
                 // Update DB
                 await db.update(schema.userQuests)
                     .set({ status: 'completed', completedAt: new Date(), forkUrl: progress.forkUrl })
                     .where(and(eq(schema.userQuests.userId, userId), eq(schema.userQuests.questId, parseInt(id))));
+
+                // Notify the solver + the quest uploader on fresh completions
+                if (!wasAlreadyCompleted) {
+                    const appUrl = process.env.APP_URL || 'https://evergreeners.dev';
+                    const solverRows = await db.select().from(schema.users).where(eq(schema.users.id, userId)).limit(1);
+                    const solver = solverRows[0];
+                    const solverName = solver?.username || solver?.name?.split(' ')[0] || 'A user';
+
+                    // In-app + web push to the solver
+                    await createNotification(userId, {
+                        type: 'quest',
+                        title: 'Quest complete! 🎉',
+                        message: `You solved "${quest[0].title}". The community sees the kind of builder you are.`,
+                        link: '/quests',
+                    });
+
+                    if (solver?.email && solver.emailNotifications === true) {
+                        sendQuestCompletedEmail({
+                            to: solver.email,
+                            name: solver.name || solver.username || 'there',
+                            questTitle: quest[0].title,
+                            questUrl: `${appUrl}/quests`,
+                        }).catch(err => console.error("Quest completed email failed:", err));
+                    }
+
+                    if (quest[0].createdBy && quest[0].createdBy !== userId) {
+                        const creatorRows = await db.select().from(schema.users).where(eq(schema.users.id, quest[0].createdBy)).limit(1);
+                        const creator = creatorRows[0];
+
+                        // In-app + web push to the uploader
+                        await createNotification(quest[0].createdBy, {
+                            type: 'quest',
+                            title: `${solverName} solved your quest ⚡`,
+                            message: `Someone just completed "${quest[0].title}", the quest you uploaded.`,
+                            link: '/quests',
+                        });
+
+                        if (creator?.email && creator.emailNotifications === true) {
+                            sendQuestSolvedEmail({
+                                to: creator.email,
+                                name: creator.name || creator.username || 'there',
+                                solverName,
+                                questTitle: quest[0].title,
+                                questUrl: `${appUrl}/quests`,
+                            }).catch(err => console.error("Quest solved email failed:", err));
+                        }
+                    }
+                }
 
                 // Check for speed-runner badge (completed in < 1 hour)
                 const myQuestRow = await db.select().from(schema.userQuests)
@@ -1798,6 +1853,16 @@ server.register(async (instance) => {
             };
             await checkAndAwardBadges(userId, goalBadgeStats);
 
+            // Notify user when their goal just got completed (avoid re-notifying)
+            if (!goal.completed && updatedGoal[0].completed) {
+                await notifyGoalCompletion(userId, {
+                    title: updatedGoal[0].title,
+                    type: updatedGoal[0].type,
+                    target: updatedGoal[0].target,
+                    current: updatedGoal[0].current ?? 0,
+                });
+            }
+
             return { goal: updatedGoal[0] };
         } catch (error) {
             console.error("Update goal error:", error);
@@ -1966,13 +2031,126 @@ server.register(async (instance) => {
         }
     });
 
-    // GET /api/notifications (Placeholder)
+    // GET /api/notifications — in-app notifications for the current user
     instance.get('/api/notifications', async (req, reply) => {
         const session = await getSessionFromRequest(req);
         if (!session) return reply.status(401).send({ message: "Unauthorized" });
 
-        // For now, return empty array to silence 404s
-        return { notifications: [] };
+        try {
+            const rows = await db.select()
+                .from(schema.notifications)
+                .where(eq(schema.notifications.userId, session.session.userId))
+                .orderBy(desc(schema.notifications.createdAt))
+                .limit(50);
+
+            return {
+                notifications: rows.map((n) => ({
+                    id: n.id,
+                    type: n.type,
+                    title: n.title,
+                    message: n.message,
+                    read: n.read,
+                    link: n.link || undefined,
+                    createdAt: n.createdAt ? new Date(n.createdAt).toISOString() : new Date().toISOString(),
+                })),
+            };
+        } catch (error) {
+            console.error('Fetch notifications error:', error);
+            return reply.status(500).send({ message: 'Failed to fetch notifications' });
+        }
+    });
+
+    // POST /api/notifications/:id/read — mark a single notification as read
+    instance.post('/api/notifications/:id/read', async (req, reply) => {
+        const session = await getSessionFromRequest(req);
+        if (!session) return reply.status(401).send({ message: "Unauthorized" });
+
+        const { id } = req.params as { id: string };
+        try {
+            await db.update(schema.notifications)
+                .set({ read: true })
+                .where(and(
+                    eq(schema.notifications.id, parseInt(id)),
+                    eq(schema.notifications.userId, session.session.userId),
+                ));
+            return { success: true };
+        } catch (error) {
+            console.error('Mark notification read error:', error);
+            return reply.status(500).send({ message: 'Failed to mark notification as read' });
+        }
+    });
+
+    // POST /api/notifications/mark-all-read — mark every notification as read
+    instance.post('/api/notifications/mark-all-read', async (req, reply) => {
+        const session = await getSessionFromRequest(req);
+        if (!session) return reply.status(401).send({ message: "Unauthorized" });
+
+        try {
+            await db.update(schema.notifications)
+                .set({ read: true })
+                .where(eq(schema.notifications.userId, session.session.userId));
+            return { success: true };
+        } catch (error) {
+            console.error('Mark all notifications read error:', error);
+            return reply.status(500).send({ message: 'Failed to mark notifications as read' });
+        }
+    });
+
+    // GET /api/push/vapid-public-key — VAPID public key for the browser to subscribe
+    instance.get('/api/push/vapid-public-key', async (_req, reply) => {
+        const publicKey = getVapidPublicKey();
+        if (!publicKey) return reply.status(503).send({ message: 'Web push is not configured' });
+        return { publicKey };
+    });
+
+    // POST /api/push/subscribe — store a push subscription for the current user
+    instance.post('/api/push/subscribe', async (req, reply) => {
+        const session = await getSessionFromRequest(req);
+        if (!session) return reply.status(401).send({ message: "Unauthorized" });
+
+        const body = (req.body ?? {}) as { endpoint?: string; keys?: { p256dh?: string; auth?: string } };
+        if (!body?.endpoint || !body?.keys?.p256dh || !body?.keys?.auth) {
+            return reply.status(400).send({ message: 'Invalid push subscription' });
+        }
+
+        try {
+            await db.insert(schema.pushSubscriptions)
+                .values({
+                    userId: session.session.userId,
+                    endpoint: body.endpoint,
+                    p256dh: body.keys.p256dh,
+                    auth: body.keys.auth,
+                })
+                .onConflictDoNothing();
+            return { success: true };
+        } catch (error) {
+            console.error('Push subscribe error:', error);
+            return reply.status(500).send({ message: 'Failed to save push subscription' });
+        }
+    });
+
+    // POST /api/push/unsubscribe — remove push subscriptions (optionally a specific endpoint)
+    instance.post('/api/push/unsubscribe', async (req, reply) => {
+        const session = await getSessionFromRequest(req);
+        if (!session) return reply.status(401).send({ message: "Unauthorized" });
+
+        const body = (req.body ?? {}) as { endpoint?: string };
+        try {
+            if (body?.endpoint) {
+                await db.delete(schema.pushSubscriptions)
+                    .where(and(
+                        eq(schema.pushSubscriptions.userId, session.session.userId),
+                        eq(schema.pushSubscriptions.endpoint, body.endpoint),
+                    ));
+            } else {
+                await db.delete(schema.pushSubscriptions)
+                    .where(eq(schema.pushSubscriptions.userId, session.session.userId));
+            }
+            return { success: true };
+        } catch (error) {
+            console.error('Push unsubscribe error:', error);
+            return reply.status(500).send({ message: 'Failed to remove push subscription' });
+        }
     });
 
     // PUT /api/user/notifications — toggle email notification preference

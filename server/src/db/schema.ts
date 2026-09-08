@@ -175,6 +175,29 @@ export const userQuests = mySchema.table('user_quests', {
     forkUrl: text('fork_url'),
 });
 
+// ─── Notifications ────────────────────────────────────────────────────────────
+
+export const notifications = mySchema.table('notifications', {
+    id: serial('id').primaryKey(),
+    userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    type: text('type').notNull(), // 'goal' | 'quest' | 'badge' | 'streak' | 'leaderboard'
+    title: text('title').notNull(),
+    message: text('message').notNull(),
+    link: text('link'),
+    read: boolean('read').default(false).notNull(),
+    createdAt: timestamp('created_at').defaultNow(),
+});
+
+// Web Push subscriptions (browser-level push)
+export const pushSubscriptions = mySchema.table('push_subscriptions', {
+    id: serial('id').primaryKey(),
+    userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    endpoint: text('endpoint').notNull().unique(),
+    p256dh: text('p256dh').notNull(),
+    auth: text('auth').notNull(),
+    createdAt: timestamp('created_at').defaultNow(),
+});
+
 // ─── Badge System ───────────────────────────────────────────────────────────────
 
 export const userBadges = mySchema.table('user_badges', {

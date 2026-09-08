@@ -117,6 +117,7 @@ export function NotificationCenter() {
             case 'streak': return '🔥';
             case 'leaderboard': return '🏆';
             case 'goal': return '🎯';
+            case 'badge': return '🎖️';
             default: return '🔔';
         }
     };

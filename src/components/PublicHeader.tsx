@@ -1,21 +1,25 @@
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Users, GitMerge, LogIn, ArrowRight, BookOpen, GraduationCap } from "lucide-react";
-import { Logo } from "./Logo";
 
 export function PublicHeader() {
     const { pathname } = useLocation();
 
     return (
         <header className="fixed top-6 left-0 right-0 z-50 flex justify-center px-4">
+            <style>{`
+                @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&display=swap');
+                .font-handwritten {
+                    font-family: 'Caveat', cursive;
+                    font-weight: 700;
+                    transform: rotate(-2deg);
+                }
+            `}</style>
             <div className="w-full max-w-5xl bg-black/60 backdrop-blur-xl border border-white/10 rounded-full pl-6 pr-2 py-2 flex items-center justify-between shadow-2xl shadow-black/50 transition-all duration-300 hover:border-white/20 hover:bg-black/70">
 
                 {/* Logo Section */}
-                <Link to="/" className="flex items-center gap-3 group">
-                    <div className="relative flex items-center justify-center w-10 h-10">
-                        <Logo className="w-6 h-6" />
-                    </div>
-                    <span className="font-bold text-foreground tracking-tight text-lg group-hover:text-green-400 transition-colors">Evergreeners</span>
+                <Link to="/" className="flex items-center group">
+                    <span className="font-handwritten text-primary text-2xl">Evergreeners</span>
                 </Link>
 
                 {/* Navigation - Centered (Hidden on mobile) */}
