@@ -383,6 +383,7 @@ export default function AcademyDashboard() {
   // Calculations
   const allLessons = curriculum.flatMap(w => w.lessons);
   const totalLessons = allLessons.length;
+  const completionPercentage = Math.round((completedLessons.size / totalLessons) * 100);
   const labUrl = activeLesson?.lab
     ? (activeLesson.lab.startsWith("http://") || activeLesson.lab.startsWith("https://")
         ? activeLesson.lab
