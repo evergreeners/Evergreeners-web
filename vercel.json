@@ -5,6 +5,10 @@
       "destination": "https://evergreeners-backend-2f9624f97235.herokuapp.com/api/$1"
     },
     {
+      "source": "/learn-git-branching/:path*",
+      "destination": "https://evergreeners-backend-2f9624f97235.herokuapp.com/learn-git-branching/:path*"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
