@@ -56,11 +56,18 @@ function PublicHeader() {
   );
 }
 
+const RESERVED_USERNAMES = new Set([
+  'dashboard', 'analytics', 'quests', 'goals', 'profile', 'settings',
+  'leaderboard', 'generator', 'admin', 'academy', 'community', 'login',
+  'signup', 'repo', 'learn-git-branching', 'api', 'null', 'undefined'
+]);
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function Profile() {
   const navigate = useNavigate();
   const { username: urlUsername } = useParams();
+  const isReservedUsername = !!urlUsername && RESERVED_USERNAMES.has(urlUsername.toLowerCase());
   const { data: session, isPending: sessionLoading } = useSession();
   const isMobile = useIsMobile();
 
@@ -109,7 +116,7 @@ export default function Profile() {
 
   // ── Badge data ───────────────────────────────────────────────────────────────
   // Fetch from /api/users/:username/badges once we know the profile username
-  const badgeUsername = urlUsername || (isOwnProfile ? loggedInUsername : null);
+  const badgeUsername = !isReservedUsername ? (urlUsername || (isOwnProfile ? loggedInUsername : null)) : null;
   const {
     badges: badgeData,
     earnedCount,
@@ -162,7 +169,7 @@ export default function Profile() {
 
     // Keep data fresh but allow prefetch to work
     staleTime: 5 * 60 * 1000,
-    enabled: !sessionLoading && (!!urlUsername || isOwnProfile),
+    enabled: !sessionLoading && !isReservedUsername && (!!urlUsername || isOwnProfile),
   });
 
   // Sync React Query data to local state for compatibility with legacy handlers
@@ -346,7 +353,7 @@ export default function Profile() {
     );
   }
 
-  if (notFound) return <NotFound />;
+  if (notFound || isReservedUsername) return <NotFound />;
 
   if (isPrivate) {
     return (

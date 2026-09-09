@@ -383,8 +383,13 @@ export default function AcademyDashboard() {
   // Calculations
   const allLessons = curriculum.flatMap(w => w.lessons);
   const totalLessons = allLessons.length;
-  const completionPercentage = Math.round((completedLessons.size / totalLessons) * 100);
-  const labUrl = activeLesson ? getApiUrl(`/learn-git-branching/?level=${activeLesson.lab}`) : "";
+  const labUrl = activeLesson?.lab
+    ? (activeLesson.lab.startsWith("http://") || activeLesson.lab.startsWith("https://")
+        ? activeLesson.lab
+        : (import.meta.env.VITE_LGB_URL
+            ? `${import.meta.env.VITE_LGB_URL}/?NODEMO&level=${encodeURIComponent(activeLesson.lab)}`
+            : `https://learngitbranching.js.org/?NODEMO&level=${encodeURIComponent(activeLesson.lab)}`))
+    : "";
 
   // Set the first lesson as active once the curriculum is available
   useEffect(() => {
