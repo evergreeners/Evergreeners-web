@@ -192,13 +192,15 @@ if (existsSync(lgbFrontendPath)) {
     });
     console.log(`Serving LearnGitBranching at /learn-git-branching from ${lgbFrontendPath}`);
 } else {
-    server.get('/learn-git-branching*', async (req, reply) => {
+    const handleLgbRedirect = async (req: any, reply: any) => {
         const level = (req.query as any)?.level || '';
         const targetUrl = level 
             ? `https://learngitbranching.js.org/?NODEMO&level=${encodeURIComponent(level)}`
             : `https://learngitbranching.js.org/?NODEMO`;
         return reply.redirect(targetUrl, 302);
-    });
+    };
+    server.get('/learn-git-branching*', handleLgbRedirect);
+    server.get('/api/learn-git-branching*', handleLgbRedirect);
     console.warn(`LearnGitBranching frontend not found at ${lgbFrontendPath}; proxying /learn-git-branching requests to https://learngitbranching.js.org.`);
 }
 

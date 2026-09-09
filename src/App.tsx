@@ -112,6 +112,8 @@ const AppContents = () => {
           <Route path="/repo/:owner/:repo" element={<RepoDetail />} />
         </Route>
 
+        <Route path="/learn-git-branching" element={<Navigate to="/academy/dashboard" replace />} />
+        <Route path="/learn-git-branching/*" element={<Navigate to="/academy/dashboard" replace />} />
         <Route path="/:username" element={<Profile />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
