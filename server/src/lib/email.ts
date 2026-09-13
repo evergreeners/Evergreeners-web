@@ -16,7 +16,11 @@ const emailShell = (body: string) => `
   <meta name="color-scheme" content="light dark" />
   <meta name="supported-color-schemes" content="light dark" />
   <title>Evergreeners</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&display=swap" rel="stylesheet" />
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&display=swap');
     * { box-sizing: border-box; }
     body { margin: 0; padding: 0; }
     @media (prefers-color-scheme: dark) {
@@ -42,10 +46,56 @@ const emailShell = (body: string) => `
       <td class="email-bg" align="center" style="padding:48px 16px;background-color:#f4f4f5;">
         <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;">
 
-          <!-- Wordmark -->
+          <!-- Logo & Caveat Font Header -->
           <tr>
-            <td style="padding-bottom:24px;">
-              <span style="font-family:ui-monospace,'SF Mono','Fira Code',monospace;font-size:13px;font-weight:700;letter-spacing:0.12em;color:#10b981;text-transform:uppercase;">EVERGREENERS</span>
+            <td style="padding-bottom:20px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td valign="middle" style="padding-right:10px;line-height:0;">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block;">
+                      <rect x="2" y="2" width="2.5" height="2.5" rx="0.5" fill="#14532d" />
+                      <rect x="5.5" y="2" width="2.5" height="2.5" rx="0.5" fill="#166534" />
+                      <rect x="9" y="2" width="2.5" height="2.5" rx="0.5" fill="#22c55e" />
+                      <rect x="12.5" y="2" width="2.5" height="2.5" rx="0.5" fill="#4ade80" />
+                      <rect x="16" y="2" width="2.5" height="2.5" rx="0.5" fill="#22c55e" />
+                      <rect x="19.5" y="2" width="2.5" height="2.5" rx="0.5" fill="#14532d" />
+                      <rect x="2" y="5.5" width="2.5" height="2.5" rx="0.5" fill="#166534" />
+                      <rect x="5.5" y="5.5" width="2.5" height="2.5" rx="0.5" fill="#4ade80" />
+                      <rect x="9" y="5.5" width="2.5" height="2.5" rx="0.5" fill="#86efac" />
+                      <rect x="12.5" y="5.5" width="2.5" height="2.5" rx="0.5" fill="#22c55e" />
+                      <rect x="16" y="5.5" width="2.5" height="2.5" rx="0.5" fill="#15803d" />
+                      <rect x="19.5" y="5.5" width="2.5" height="2.5" rx="0.5" fill="#166534" />
+                      <rect x="2" y="9" width="2.5" height="2.5" rx="0.5" fill="#22c55e" />
+                      <rect x="5.5" y="9" width="2.5" height="2.5" rx="0.5" fill="#86efac" />
+                      <rect x="9" y="9" width="2.5" height="2.5" rx="0.5" fill="#bbf7d0" />
+                      <rect x="12.5" y="9" width="2.5" height="2.5" rx="0.5" fill="#4ade80" />
+                      <rect x="16" y="9" width="2.5" height="2.5" rx="0.5" fill="#22c55e" />
+                      <rect x="19.5" y="9" width="2.5" height="2.5" rx="0.5" fill="#15803d" />
+                      <rect x="2" y="12.5" width="2.5" height="2.5" rx="0.5" fill="#4ade80" />
+                      <rect x="5.5" y="12.5" width="2.5" height="2.5" rx="0.5" fill="#22c55e" />
+                      <rect x="9" y="12.5" width="2.5" height="2.5" rx="0.5" fill="#4ade80" />
+                      <rect x="12.5" y="12.5" width="2.5" height="2.5" rx="0.5" fill="#22c55e" />
+                      <rect x="16" y="12.5" width="2.5" height="2.5" rx="0.5" fill="#4ade80" />
+                      <rect x="19.5" y="12.5" width="2.5" height="2.5" rx="0.5" fill="#22c55e" />
+                      <rect x="2" y="16" width="2.5" height="2.5" rx="0.5" fill="#22c55e" />
+                      <rect x="5.5" y="16" width="2.5" height="2.5" rx="0.5" fill="#15803d" />
+                      <rect x="9" y="16" width="2.5" height="2.5" rx="0.5" fill="#22c55e" />
+                      <rect x="12.5" y="16" width="2.5" height="2.5" rx="0.5" fill="#166534" />
+                      <rect x="16" y="16" width="2.5" height="2.5" rx="0.5" fill="#22c55e" />
+                      <rect x="19.5" y="16" width="2.5" height="2.5" rx="0.5" fill="#15803d" />
+                      <rect x="2" y="19.5" width="2.5" height="2.5" rx="0.5" fill="#14532d" />
+                      <rect x="5.5" y="19.5" width="2.5" height="2.5" rx="0.5" fill="#166534" />
+                      <rect x="9" y="19.5" width="2.5" height="2.5" rx="0.5" fill="#15803d" />
+                      <rect x="12.5" y="19.5" width="2.5" height="2.5" rx="0.5" fill="#14532d" />
+                      <rect x="16" y="19.5" width="2.5" height="2.5" rx="0.5" fill="#166534" />
+                      <rect x="19.5" y="19.5" width="2.5" height="2.5" rx="0.5" fill="#14532d" />
+                    </svg>
+                  </td>
+                  <td valign="middle">
+                    <span style="font-family:'Caveat',cursive,'Segoe Print','Bradley Hand',sans-serif;font-size:28px;font-weight:700;color:#10b981;line-height:1;display:inline-block;letter-spacing:-0.5px;">Evergreeners</span>
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
 
@@ -824,6 +874,470 @@ export async function sendStreakReminderEmail(opts: {
         totalCommits: opts.totalCommits ?? 0,
         weeklyCommits: opts.weeklyCommits ?? 0,
     });
+}
+
+// ─── Programmer's Day (Day 256) Special Edition Email ────────────────────────
+export function generateGithub256GridHtml(): string {
+    const d2 = [
+        [1, 1, 1, 1],
+        [0, 0, 0, 1],
+        [0, 0, 0, 1],
+        [1, 1, 1, 1],
+        [1, 0, 0, 0],
+        [1, 0, 0, 0],
+        [1, 1, 1, 1],
+    ];
+    const d5 = [
+        [1, 1, 1, 1],
+        [1, 0, 0, 0],
+        [1, 0, 0, 0],
+        [1, 1, 1, 1],
+        [0, 0, 0, 1],
+        [0, 0, 0, 1],
+        [1, 1, 1, 1],
+    ];
+    const d6 = [
+        [1, 1, 1, 1],
+        [1, 0, 0, 0],
+        [1, 0, 0, 0],
+        [1, 1, 1, 1],
+        [1, 0, 0, 1],
+        [1, 0, 0, 1],
+        [1, 1, 1, 1],
+    ];
+
+    const totalCols = 24;
+    const grid: number[][] = Array.from({ length: 7 }, () => Array(totalCols).fill(0));
+
+    // Place 2, 5, 6 with exact 3-column spacing and symmetric flanks
+    for (let r = 0; r < 7; r++) {
+        for (let c = 0; c < 4; c++) {
+            if (d2[r][c]) grid[r][3 + c] = 4;
+            if (d5[r][c]) grid[r][10 + c] = 4;
+            if (d6[r][c]) grid[r][17 + c] = 4;
+        }
+    }
+
+    // Faint authentic background activity in the surrounding columns
+    const faintCoords: [number, number][] = [
+        [0, 0], [1, 1], [3, 0], [5, 1], [6, 0],
+        [0, 8], [2, 7], [4, 9], [6, 8],
+        [1, 14], [3, 15], [5, 16],
+        [0, 22], [2, 21], [3, 23], [5, 22], [6, 23]
+    ];
+    for (const [r, c] of faintCoords) {
+        if (grid[r][c] === 0) grid[r][c] = (r + c) % 2 === 0 ? 2 : 1;
+    }
+
+    const getCellColor = (val: number) => {
+        switch (val) {
+            case 4: return '#39d353'; // Vibrant neon emerald for "256"
+            case 2: return '#006d32'; // Medium green
+            case 1: return '#0e4429'; // Subtle green
+            default: return '#161b22'; // Dark GitHub empty cell
+        }
+    };
+
+    const getCellBorder = (val: number) => {
+        if (val === 4) return '1px solid rgba(255,255,255,0.25)';
+        if (val > 0) return '1px solid rgba(0,0,0,0.3)';
+        return '1px solid #21262d';
+    };
+
+    let rowsHtml = '';
+    for (let r = 0; r < 7; r++) {
+        const showLabel = r === 1 ? 'Mon' : r === 3 ? 'Wed' : r === 5 ? 'Fri' : '';
+        let cellsHtml = '';
+        for (let c = 0; c < totalCols; c++) {
+            const val = grid[r][c];
+            const color = getCellColor(val);
+            const border = getCellBorder(val);
+            const glow = val === 4 ? 'box-shadow:0 0 3px rgba(57,211,83,0.6);' : '';
+            cellsHtml += `
+              <td style="padding:1.5px 1.5px;">
+                <div style="width:10px;height:10px;min-width:10px;min-height:10px;background-color:${color};border:${border};border-radius:2px;${glow}font-size:0;line-height:0;">&nbsp;</div>
+              </td>`;
+        }
+
+        rowsHtml += `
+          <tr>
+            <td align="left" style="padding-right:8px;font-family:ui-monospace,'SF Mono','Fira Code',monospace;font-size:9px;color:#7d8590;line-height:1;width:24px;">
+              ${showLabel}
+            </td>
+            ${cellsHtml}
+          </tr>`;
+    }
+
+    return `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#0d1117;border:1px solid #30363d;border-radius:10px;overflow:hidden;margin:28px 0 24px;">
+        <!-- Card Header -->
+        <tr>
+          <td style="padding:14px 18px 10px;border-bottom:1px solid #21262d;background-color:#090d13;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td align="left">
+                  <span style="font-family:ui-monospace,'SF Mono','Fira Code',monospace;font-size:12px;font-weight:600;color:#58a6ff;">● git://evergreeners/day-256</span>
+                </td>
+                <td align="right">
+                  <span style="font-family:ui-monospace,'SF Mono','Fira Code',monospace;font-size:11px;font-weight:600;color:#7d8590;">2⁸ = 256 bytes · 0x100</span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Month Bar -->
+        <tr>
+          <td align="center" style="padding:14px 12px 0;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="width:24px;padding-right:8px;">&nbsp;</td>
+                <td align="left" style="font-family:ui-monospace,'SF Mono',monospace;font-size:9px;color:#7d8590;letter-spacing:0.05em;padding-bottom:6px;">
+                  <span style="display:inline-block;width:60px;">JAN</span>
+                  <span style="display:inline-block;width:60px;">MAR</span>
+                  <span style="display:inline-block;width:60px;">MAY</span>
+                  <span style="display:inline-block;width:60px;">JUL</span>
+                  <span style="color:#39d353;font-weight:700;">SEP 13 (DAY 256)</span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Heatmap Grid -->
+        <tr>
+          <td align="center" style="padding:4px 12px 14px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;">
+              ${rowsHtml}
+            </table>
+          </td>
+        </tr>
+
+        <!-- Card Footer / Legend -->
+        <tr>
+          <td style="padding:10px 18px 12px;border-top:1px solid #21262d;background-color:#090d13;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td align="left">
+                  <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                      <td style="font-family:ui-monospace,'SF Mono',monospace;font-size:10px;color:#7d8590;padding-right:5px;line-height:1;">Less</td>
+                      <td style="padding:1px;"><div style="width:9px;height:9px;border-radius:2px;background-color:#161b22;border:1px solid #21262d;font-size:0;line-height:0;">&nbsp;</div></td>
+                      <td style="padding:1px;"><div style="width:9px;height:9px;border-radius:2px;background-color:#0e4429;font-size:0;line-height:0;">&nbsp;</div></td>
+                      <td style="padding:1px;"><div style="width:9px;height:9px;border-radius:2px;background-color:#006d32;font-size:0;line-height:0;">&nbsp;</div></td>
+                      <td style="padding:1px;"><div style="width:9px;height:9px;border-radius:2px;background-color:#26a641;font-size:0;line-height:0;">&nbsp;</div></td>
+                      <td style="padding:1px;"><div style="width:9px;height:9px;border-radius:2px;background-color:#39d353;box-shadow:0 0 3px rgba(57,211,83,0.6);font-size:0;line-height:0;">&nbsp;</div></td>
+                      <td style="font-family:ui-monospace,'SF Mono',monospace;font-size:10px;color:#7d8590;padding-left:5px;line-height:1;">More</td>
+                    </tr>
+                  </table>
+                </td>
+                <td align="right">
+                  <span style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;font-weight:600;color:#39d353;">256 commits to the craft</span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>`;
+}
+
+export interface ProgrammersDayEmailOptions {
+    to: string;
+    name?: string;
+    username?: string;
+    streak?: number;
+    todayCommits?: number;
+    totalCommits?: number;
+    weeklyCommits?: number;
+    isGithubConnected?: boolean;
+}
+
+export function buildProgrammersDayHtml(opts: ProgrammersDayEmailOptions): string {
+    const { name, username, streak = 0, todayCommits = 0, totalCommits = 0 } = opts;
+    const displayName = name?.split(' ')[0] || username || 'there';
+    const committed = todayCommits > 0;
+    const gridHtml = generateGithub256GridHtml();
+
+    const divider = `
+      <tr>
+        <td style="padding:22px 0;">
+          <div style="height:1px;background-color:#e4e4e7;font-size:0;line-height:0;">&nbsp;</div>
+        </td>
+      </tr>`;
+
+    return `
+<!DOCTYPE html>
+<html lang="en" xmlns:v="urn:schemas-microsoft-com:vml">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="supported-color-schemes" content="light dark" />
+  <title>Happy Programmer's Day (Day 256)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 0; }
+    @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&display=swap');
+    @media (prefers-color-scheme: dark) {
+      body, .email-bg   { background-color: #09090b !important; }
+      .email-card       { background-color: #121214 !important; border-color: #27272a !important; }
+      .text-heading     { color: #fafafa !important; }
+      .text-body        { color: #a1a1aa !important; }
+      .text-body-dark   { color: #d4d4d8 !important; }
+      .text-muted       { color: #71717a !important; }
+      .divider          { background-color: #27272a !important; }
+      .stat-box         { background-color: #18181b !important; border-color: #27272a !important; }
+      .stat-label       { color: #71717a !important; }
+      .stat-unit        { color: #71717a !important; }
+      .footer-link      { color: #71717a !important; }
+      .footer-text      { color: #52525b !important; }
+    }
+  </style>
+</head>
+<body class="email-bg" style="margin:0;padding:0;background-color:#f4f4f5;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+    <tr>
+      <td class="email-bg" align="center" style="padding:40px 16px;background-color:#f4f4f5;">
+        <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;">
+
+          <!-- Logo with header Caveat font attached to Evergreeners text only -->
+          <tr>
+            <td style="padding-bottom:20px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td valign="middle" style="padding-right:10px;line-height:0;">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block;">
+                      <rect x="2" y="2" width="2.5" height="2.5" rx="0.5" fill="#14532d" />
+                      <rect x="5.5" y="2" width="2.5" height="2.5" rx="0.5" fill="#166534" />
+                      <rect x="9" y="2" width="2.5" height="2.5" rx="0.5" fill="#22c55e" />
+                      <rect x="12.5" y="2" width="2.5" height="2.5" rx="0.5" fill="#4ade80" />
+                      <rect x="16" y="2" width="2.5" height="2.5" rx="0.5" fill="#22c55e" />
+                      <rect x="19.5" y="2" width="2.5" height="2.5" rx="0.5" fill="#14532d" />
+
+                      <rect x="2" y="5.5" width="2.5" height="2.5" rx="0.5" fill="#166534" />
+                      <rect x="5.5" y="5.5" width="2.5" height="2.5" rx="0.5" fill="#4ade80" />
+                      <rect x="9" y="5.5" width="2.5" height="2.5" rx="0.5" fill="#86efac" />
+                      <rect x="12.5" y="5.5" width="2.5" height="2.5" rx="0.5" fill="#22c55e" />
+                      <rect x="16" y="5.5" width="2.5" height="2.5" rx="0.5" fill="#15803d" />
+                      <rect x="19.5" y="5.5" width="2.5" height="2.5" rx="0.5" fill="#166534" />
+
+                      <rect x="2" y="9" width="2.5" height="2.5" rx="0.5" fill="#22c55e" />
+                      <rect x="5.5" y="9" width="2.5" height="2.5" rx="0.5" fill="#86efac" />
+                      <rect x="9" y="9" width="2.5" height="2.5" rx="0.5" fill="#bbf7d0" />
+                      <rect x="12.5" y="9" width="2.5" height="2.5" rx="0.5" fill="#4ade80" />
+                      <rect x="16" y="9" width="2.5" height="2.5" rx="0.5" fill="#22c55e" />
+                      <rect x="19.5" y="9" width="2.5" height="2.5" rx="0.5" fill="#15803d" />
+
+                      <rect x="2" y="12.5" width="2.5" height="2.5" rx="0.5" fill="#4ade80" />
+                      <rect x="5.5" y="12.5" width="2.5" height="2.5" rx="0.5" fill="#22c55e" />
+                      <rect x="9" y="12.5" width="2.5" height="2.5" rx="0.5" fill="#4ade80" />
+                      <rect x="12.5" y="12.5" width="2.5" height="2.5" rx="0.5" fill="#22c55e" />
+                      <rect x="16" y="12.5" width="2.5" height="2.5" rx="0.5" fill="#4ade80" />
+                      <rect x="19.5" y="12.5" width="2.5" height="2.5" rx="0.5" fill="#22c55e" />
+
+                      <rect x="2" y="16" width="2.5" height="2.5" rx="0.5" fill="#22c55e" />
+                      <rect x="5.5" y="16" width="2.5" height="2.5" rx="0.5" fill="#15803d" />
+                      <rect x="9" y="16" width="2.5" height="2.5" rx="0.5" fill="#22c55e" />
+                      <rect x="12.5" y="16" width="2.5" height="2.5" rx="0.5" fill="#166534" />
+                      <rect x="16" y="16" width="2.5" height="2.5" rx="0.5" fill="#22c55e" />
+                      <rect x="19.5" y="16" width="2.5" height="2.5" rx="0.5" fill="#15803d" />
+
+                      <rect x="2" y="19.5" width="2.5" height="2.5" rx="0.5" fill="#14532d" />
+                      <rect x="5.5" y="19.5" width="2.5" height="2.5" rx="0.5" fill="#166534" />
+                      <rect x="9" y="19.5" width="2.5" height="2.5" rx="0.5" fill="#15803d" />
+                      <rect x="12.5" y="19.5" width="2.5" height="2.5" rx="0.5" fill="#14532d" />
+                      <rect x="16" y="19.5" width="2.5" height="2.5" rx="0.5" fill="#166534" />
+                      <rect x="19.5" y="19.5" width="2.5" height="2.5" rx="0.5" fill="#14532d" />
+                    </svg>
+                  </td>
+                  <td valign="middle">
+                    <span style="font-family:'Caveat',cursive,'Segoe Print','Bradley Hand',sans-serif;font-size:30px;font-weight:700;color:#10b981;line-height:1;display:inline-block;letter-spacing:-0.5px;">Evergreeners</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Main Card -->
+          <tr>
+            <td class="email-card" style="background-color:#ffffff;border:1px solid #e4e4e7;border-radius:12px;padding:36px 36px 32px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+
+                <!-- Badge Pill -->
+                <tr>
+                  <td style="padding-bottom:14px;">
+                    <span style="display:inline-block;padding:5px 12px;border-radius:20px;background-color:#ecfdf5;border:1px solid #a7f3d0;font-family:ui-monospace,'SF Mono','Fira Code',monospace;font-size:11px;font-weight:700;letter-spacing:0.08em;color:#059669;text-transform:uppercase;">
+                      Day 256 of the Year · 0x100 · 2⁸
+                    </span>
+                  </td>
+                </tr>
+
+                <!-- Heading -->
+                <tr>
+                  <td style="padding-bottom:8px;">
+                    <h1 class="text-heading" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',Helvetica,Arial,sans-serif;font-size:26px;font-weight:700;color:#09090b;letter-spacing:-0.5px;line-height:1.25;">
+                      Happy Programmer's Day, ${displayName}.
+                    </h1>
+                  </td>
+                </tr>
+
+                <!-- Subheading -->
+                <tr>
+                  <td style="padding-bottom:18px;">
+                    <p class="text-body-dark" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:16px;font-weight:500;color:#27272a;line-height:1.6;">
+                      Today is September 13th, the 256th day of the year. In our world, that number means everything.
+                    </p>
+                  </td>
+                </tr>
+
+                <!-- Heatmap Pixel Matrix Hero -->
+                <tr>
+                  <td>
+                    ${gridHtml}
+                  </td>
+                </tr>
+
+                <!-- Message Body -->
+                <tr>
+                  <td>
+                    <p class="text-body" style="margin:0 0 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;color:#52525b;line-height:1.75;">
+                      Outside of tech, 256 looks like just another date on the calendar. But to anyone who actually writes code, it is the number that shaped our entire world. It is two to the eighth power. It is the exact number of distinct values a single eight-bit byte can represent. It is the invisible boundary where integers overflow, where computer memory was born, and where every line of code we will ever ship has its roots.
+                    </p>
+
+                    <p class="text-body" style="margin:0 0 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;color:#52525b;line-height:1.75;">
+                      We wanted to send you this note right around our daily commit report time because building software is a very specific, stubborn kind of craft. Most people only ever get to see the polished UI, the demo, or the feature that works in production. They never see the late nights, the silent frustration of staring at an incomprehensible error trace, the twenty tabs open to random GitHub issues from five years ago, or that sudden, incredible rush when you finally track down the bug and every single test turns green.
+                    </p>
+
+                    <p class="text-body" style="margin:0 0 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;color:#52525b;line-height:1.75;">
+                      Most people do not understand how satisfying it is to look at your GitHub profile and see that clean, bright green square drop into place after a hard day of work. Writing code is not always smooth sailing. Some days you ship an entire system in one seamless flow, and other days you spend half your afternoon hunting down a missing bracket, an unhandled promise, or a misspelled environment variable. But every commit counts, and every problem you solve makes you a better engineer than you were yesterday.
+                    </p>
+
+                    <p class="text-body" style="margin:0 0 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;color:#52525b;line-height:1.75;">
+                      We built Evergreeners for people who respect that daily grind. Whether you pushed ten commits today, are debugging a personal side project, contributing to open source, or simply showing up to learn something new, this day belongs to you.
+                    </p>
+
+                    <p class="text-body" style="margin:0 0 20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;color:#52525b;line-height:1.75;">
+                      Take a couple of minutes today to look back at your history and appreciate just how much you have built and learned so far. Celebrate today, take pride in the craft, and go push something to GitHub to keep the green alive.
+                    </p>
+                  </td>
+                </tr>
+
+                ${divider}
+
+                <!-- User Stats Block -->
+                <tr>
+                  <td>
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <!-- Streak -->
+                        <td width="31%" class="stat-box" style="padding:16px 16px;background-color:#fafafa;border:1px solid #e4e4e7;border-radius:8px;">
+                          <p class="stat-label" style="margin:0 0 6px;font-family:ui-monospace,'SF Mono',monospace;font-size:10px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:#a1a1aa;">Current Streak</p>
+                          <p style="margin:0;font-family:ui-monospace,'SF Mono','Fira Code',monospace;font-size:26px;font-weight:700;line-height:1;color:${streak > 0 ? '#10b981' : '#a1a1aa'};">
+                            ${streak}<span class="stat-unit" style="font-size:12px;font-weight:400;color:#a1a1aa;margin-left:3px;">days</span>
+                          </p>
+                        </td>
+
+                        <td width="3%"></td>
+
+                        <!-- Today -->
+                        <td width="31%" class="stat-box" style="padding:16px 16px;background-color:#fafafa;border:1px solid #e4e4e7;border-radius:8px;">
+                          <p class="stat-label" style="margin:0 0 6px;font-family:ui-monospace,'SF Mono',monospace;font-size:10px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:#a1a1aa;">Today (Day 256)</p>
+                          <p style="margin:0;font-family:ui-monospace,'SF Mono','Fira Code',monospace;font-size:26px;font-weight:700;line-height:1;color:${committed ? '#10b981' : '#f59e0b'};">
+                            ${todayCommits}<span class="stat-unit" style="font-size:12px;font-weight:400;color:#a1a1aa;margin-left:3px;">commits</span>
+                          </p>
+                        </td>
+
+                        <td width="3%"></td>
+
+                        <!-- Total -->
+                        <td width="32%" class="stat-box" style="padding:16px 16px;background-color:#fafafa;border:1px solid #e4e4e7;border-radius:8px;">
+                          <p class="stat-label" style="margin:0 0 6px;font-family:ui-monospace,'SF Mono',monospace;font-size:10px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:#a1a1aa;">All-Time Commits</p>
+                          <p style="margin:0;font-family:ui-monospace,'SF Mono','Fira Code',monospace;font-size:26px;font-weight:700;line-height:1;color:#09090b;">
+                            ${totalCommits.toLocaleString()}
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+                ${divider}
+
+                <!-- CTAs -->
+                <tr>
+                  <td style="padding-bottom:12px;">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td style="background-color:#10b981;border-radius:7px;">
+                          <a href="${username ? `https://github.com/${username}` : `${APP_URL}/dashboard`}" style="display:inline-block;padding:12px 24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;color:#ffffff;text-decoration:none;letter-spacing:-0.1px;">
+                            ${committed ? 'View Your Commits on GitHub' : 'Push Your Day 256 Commit'}
+                          </a>
+                        </td>
+                        <td style="padding-left:18px;">
+                          <a href="${APP_URL}/dashboard" class="cta-secondary" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;font-weight:500;color:#71717a;text-decoration:none;">
+                            Open Dashboard &rarr;
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+                <!-- Signoff -->
+                <tr>
+                  <td style="padding-top:16px;">
+                    <p class="text-body" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;color:#71717a;line-height:1.6;">
+                      Happy Programmer's Day,<br />
+                      <strong style="color:#10b981;">The Evergreeners Team</strong>
+                    </p>
+                  </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding-top:24px;">
+              <p class="footer-text" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;color:#71717a;line-height:1.7;">
+                Sent with admiration for every developer on
+                <a href="${APP_URL}" class="footer-link" style="color:#71717a;text-decoration:underline;">evergreeners.dev</a>.
+                &nbsp;·&nbsp;
+                <a href="${APP_URL}/settings" class="footer-link" style="color:#71717a;text-decoration:underline;">Notification settings</a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+export async function sendProgrammersDayEmail(opts: ProgrammersDayEmailOptions) {
+    const { to } = opts;
+    const html = buildProgrammersDayHtml(opts);
+
+    try {
+        const result = await getResend().emails.send({
+            from: FROM_EMAIL,
+            to,
+            subject: "Happy Programmer's Day: Day 256 of 365",
+            html,
+        });
+        console.log(`Programmer's Day email sent to ${to}:`, result.data?.id);
+        return result;
+    } catch (err) {
+        console.error(`Failed to send Programmer's Day email to ${to}:`, err);
+        throw err;
+    }
 }
 
 // ─── Streak Broken Email ──────────────────────────────────────────────────────

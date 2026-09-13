@@ -2323,11 +2323,113 @@ if (process.env.NODE_ENV !== 'production') {
         }
     });
 
+    // Test Programmer's Day email (Day 256)
+    server.get('/api/dev/test-programmers-day', async (req, reply) => {
+        const query = req.query as {
+            to?: string;
+            name?: string;
+            streak?: string;
+            todayCommits?: string;
+        };
+
+        const targetEmail = query.to || 'muhammadadamualiyu33@gmail.com';
+
+        const { sendProgrammersDayEmail } = await import('./lib/email.js');
+
+        try {
+            const userRow = await db.select().from(schema.users)
+                .where(eq(schema.users.email, targetEmail)).limit(1);
+            const user = userRow[0];
+
+            const realStreak = user?.streak ?? 0;
+            const realToday = user?.todayCommits ?? 0;
+            const realTotal = user?.totalCommits ?? 0;
+            const realName = query.name || user?.name || user?.username || 'Dev';
+            const realUsername = user?.username || '';
+
+            const finalStreak = query.streak ? parseInt(query.streak) : realStreak;
+            const finalToday = query.todayCommits ? parseInt(query.todayCommits) : realToday;
+
+            const result = await sendProgrammersDayEmail({
+                to: targetEmail,
+                name: realName,
+                username: realUsername,
+                streak: finalStreak,
+                todayCommits: finalToday,
+                totalCommits: realTotal,
+                isGithubConnected: user?.isGithubConnected ?? false,
+            });
+
+            return {
+                success: true,
+                message: `Programmer's Day email sent to ${targetEmail}`,
+                resendId: (result as any)?.data?.id,
+                stats: {
+                    name: realName,
+                    username: realUsername,
+                    streak: finalStreak,
+                    todayCommits: finalToday,
+                    totalCommits: realTotal,
+                }
+            };
+        } catch (err: any) {
+            return reply.status(500).send({ success: false, error: err.message });
+        }
+    });
+
+    // Broadcast Programmer's Day email to all users with an account
+    server.post('/api/admin/broadcast-programmers-day', async (req, reply) => {
+        const { sendProgrammersDayEmail } = await import('./lib/email.js');
+        const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+        try {
+            const allUsers = await db.select().from(schema.users)
+                .where(isNotNull(schema.users.email));
+
+            let sent = 0;
+            let failed = 0;
+            const results: { email: string; success: boolean; resendId?: string; error?: string }[] = [];
+
+            for (const u of allUsers) {
+                if (!u.email) continue;
+                try {
+                    const res = await sendProgrammersDayEmail({
+                        to: u.email,
+                        name: u.name || u.username || 'Dev',
+                        username: u.username || '',
+                        streak: u.streak || 0,
+                        todayCommits: u.todayCommits || 0,
+                        totalCommits: u.totalCommits || 0,
+                        weeklyCommits: u.weeklyCommits || 0,
+                        isGithubConnected: u.isGithubConnected || false,
+                    });
+                    sent++;
+                    results.push({ email: u.email, success: true, resendId: (res as any)?.data?.id });
+                } catch (e: any) {
+                    failed++;
+                    results.push({ email: u.email, success: false, error: e.message });
+                }
+                await sleep(600);
+            }
+
+            return {
+                success: true,
+                message: `Broadcast complete. Sent: ${sent}, Failed: ${failed}`,
+                total: allUsers.length,
+                results,
+            };
+        } catch (err: any) {
+            return reply.status(500).send({ success: false, error: err.message });
+        }
+    });
+
     console.log('📧 Dev email test routes active:');
     console.log('   GET /api/dev/test-welcome?to=you@email.com');
     console.log('   GET /api/dev/test-streak?to=you@email.com             ← uses your real stats');
     console.log('   GET /api/dev/test-streak?to=you@email.com&committed=true  ← simulate committed day');
     console.log('   GET /api/dev/test-streak?to=you@email.com&committed=false ← simulate no commits');
+    console.log('   GET /api/dev/test-programmers-day?to=you@email.com   ← Day 256 special edition');
+    console.log('   POST /api/admin/broadcast-programmers-day            ← broadcast to all accounts');
 }
 
 // ── COMMUNITY ENDPOINTS ──

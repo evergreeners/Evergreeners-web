@@ -4,7 +4,7 @@ import { users, accounts, lessonProgress } from './db/schema.js';
 import { eq, and, lt, or, isNull, isNotNull, ne, sql } from 'drizzle-orm';
 import { getGithubContributions } from './lib/github.js';
 import { updateUserGoals } from './lib/goals.js';
-import { sendDailyDigestEmail, sendStreakBrokenEmail, sendAcademyNudgeEmail, type AcademyTimeLeft, type DailyAcademyInfo } from './lib/email.js';
+import { sendDailyDigestEmail, sendStreakBrokenEmail, sendAcademyNudgeEmail, sendProgrammersDayEmail, type AcademyTimeLeft, type DailyAcademyInfo } from './lib/email.js';
 import { createNotificationIfMissing } from './lib/notifications.js';
 
 const ACADEMY_LAUNCH_DATE = process.env.ACADEMY_LAUNCH_DATE || '2026-08-31T00:00:00Z';
@@ -97,19 +97,74 @@ export function setupCronJobs() {
         }
     });
 
-    // ── Daily digest at 7 PM ──────────────────────────────────────────────────
+let programmersDaySentDate: string | null = null;
+
+function isProgrammersDay(): boolean {
+    const now = new Date();
+    const utcMonth = now.getUTCMonth(); // 8 = September
+    const utcDate = now.getUTCDate();
+    const localMonth = now.getMonth();
+    const localDate = now.getDate();
+    const year = now.getFullYear();
+    const isLeap = (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
+    const targetDate = isLeap ? 12 : 13;
+
+    // Matches September 13th (Day 256) in either UTC or server local time
+    return (utcMonth === 8 && utcDate === targetDate) || (localMonth === 8 && localDate === targetDate);
+}
+
+    // ── Daily digest at 7 PM / 8 PM ───────────────────────────────────────────
     // Smart filtering rules:
-    //   1. Only send to users who explicitly opted in (emailNotifications = true)
-    //   2. Only send if user has streak >= 2 (they're actually doing streaks)
-    //   3. If a user's streak is 0 but they had one yesterday (just broke it),
-    //      send a one-time "streak broken" email, then disable their emails
-    //      so they're not spammed. They can re-enable in Settings.
-    cron.schedule('0 19 * * *', async () => {
+    //   1. On Day 256 (Programmer's Day), broadcast celebration email to EVERY user with an account!
+    //      Automatically reverts to regular streak-only digest tomorrow.
+    //   2. On ordinary days:
+    //      - Only send to users who explicitly opted in (emailNotifications = true)
+    //      - Only send if user has streak >= 2 (they're actually doing streaks)
+    //      - If a user's streak is 0 but they had one yesterday, send a one-time broken email
+    cron.schedule('0 19,20 * * *', async () => {
         console.log("Running daily digest emails...");
 
         const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
         try {
+            // ── Day 256 (Programmer's Day) Broadcast to ALL accounts ──────────
+            if (isProgrammersDay()) {
+                const todayKey = new Date().toISOString().split('T')[0];
+                if (programmersDaySentDate === todayKey) {
+                    console.log("Programmer's Day email already sent today, skipping duplicate run.");
+                    return;
+                }
+
+                console.log("Today is Programmer's Day (Day 256)! Sending celebration email to ALL accounts with us...");
+                const allAccounts = await db.select().from(users).where(isNotNull(users.email));
+                let sent = 0;
+                let failed = 0;
+
+                for (const u of allAccounts) {
+                    if (!u.email) continue;
+                    try {
+                        await sendProgrammersDayEmail({
+                            to: u.email,
+                            name: u.name || u.username || 'Dev',
+                            username: u.username || '',
+                            streak: u.streak || 0,
+                            todayCommits: u.todayCommits || 0,
+                            totalCommits: u.totalCommits || 0,
+                            weeklyCommits: u.weeklyCommits || 0,
+                            isGithubConnected: u.isGithubConnected || false,
+                        });
+                        sent++;
+                    } catch (err) {
+                        console.error(`Failed to send Programmer's Day email to ${u.email}:`, err);
+                        failed++;
+                    }
+                    await sleep(600);
+                }
+
+                console.log(`Programmer's Day broadcast complete. Sent: ${sent}, Failed: ${failed}`);
+                return;
+            }
+
             // Get all GitHub-connected users who opted in
             const usersToCheck = await db.select({ user: users, account: accounts })
                 .from(users)

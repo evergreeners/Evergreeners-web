@@ -52,6 +52,27 @@ http://localhost:3000/api/dev/test-streak?to=muhammadadamualiyu33@gmail.com&comm
 
 ---
 
+## Programmer's Day Special Edition (Day 256)
+
+Sends the special Programmer's Day edition email celebrating the 256th day of the year with the custom pixelated 256 GitHub contribution grid and Evergreeners branding.
+
+### Test sending to your personal email:
+```
+http://localhost:3000/api/dev/test-programmers-day?to=muhammadadamualiyu33@gmail.com
+```
+
+### Override stats manually:
+```
+http://localhost:3000/api/dev/test-programmers-day?to=muhammadadamualiyu33@gmail.com&streak=30&todayCommits=5
+```
+
+### Broadcast to all users with an account:
+```bash
+curl -X POST http://localhost:3000/api/admin/broadcast-programmers-day
+```
+
+---
+
 ## Query Params Reference
 
 | Param | Route | Description |
