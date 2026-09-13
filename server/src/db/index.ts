@@ -1,3 +1,8 @@
+import dns from 'dns';
+try {
+    dns.setDefaultResultOrder('ipv4first');
+} catch (_) {}
+
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import * as schema from './schema.js';
