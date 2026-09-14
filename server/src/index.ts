@@ -3014,6 +3014,121 @@ server.register(async (instance) => {
                 return reply.status(500).send({ success: false, error: err.message });
             }
         });
+
+        // POST /api/admin/broadcast/ai-assist: Generate or elevate email draft using Gemini 2.5 Flash
+        adminInstance.post<{
+            Body: {
+                mode: 'generate' | 'enhance';
+                instruction?: string;
+                currentDraft?: {
+                    subject?: string;
+                    headline?: string;
+                    previewText?: string;
+                    message?: string;
+                    buttonText?: string;
+                    buttonUrl?: string;
+                };
+                tone?: 'badass' | 'direct' | 'celebratory';
+            }
+        }>('/api/admin/broadcast/ai-assist', async (req, reply) => {
+            const apiKey = process.env.GEMINI_API_KEY;
+            if (!apiKey) {
+                return reply.status(500).send({ success: false, error: 'GEMINI_API_KEY is not configured on the server.' });
+            }
+
+            const { mode, instruction, currentDraft, tone } = req.body;
+
+            try {
+                const { GoogleGenerativeAI } = await import('@google/generative-ai');
+                const genAI = new GoogleGenerativeAI(apiKey);
+                const model = genAI.getGenerativeModel({
+                    model: 'gemini-2.5-flash',
+                    generationConfig: {
+                        responseMimeType: 'application/json',
+                    }
+                });
+
+                const toneInstruction = tone === 'direct'
+                    ? 'Direct, concise, technical, and respectful of developer time.'
+                    : tone === 'celebratory'
+                    ? 'Celebratory, empowering, recognizing hard work, community momentum, and achievements.'
+                    : 'Badass, commanding, articulate, high-end, inspiring. Emphasize discipline, unyielding consistency, craft, and compounding developer legacy.';
+
+                const prompt = `You are the lead communications strategist for Evergreeners (evergreeners.dev), an elite developer consistency platform where engineers track commits, build streaks, and forge an immutable record of their craft.
+
+TASK:
+${mode === 'enhance' 
+    ? `The admin has written a rough or brief email draft. Elevate and advance this writing. Improve the grammar, enrich the vocabulary with advanced yet clear and punchy English, and structure it into an impactful developer broadcast.
+CURRENT DRAFT:
+Subject: ${currentDraft?.subject || '(none)'}
+Headline: ${currentDraft?.headline || '(none)'}
+Message: ${currentDraft?.message || '(none)'}
+Button Text: ${currentDraft?.buttonText || 'Open Dashboard'}
+Button URL: ${currentDraft?.buttonUrl || 'https://evergreeners.dev/dashboard'}
+${instruction ? `Additional admin instruction: ${instruction}` : ''}`
+    : `The admin wants you to write a complete broadcast email based on this instruction:
+INSTRUCTION: "${instruction || 'Write an inspiring announcement to our developer community about keeping their consistency momentum strong.'}"
+${currentDraft?.message ? `Context from existing draft: ${currentDraft.message}` : ''}`
+}
+
+TONE AND STYLE:
+- ${toneInstruction}
+- Use advanced, refined English without sounding overly academic or pretentious.
+- Address the user with "{name}" where appropriate (e.g. "Hey {name}," or "Welcome {name},").
+- Separate paragraphs with double newlines in the message.
+- Keep the message between 2 and 4 well-crafted paragraphs.
+- Subject line must be punchy, compelling, and under 60 characters.
+
+CRITICAL NEGATIVE CONSTRAINTS (STRICTLY ENFORCED):
+- NEVER use em dashes (—) under any circumstances.
+- NEVER use en dashes (–) under any circumstances.
+- NEVER use double hyphens (--) under any circumstances.
+- Instead of dashes, use commas, colons, periods, or standard parenthetical formatting.
+- Do NOT sound like generic productivity app fluff (avoid "supercharge", "unleash", "level up your productivity hacks").
+
+OUTPUT FORMAT:
+Return valid JSON matching this exact schema:
+{
+  "subject": "string",
+  "headline": "string",
+  "previewText": "string",
+  "message": "string",
+  "buttonText": "string",
+  "buttonUrl": "string"
+}`;
+
+                const result = await model.generateContent(prompt);
+                const rawText = result.response.text();
+                
+                let parsed: any;
+                try {
+                    parsed = JSON.parse(rawText);
+                } catch {
+                    const cleanJson = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+                    parsed = JSON.parse(cleanJson);
+                }
+
+                const sanitize = (str?: string) => {
+                    if (!str) return str;
+                    return str.replace(/—/g, ': ').replace(/–/g, '-').replace(/--/g, '-');
+                };
+
+                return {
+                    success: true,
+                    draft: {
+                        subject: sanitize(parsed.subject) || 'Evergreeners Announcement',
+                        headline: sanitize(parsed.headline) || sanitize(parsed.subject) || 'Community Update',
+                        previewText: sanitize(parsed.previewText) || 'Important update from Evergreeners',
+                        message: sanitize(parsed.message) || '',
+                        buttonText: sanitize(parsed.buttonText) || 'Open Dashboard',
+                        buttonUrl: parsed.buttonUrl || 'https://evergreeners.dev/dashboard',
+                    }
+                };
+            } catch (err: any) {
+                console.error('AI broadcast assist error:', err);
+                return reply.status(500).send({ success: false, error: err.message || 'Failed to generate AI broadcast copy.' });
+            }
+        });
     });
 
     // GET /api/community/events
