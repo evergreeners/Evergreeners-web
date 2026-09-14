@@ -2915,7 +2915,17 @@ server.register(async (instance) => {
                     repoTag?: string;
                     subBadge?: string;
                     footerNote?: string;
+                    position?: 'top' | 'middle' | 'bottom';
                 };
+                customImage?: {
+                    enabled?: boolean;
+                    url?: string;
+                    alt?: string;
+                    caption?: string;
+                    linkUrl?: string;
+                    position?: 'top' | 'middle' | 'bottom';
+                };
+                blockOrder?: string[];
             }
         }>('/api/admin/broadcast/send', async (req, reply) => {
             const { sendCustomBroadcastEmail } = await import('./lib/email.js');
@@ -2996,6 +3006,8 @@ server.register(async (instance) => {
                             buttonText: body.buttonText,
                             buttonUrl: body.buttonUrl,
                             commitGrid: body.commitGrid,
+                            customImage: body.customImage,
+                            blockOrder: body.blockOrder,
                         });
                         sent++;
                         results.push({ email: recipient.email, success: true, resendId: (res as any)?.data?.id });
@@ -3041,7 +3053,17 @@ server.register(async (instance) => {
                         repoTag?: string;
                         subBadge?: string;
                         footerNote?: string;
+                        position?: 'top' | 'middle' | 'bottom';
                     };
+                    customImage?: {
+                        enabled?: boolean;
+                        url?: string;
+                        alt?: string;
+                        caption?: string;
+                        linkUrl?: string;
+                        position?: 'top' | 'middle' | 'bottom';
+                    };
+                    blockOrder?: string[];
                 };
                 tone?: 'badass' | 'direct' | 'celebratory';
             }
@@ -3146,6 +3168,7 @@ Return valid JSON matching this exact schema:
                     repoTag: sanitize(parsed.commitGrid.repoTag) || '● git://evergreeners/day-256',
                     subBadge: sanitize(parsed.commitGrid.subBadge) || 'consistency matrix',
                     footerNote: sanitize(parsed.commitGrid.footerNote) || '256 commits to the craft',
+                    position: currentDraft?.commitGrid?.position || 'bottom',
                 } : currentDraft?.commitGrid;
 
                 return {
@@ -3158,6 +3181,8 @@ Return valid JSON matching this exact schema:
                         buttonText: sanitize(parsed.buttonText) || 'Open Dashboard',
                         buttonUrl: parsed.buttonUrl || 'https://evergreeners.dev/dashboard',
                         commitGrid: resolvedCommitGrid,
+                        customImage: currentDraft?.customImage,
+                        blockOrder: currentDraft?.blockOrder,
                     }
                 };
             } catch (err: any) {
