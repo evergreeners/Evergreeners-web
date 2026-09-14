@@ -3,8 +3,19 @@ import { Header } from '@/components/Header';
 import { 
     Check, Star, Trash2, Award, 
     MessageSquare, Loader2, AlertCircle, ExternalLink, ShieldCheck,
-    BookOpen, GraduationCap, Plus, Save, X, Users, Inbox, Brain, Eye
+    BookOpen, GraduationCap, Plus, Save, X, Users, Inbox, Brain, Eye,
+    Mail, Send, CheckSquare, Square, Search, Sparkles, RefreshCw, AlertTriangle
 } from 'lucide-react';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { getApiUrl } from '@/lib/api-config';
 import { useSession } from '@/lib/auth-client';
 import { toast } from 'sonner';
@@ -80,7 +91,19 @@ interface AcademySummary {
     avgReviewScore: number;
 }
 
-type Tab = 'stories' | 'courses' | 'academy';
+export interface BroadcastUser {
+    id: string;
+    name: string | null;
+    username: string | null;
+    email: string;
+    image: string | null;
+    streak: number | null;
+    totalCommits: number | null;
+    createdAt: string;
+    role: string | null;
+}
+
+type Tab = 'stories' | 'courses' | 'academy' | 'broadcast';
 
 const EMPTY_LESSON: Lesson = {
     id: '', week: 1, weekTitle: '', title: '', duration: '', description: '', content: '', lab: '', sortOrder: 0,
@@ -114,6 +137,23 @@ export default function AdminDashboard() {
     const [waitlist, setWaitlist] = useState<WaitlistEntry[]>([]);
     const [reviews, setReviews] = useState<ReviewRow[]>([]);
     const [academyLoading, setAcademyLoading] = useState(false);
+
+    // Broadcast Emails state
+    const [broadcastUsers, setBroadcastUsers] = useState<BroadcastUser[]>([]);
+    const [broadcastUsersLoading, setBroadcastUsersLoading] = useState(false);
+    const [broadcastTarget, setBroadcastTarget] = useState<'all' | 'selected' | 'test'>('all');
+    const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+    const [userSearchQuery, setUserSearchQuery] = useState('');
+    const [broadcastSubject, setBroadcastSubject] = useState('');
+    const [broadcastHeadline, setBroadcastHeadline] = useState('');
+    const [broadcastPreviewText, setBroadcastPreviewText] = useState('');
+    const [broadcastMessage, setBroadcastMessage] = useState('');
+    const [broadcastButtonText, setBroadcastButtonText] = useState('Open Dashboard');
+    const [broadcastButtonUrl, setBroadcastButtonUrl] = useState('https://evergreeners.dev/dashboard');
+    const [testEmail, setTestEmail] = useState('muhammadadamualiyu33@gmail.com');
+    const [broadcastSending, setBroadcastSending] = useState(false);
+    const [broadcastConfirmOpen, setBroadcastConfirmOpen] = useState(false);
+    const [broadcastResult, setBroadcastResult] = useState<{ sent: number; failed: number; message: string } | null>(null);
 
     const authHeaders = (): Record<string, string> => {
         const headers: Record<string, string> = {};
@@ -191,6 +231,95 @@ export default function AdminDashboard() {
         }
     };
 
+    const fetchBroadcastUsers = async () => {
+        setBroadcastUsersLoading(true);
+        try {
+            const res = await fetch(getApiUrl('/api/admin/broadcast/users'), {
+                headers: authHeaders(),
+                credentials: 'include'
+            });
+            const data = await res.json();
+            if (data.success) {
+                setBroadcastUsers(data.users || []);
+            } else {
+                throw new Error(data.error || 'Failed to fetch users');
+            }
+        } catch (err: any) {
+            console.error('Failed to load broadcast users:', err);
+            toast.error('Failed to load users for email broadcast');
+        } finally {
+            setBroadcastUsersLoading(false);
+        }
+    };
+
+    const executeSendBroadcast = async (targetOverride?: 'test') => {
+        const target = targetOverride || broadcastTarget;
+
+        if (!broadcastSubject.trim()) {
+            toast.error('Subject line is required');
+            return;
+        }
+        if (!broadcastMessage.trim()) {
+            toast.error('Email message body is required');
+            return;
+        }
+        if (target === 'test' && !testEmail.trim()) {
+            toast.error('Test recipient email is required');
+            return;
+        }
+        if (target === 'selected' && selectedUserIds.length === 0) {
+            toast.error('Please select at least one recipient');
+            return;
+        }
+
+        setBroadcastSending(true);
+        setBroadcastConfirmOpen(false);
+
+        try {
+            const res = await fetch(getApiUrl('/api/admin/broadcast/send'), {
+                method: 'POST',
+                headers: {
+                    ...authHeaders(),
+                    'Content-Type': 'application/json'
+                },
+                credentials: 'include',
+                body: JSON.stringify({
+                    target,
+                    subject: broadcastSubject.trim(),
+                    headline: broadcastHeadline.trim() || undefined,
+                    previewText: broadcastPreviewText.trim() || undefined,
+                    message: broadcastMessage.trim(),
+                    buttonText: broadcastButtonText.trim() || undefined,
+                    buttonUrl: broadcastButtonUrl.trim() || undefined,
+                    selectedUserIds: target === 'selected' ? selectedUserIds : undefined,
+                    testEmail: target === 'test' ? testEmail.trim() : undefined,
+                })
+            });
+
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                throw new Error(data.error || 'Broadcast failed');
+            }
+
+            setBroadcastResult({
+                sent: data.sent,
+                failed: data.failed,
+                message: data.message,
+            });
+
+            if (target === 'test') {
+                toast.success(`Test email successfully delivered to ${testEmail}`);
+            } else {
+                toast.success(`Broadcast sent: ${data.sent} delivered, ${data.failed} failed`);
+            }
+        } catch (err: any) {
+            console.error('Broadcast send error:', err);
+            toast.error(err.message || 'Failed to send broadcast');
+        } finally {
+            setBroadcastSending(false);
+        }
+    };
+
     useEffect(() => {
         if (!authLoading) fetchStories();
     }, [authLoading]);
@@ -198,6 +327,7 @@ export default function AdminDashboard() {
     useEffect(() => {
         if (isAdmin && tab === 'courses') fetchLessons();
         if (isAdmin && tab === 'academy') fetchAcademy();
+        if (isAdmin && tab === 'broadcast') fetchBroadcastUsers();
     }, [isAdmin, tab]);
 
     const handleAction = async (id: number, action: 'approve' | 'toggle-featured' | 'toggle-hero' | 'delete') => {
@@ -373,6 +503,10 @@ export default function AdminDashboard() {
                     <button className={`admin-tab ${tab === 'academy' ? 'active' : ''}`} onClick={() => setTab('academy')}>
                         <GraduationCap size={14} className="inline mr-1.5 align-[-2px]" />
                         Academy
+                    </button>
+                    <button className={`admin-tab ${tab === 'broadcast' ? 'active' : ''}`} onClick={() => setTab('broadcast')}>
+                        <Mail size={14} className="inline mr-1.5 align-[-2px]" />
+                        Broadcast Emails
                     </button>
                 </div>
 
@@ -813,7 +947,7 @@ export default function AdminDashboard() {
                                                     </td>
                                                     <td>
                                                         <div className="max-w-md truncate text-muted-foreground text-sm">
-                                                            {review.summary || '—'}
+                                                            {review.summary || '-'}
                                                         </div>
                                                     </td>
                                                     <td className="text-sm text-muted-foreground">{new Date(review.checkedAt).toLocaleDateString()}</td>
@@ -830,6 +964,566 @@ export default function AdminDashboard() {
                                 </div>
                             </>
                         )}
+                    </div>
+                )}
+
+                {tab === 'broadcast' && (
+                    <div className="space-y-6">
+                        {/* Section Header */}
+                        <div className="admin-section-header">
+                            <div>
+                                <h2 className="admin-section-title">
+                                    <Mail size={20} className="inline mr-2 align-[-3px] text-primary" />
+                                    Broadcast Emails
+                                </h2>
+                                <p className="admin-section-sub">
+                                    Dispatch announcements, holiday editions, and customized communications directly to user inboxes.
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    className="admin-btn admin-btn--secondary text-xs flex items-center gap-1.5"
+                                    onClick={() => fetchBroadcastUsers()}
+                                    disabled={broadcastUsersLoading}
+                                >
+                                    <RefreshCw size={14} className={broadcastUsersLoading ? 'animate-spin' : ''} />
+                                    Refresh Users ({broadcastUsers.length})
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Stats Row */}
+                        <div className="admin-stats">
+                            <div className="admin-stat-card">
+                                <div className="admin-stat-label">Registered With Email</div>
+                                <div className="admin-stat-value">{broadcastUsers.length}</div>
+                            </div>
+                            <div className="admin-stat-card">
+                                <div className="admin-stat-label">Selected Recipients</div>
+                                <div className="admin-stat-value text-primary">
+                                    {broadcastTarget === 'test' ? '1 (Test)' : broadcastTarget === 'selected' ? selectedUserIds.length : broadcastUsers.length}
+                                </div>
+                            </div>
+                            <div className="admin-stat-card">
+                                <div className="admin-stat-label">Dispatch Mode</div>
+                                <div className="admin-stat-value text-sm font-semibold uppercase tracking-wider text-muted-foreground mt-1">
+                                    {broadcastTarget === 'all' ? 'All Users' : broadcastTarget === 'selected' ? 'Selected Users' : 'Test Send'}
+                                </div>
+                            </div>
+                        </div>
+
+                        {broadcastResult && (
+                            <div className="p-4 rounded-xl border border-primary/30 bg-primary/10 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary">
+                                        <Check size={16} />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-semibold text-white">Latest Dispatch Status</p>
+                                        <p className="text-xs text-muted-foreground">{broadcastResult.message}</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setBroadcastResult(null)}
+                                    className="text-xs text-muted-foreground hover:text-white"
+                                >
+                                    <X size={16} />
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Main Grid: Composer on Left, Live Preview on Right */}
+                        <div className="broadcast-grid">
+                            {/* Left: Email Composer */}
+                            <div className="broadcast-card space-y-6">
+                                {/* Target Audience Selector */}
+                                <div>
+                                    <label className="admin-label mb-2 block font-semibold text-white text-xs uppercase tracking-wider">
+                                        Target Audience
+                                    </label>
+                                    <div className="broadcast-target-group">
+                                        <button
+                                            type="button"
+                                            className={`broadcast-target-btn ${broadcastTarget === 'all' ? 'active' : ''}`}
+                                            onClick={() => setBroadcastTarget('all')}
+                                        >
+                                            <Users size={16} />
+                                            All Users ({broadcastUsers.length})
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className={`broadcast-target-btn ${broadcastTarget === 'selected' ? 'active' : ''}`}
+                                            onClick={() => setBroadcastTarget('selected')}
+                                        >
+                                            <CheckSquare size={16} />
+                                            Selected Users ({selectedUserIds.length})
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className={`broadcast-target-btn ${broadcastTarget === 'test' ? 'active' : ''}`}
+                                            onClick={() => setBroadcastTarget('test')}
+                                        >
+                                            <Send size={16} />
+                                            Test Send Only
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Test Email Input */}
+                                {broadcastTarget === 'test' && (
+                                    <div className="p-4 rounded-xl border border-primary/20 bg-primary/5 space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <label className="text-xs font-semibold text-primary uppercase tracking-wider">
+                                                Test Email Recipient
+                                            </label>
+                                            <span className="text-[11px] text-muted-foreground">Safe test inbox</span>
+                                        </div>
+                                        <input
+                                            type="email"
+                                            className="admin-input"
+                                            placeholder="you@email.com"
+                                            value={testEmail}
+                                            onChange={(e) => setTestEmail(e.target.value)}
+                                        />
+                                    </div>
+                                )}
+
+                                {/* Selected Users Roster & Filter */}
+                                {broadcastTarget === 'selected' && (
+                                    <div className="space-y-3 p-4 rounded-xl border border-white/10 bg-black/40">
+                                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                                            <div className="relative w-full sm:w-64">
+                                                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                                                <input
+                                                    type="text"
+                                                    className="admin-input !pl-9 !py-1.5 !text-xs"
+                                                    placeholder="Filter users by name or email..."
+                                                    value={userSearchQuery}
+                                                    onChange={(e) => setUserSearchQuery(e.target.value)}
+                                                />
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    className="text-xs text-primary hover:underline font-medium"
+                                                    onClick={() => {
+                                                        const matchingIds = broadcastUsers
+                                                            .filter(u => {
+                                                                if (!userSearchQuery.trim()) return true;
+                                                                const q = userSearchQuery.toLowerCase();
+                                                                return (
+                                                                    (u.name && u.name.toLowerCase().includes(q)) ||
+                                                                    (u.username && u.username.toLowerCase().includes(q)) ||
+                                                                    (u.email && u.email.toLowerCase().includes(q))
+                                                                );
+                                                            })
+                                                            .map(u => u.id);
+                                                        
+                                                        const allSelected = matchingIds.every(id => selectedUserIds.includes(id));
+                                                        if (allSelected) {
+                                                            setSelectedUserIds(prev => prev.filter(id => !matchingIds.includes(id)));
+                                                        } else {
+                                                            setSelectedUserIds(prev => Array.from(new Set([...prev, ...matchingIds])));
+                                                        }
+                                                    }}
+                                                >
+                                                    Toggle All Filtered
+                                                </button>
+                                                <span className="text-xs text-muted-foreground">
+                                                    ({selectedUserIds.length} chosen)
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div className="broadcast-user-table-scroll">
+                                            <table className="admin-table !text-xs">
+                                                <thead>
+                                                    <tr>
+                                                        <th className="w-8"></th>
+                                                        <th>User</th>
+                                                        <th>Email</th>
+                                                        <th>Streak</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {broadcastUsers
+                                                        .filter(u => {
+                                                            if (!userSearchQuery.trim()) return true;
+                                                            const q = userSearchQuery.toLowerCase();
+                                                            return (
+                                                                (u.name && u.name.toLowerCase().includes(q)) ||
+                                                                (u.username && u.username.toLowerCase().includes(q)) ||
+                                                                (u.email && u.email.toLowerCase().includes(q))
+                                                            );
+                                                        })
+                                                        .map(u => {
+                                                            const isChecked = selectedUserIds.includes(u.id);
+                                                            return (
+                                                                <tr
+                                                                    key={u.id}
+                                                                    className={`cursor-pointer transition-colors ${isChecked ? 'bg-primary/5' : 'hover:bg-white/[0.02]'}`}
+                                                                    onClick={() => {
+                                                                        setSelectedUserIds(prev =>
+                                                                            isChecked ? prev.filter(id => id !== u.id) : [...prev, u.id]
+                                                                        );
+                                                                    }}
+                                                                >
+                                                                    <td>
+                                                                        {isChecked ? (
+                                                                            <CheckSquare size={16} className="text-primary" />
+                                                                        ) : (
+                                                                            <Square size={16} className="text-muted-foreground" />
+                                                                        )}
+                                                                    </td>
+                                                                    <td>
+                                                                        <div className="font-semibold text-foreground">
+                                                                            {u.name || u.username || 'Anonymous'}
+                                                                        </div>
+                                                                        {u.username && (
+                                                                            <div className="text-[10px] text-muted-foreground">@{u.username}</div>
+                                                                        )}
+                                                                    </td>
+                                                                    <td className="text-muted-foreground">{u.email}</td>
+                                                                    <td>
+                                                                        <span className="text-primary font-mono">{u.streak || 0}d</span>
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Quick Templates */}
+                                <div>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <label className="admin-label block font-semibold text-white text-xs uppercase tracking-wider">
+                                            Quick Templates
+                                        </label>
+                                        <span className="text-[11px] text-muted-foreground">Click to populate</span>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        <button
+                                            type="button"
+                                            className="broadcast-template-pill"
+                                            onClick={() => {
+                                                setBroadcastSubject('Important Community Update');
+                                                setBroadcastHeadline('A Special Update From Evergreeners');
+                                                setBroadcastPreviewText('Exciting improvements have arrived at your garden');
+                                                setBroadcastMessage('Hey {name},\n\nWe wanted to share an exciting milestone with everyone building with Evergreeners.\n\nOver recent weeks, consistency across our developer community has reached record highs. Every line of code, every committed feature, and every preserved streak is proof of compounding momentum.\n\nKeep showing up every day. Your consistency is building an enduring legacy.');
+                                                setBroadcastButtonText('Visit Your Garden');
+                                                setBroadcastButtonUrl('https://evergreeners.dev/dashboard');
+                                            }}
+                                        >
+                                            Feature Update
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="broadcast-template-pill"
+                                            onClick={() => {
+                                                setBroadcastSubject("Happy Programmer's Day: Day 256 of 365");
+                                                setBroadcastHeadline('Honoring the Craft on Day 256');
+                                                setBroadcastPreviewText('Celebrating the builders writing the future');
+                                                setBroadcastMessage('Hey {name},\n\nToday is Programmer\'s Day: the 256th day of the year.\n\nTo every developer debugging through the night, writing clean code, and showing up with relentless discipline: today belongs to you.\n\nKeep committing. Keep growing your legacy.');
+                                                setBroadcastButtonText('View Your Heatmap');
+                                                setBroadcastButtonUrl('https://evergreeners.dev/dashboard');
+                                            }}
+                                        >
+                                            Programmer's Day
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="broadcast-template-pill"
+                                            onClick={() => {
+                                                setBroadcastSubject('Protect your streak today');
+                                                setBroadcastHeadline('Momentum is your greatest asset');
+                                                setBroadcastPreviewText("Don't let your green square slip away");
+                                                setBroadcastMessage('Hey {name},\n\nA quick check-in: every commit builds compounding evidence of your discipline. Do not let today\'s streak reset.\n\nShip a commit, push your work, and protect your digital reputation.');
+                                                setBroadcastButtonText('Check Today\'s Status');
+                                                setBroadcastButtonUrl('https://evergreeners.dev/dashboard');
+                                            }}
+                                        >
+                                            Streak Motivation
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Subject Line */}
+                                <div>
+                                    <div className="flex items-center justify-between mb-1">
+                                        <label className="admin-label font-semibold text-white text-xs uppercase tracking-wider">
+                                            Email Subject Line *
+                                        </label>
+                                        <span className="text-[11px] text-muted-foreground">{broadcastSubject.length}/80</span>
+                                    </div>
+                                    <input
+                                        type="text"
+                                        className="admin-input"
+                                        placeholder="e.g. A Special Announcement for Evergreeners"
+                                        value={broadcastSubject}
+                                        onChange={(e) => setBroadcastSubject(e.target.value)}
+                                        required
+                                    />
+                                </div>
+
+                                {/* Card Headline & Preheader */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="admin-label mb-1 block font-semibold text-white text-xs uppercase tracking-wider">
+                                            Card Headline
+                                        </label>
+                                        <input
+                                            type="text"
+                                            className="admin-input"
+                                            placeholder="Defaults to subject line"
+                                            value={broadcastHeadline}
+                                            onChange={(e) => setBroadcastHeadline(e.target.value)}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="admin-label mb-1 block font-semibold text-white text-xs uppercase tracking-wider">
+                                            Inbox Preview Text
+                                        </label>
+                                        <input
+                                            type="text"
+                                            className="admin-input"
+                                            placeholder="Snippet displayed in inbox preview"
+                                            value={broadcastPreviewText}
+                                            onChange={(e) => setBroadcastPreviewText(e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Message Body */}
+                                <div>
+                                    <div className="flex items-center justify-between mb-1">
+                                        <label className="admin-label font-semibold text-white text-xs uppercase tracking-wider">
+                                            Email Message Body *
+                                        </label>
+                                        <button
+                                            type="button"
+                                            className="text-xs text-primary hover:underline font-medium"
+                                            onClick={() => {
+                                                setBroadcastMessage(prev => prev + ' {name}');
+                                            }}
+                                        >
+                                            + Insert {'{name}'}
+                                        </button>
+                                    </div>
+                                    <textarea
+                                        className="admin-input admin-textarea !min-h-[160px]"
+                                        placeholder="Write your email content here. Separate paragraphs with a blank line..."
+                                        value={broadcastMessage}
+                                        onChange={(e) => setBroadcastMessage(e.target.value)}
+                                        rows={6}
+                                        required
+                                    />
+                                    <p className="text-[11px] text-muted-foreground mt-1">
+                                        Blank lines create separate paragraphs. {'{name}'} will be replaced with each user's first name.
+                                    </p>
+                                </div>
+
+                                {/* Call to Action Button */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-xl border border-white/5 bg-black/30">
+                                    <div>
+                                        <label className="admin-label mb-1 block font-semibold text-white text-xs uppercase tracking-wider">
+                                            Button Label (Optional)
+                                        </label>
+                                        <input
+                                            type="text"
+                                            className="admin-input"
+                                            placeholder="e.g. Open Dashboard"
+                                            value={broadcastButtonText}
+                                            onChange={(e) => setBroadcastButtonText(e.target.value)}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="admin-label mb-1 block font-semibold text-white text-xs uppercase tracking-wider">
+                                            Button URL
+                                        </label>
+                                        <input
+                                            type="text"
+                                            className="admin-input"
+                                            placeholder="https://evergreeners.dev/..."
+                                            value={broadcastButtonUrl}
+                                            onChange={(e) => setBroadcastButtonUrl(e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Action Buttons */}
+                                <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-white/10">
+                                    <button
+                                        type="button"
+                                        className="admin-btn admin-btn--secondary flex items-center gap-2"
+                                        disabled={broadcastSending}
+                                        onClick={() => executeSendBroadcast('test')}
+                                    >
+                                        <Send size={15} />
+                                        Send Test Email To Me
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        className="admin-btn admin-btn--approve flex items-center gap-2 !px-6 !py-2.5 font-bold"
+                                        disabled={broadcastSending}
+                                        onClick={() => {
+                                            if (!broadcastSubject.trim()) {
+                                                toast.error('Subject line is required');
+                                                return;
+                                            }
+                                            if (!broadcastMessage.trim()) {
+                                                toast.error('Email message body is required');
+                                                return;
+                                            }
+                                            if (broadcastTarget === 'selected' && selectedUserIds.length === 0) {
+                                                toast.error('Please select at least one recipient');
+                                                return;
+                                            }
+                                            if (broadcastTarget === 'test') {
+                                                executeSendBroadcast('test');
+                                            } else {
+                                                setBroadcastConfirmOpen(true);
+                                            }
+                                        }}
+                                    >
+                                        {broadcastSending ? (
+                                            <>
+                                                <Loader2 size={16} className="animate-spin" />
+                                                Sending Broadcast...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Mail size={16} />
+                                                Send Broadcast (
+                                                {broadcastTarget === 'all'
+                                                    ? `${broadcastUsers.length} Users`
+                                                    : broadcastTarget === 'selected'
+                                                    ? `${selectedUserIds.length} Users`
+                                                    : '1 Test'}
+                                                )
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Right: Live Preview */}
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="font-semibold text-white text-sm uppercase tracking-wider flex items-center gap-2">
+                                        <Sparkles size={16} className="text-primary" />
+                                        Live Inbox Preview
+                                    </h3>
+                                    <span className="text-xs text-muted-foreground font-mono">
+                                        560px Desktop Container
+                                    </span>
+                                </div>
+
+                                <div className="broadcast-preview-container">
+                                    {/* Simulated Email Client Envelope */}
+                                    <div className="pb-4 mb-4 border-b border-white/10 text-xs text-muted-foreground space-y-1 font-mono">
+                                        <div><span className="text-white">From:</span> Evergreeners &lt;noreply@evergreeners.dev&gt;</div>
+                                        <div><span className="text-white">To:</span> {broadcastTarget === 'test' ? testEmail : 'user@example.com'}</div>
+                                        <div><span className="text-white">Subject:</span> {broadcastSubject || '(No subject provided)'}</div>
+                                        {broadcastPreviewText && (
+                                            <div className="text-[11px] text-gray-500 truncate">
+                                                <span className="text-gray-400">Preheader:</span> {broadcastPreviewText}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Email Card Shell */}
+                                    <div className="broadcast-preview-card">
+                                        {/* Branded Logo Header */}
+                                        <div className="flex items-center gap-2.5 pb-5 mb-5 border-b border-white/10">
+                                            <span className="font-handwritten text-2xl text-primary">
+                                                Evergreeners
+                                            </span>
+                                        </div>
+
+                                        {/* Headline */}
+                                        <h3 className="text-xl font-bold text-white mb-4 tracking-tight">
+                                            {(broadcastHeadline || broadcastSubject || 'Your Headline Here').replace(/\{name\}/gi, 'Alex')}
+                                        </h3>
+
+                                        {/* Body */}
+                                        <div className="text-sm text-gray-300 leading-relaxed space-y-3">
+                                            {broadcastMessage ? (
+                                                broadcastMessage
+                                                    .replace(/\{name\}/gi, 'Alex')
+                                                    .split(/\n\s*\n/)
+                                                    .map((paragraph, idx) => (
+                                                        <p key={idx}>{paragraph}</p>
+                                                    ))
+                                            ) : (
+                                                <p className="text-muted-foreground italic">
+                                                    Start typing your email message on the left to see the live rendered preview here...
+                                                </p>
+                                            )}
+                                        </div>
+
+                                        {/* Optional Action Button */}
+                                        {broadcastButtonText && (
+                                            <div className="pt-6">
+                                                <div className="inline-block px-6 py-2.5 bg-primary text-black font-semibold text-sm rounded-lg shadow-md">
+                                                    {broadcastButtonText}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Footer */}
+                                    <div className="pt-5 text-[11px] text-muted-foreground leading-relaxed">
+                                        You are receiving this because you have an account on evergreeners.dev.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Confirmation AlertDialog */}
+                        <AlertDialog open={broadcastConfirmOpen} onOpenChange={setBroadcastConfirmOpen}>
+                            <AlertDialogContent className="bg-black/95 border border-primary/20 text-white">
+                                <AlertDialogHeader>
+                                    <div className="flex items-center gap-2 text-yellow-400 mb-1">
+                                        <AlertTriangle size={20} />
+                                        <AlertDialogTitle className="text-white">
+                                            Confirm Broadcast Email
+                                        </AlertDialogTitle>
+                                    </div>
+                                    <AlertDialogDescription className="text-gray-300 space-y-3">
+                                        <p>
+                                            You are about to dispatch a live email broadcast to{' '}
+                                            <strong className="text-primary font-bold">
+                                                {broadcastTarget === 'all'
+                                                    ? `${broadcastUsers.length} users`
+                                                    : `${selectedUserIds.length} selected users`}
+                                            </strong>.
+                                        </p>
+                                        <div className="p-3 bg-white/5 rounded-lg text-xs space-y-1 font-mono text-gray-200">
+                                            <div><strong>Subject:</strong> {broadcastSubject}</div>
+                                            <div><strong>Audience:</strong> {broadcastTarget === 'all' ? 'All Registered Users' : `${selectedUserIds.length} Selected Users`}</div>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground">
+                                            Emails will be queued and sent via Resend. Make sure all wording and links are accurate before confirming.
+                                        </p>
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel className="bg-white/10 text-white hover:bg-white/20 border-white/10">
+                                        Cancel
+                                    </AlertDialogCancel>
+                                    <AlertDialogAction
+                                        className="bg-primary text-black hover:bg-primary/90 font-bold"
+                                        onClick={() => executeSendBroadcast()}
+                                    >
+                                        Confirm and Send Now
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
                     </div>
                 )}
             </div>
