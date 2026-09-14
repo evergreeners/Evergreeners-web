@@ -578,12 +578,16 @@
 
 /* AI Broadcast Copilot Console */
 .admin-ai-copilot {
-    background: #0c0c0e;
-    border: 1px solid #27272a;
-    border-left: 3px solid #10b981;
-    border-radius: 8px;
+    background: #09090b;
+    border: 1px solid #1f1f23;
+    border-radius: 10px;
     padding: 18px 20px;
     margin-bottom: 24px;
+    transition: border-color 0.2s ease;
+}
+
+.admin-ai-copilot:hover {
+    border-color: #27272a;
 }
 
 .admin-ai-copilot-header {
@@ -827,4 +831,166 @@
 .broadcast-user-table-scroll::-webkit-scrollbar-thumb {
     background: #27272a;
     border-radius: 3px;
+}
+
+/* Pixelated Commit Grid Card Styles */
+.commit-grid-card {
+    background-color: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 20px 0;
+}
+
+.commit-grid-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid #21262d;
+    background-color: #090d13;
+}
+
+.commit-grid-repo-tag {
+    font-family: ui-monospace, 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #58a6ff;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.commit-grid-sub-badge {
+    font-family: ui-monospace, 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #7d8590;
+}
+
+.commit-grid-body {
+    padding: 14px 16px 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow-x: auto;
+}
+
+.commit-grid-month-bar {
+    width: 100%;
+    display: flex;
+    font-family: ui-monospace, 'SF Mono', monospace;
+    font-size: 0.65rem;
+    color: #7d8590;
+    letter-spacing: 0.05em;
+    padding-left: 28px;
+    margin-bottom: 6px;
+    gap: 36px;
+}
+
+.commit-grid-month-active {
+    color: #39d353;
+    font-weight: 700;
+}
+
+.commit-grid-table {
+    border-collapse: separate;
+    border-spacing: 3px;
+}
+
+.commit-grid-day-label {
+    font-family: ui-monospace, 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.62rem;
+    color: #7d8590;
+    padding-right: 6px;
+    width: 24px;
+    text-align: left;
+    line-height: 1;
+}
+
+.commit-grid-cell {
+    width: 10px;
+    height: 10px;
+    min-width: 10px;
+    min-height: 10px;
+    border-radius: 2px;
+}
+
+.commit-grid-cell.level-0 {
+    background-color: #161b22;
+    border: 1px solid #21262d;
+}
+
+.commit-grid-cell.level-1 {
+    background-color: #0e4429;
+    border: 1px solid rgba(0, 0, 0, 0.3);
+}
+
+.commit-grid-cell.level-2 {
+    background-color: #006d32;
+    border: 1px solid rgba(0, 0, 0, 0.3);
+}
+
+.commit-grid-cell.level-3 {
+    background-color: #26a641;
+    border: 1px solid rgba(0, 0, 0, 0.3);
+}
+
+.commit-grid-cell.level-4 {
+    background-color: #39d353;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    box-shadow: 0 0 3px rgba(57, 211, 83, 0.6);
+}
+
+.commit-grid-card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 16px 12px;
+    border-top: 1px solid #21262d;
+    background-color: #090d13;
+}
+
+.commit-grid-legend {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-family: ui-monospace, 'SF Mono', monospace;
+    font-size: 0.68rem;
+    color: #7d8590;
+}
+
+.commit-grid-legend-cell {
+    width: 9px;
+    height: 9px;
+    border-radius: 2px;
+}
+
+.commit-grid-legend-cell.level-0 {
+    background-color: #161b22;
+    border: 1px solid #21262d;
+}
+
+.commit-grid-legend-cell.level-1 {
+    background-color: #0e4429;
+}
+
+.commit-grid-legend-cell.level-2 {
+    background-color: #006d32;
+}
+
+.commit-grid-legend-cell.level-3 {
+    background-color: #26a641;
+}
+
+.commit-grid-legend-cell.level-4 {
+    background-color: #39d353;
+    box-shadow: 0 0 3px rgba(57, 211, 83, 0.6);
+}
+
+.commit-grid-footer-note {
+    font-family: ui-monospace, 'SF Mono', monospace;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #39d353;
 }
