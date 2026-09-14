@@ -1041,6 +1041,217 @@ export function generateGithub256GridHtml(): string {
       </table>`;
 }
 
+export interface CommitGridRenderOptions {
+    enabled?: boolean;
+    text?: string;
+    repoTag?: string;
+    subBadge?: string;
+    footerNote?: string;
+}
+
+const BITMAP_FONT_7X4_SERVER: Record<string, number[][]> = {
+    '0': [[1,1,1,1],[1,0,0,1],[1,0,0,1],[1,0,0,1],[1,0,0,1],[1,0,0,1],[1,1,1,1]],
+    '1': [[0,1],[1,1],[0,1],[0,1],[0,1],[0,1],[1,1]],
+    '2': [[1,1,1,1],[0,0,0,1],[0,0,0,1],[1,1,1,1],[1,0,0,0],[1,0,0,0],[1,1,1,1]],
+    '3': [[1,1,1,1],[0,0,0,1],[0,0,0,1],[1,1,1,1],[0,0,0,1],[0,0,0,1],[1,1,1,1]],
+    '4': [[1,0,0,1],[1,0,0,1],[1,0,0,1],[1,1,1,1],[0,0,0,1],[0,0,0,1],[0,0,0,1]],
+    '5': [[1,1,1,1],[1,0,0,0],[1,0,0,0],[1,1,1,1],[0,0,0,1],[0,0,0,1],[1,1,1,1]],
+    '6': [[1,1,1,1],[1,0,0,0],[1,0,0,0],[1,1,1,1],[1,0,0,1],[1,0,0,1],[1,1,1,1]],
+    '7': [[1,1,1,1],[0,0,0,1],[0,0,0,1],[0,0,1,0],[0,1,0,0],[0,1,0,0],[0,1,0,0]],
+    '8': [[1,1,1,1],[1,0,0,1],[1,0,0,1],[1,1,1,1],[1,0,0,1],[1,0,0,1],[1,1,1,1]],
+    '9': [[1,1,1,1],[1,0,0,1],[1,0,0,1],[1,1,1,1],[0,0,0,1],[0,0,0,1],[1,1,1,1]],
+    'A': [[0,1,1,0],[1,0,0,1],[1,0,0,1],[1,1,1,1],[1,0,0,1],[1,0,0,1],[1,0,0,1]],
+    'B': [[1,1,1,0],[1,0,0,1],[1,0,0,1],[1,1,1,0],[1,0,0,1],[1,0,0,1],[1,1,1,0]],
+    'C': [[1,1,1,1],[1,0,0,0],[1,0,0,0],[1,0,0,0],[1,0,0,0],[1,0,0,0],[1,1,1,1]],
+    'D': [[1,1,1,0],[1,0,0,1],[1,0,0,1],[1,0,0,1],[1,0,0,1],[1,0,0,1],[1,1,1,0]],
+    'E': [[1,1,1,1],[1,0,0,0],[1,0,0,0],[1,1,1,0],[1,0,0,0],[1,0,0,0],[1,1,1,1]],
+    'F': [[1,1,1,1],[1,0,0,0],[1,0,0,0],[1,1,1,0],[1,0,0,0],[1,0,0,0],[1,0,0,0]],
+    'G': [[1,1,1,1],[1,0,0,0],[1,0,0,0],[1,0,1,1],[1,0,0,1],[1,0,0,1],[1,1,1,1]],
+    'H': [[1,0,0,1],[1,0,0,1],[1,0,0,1],[1,1,1,1],[1,0,0,1],[1,0,0,1],[1,0,0,1]],
+    'I': [[1,1,1],[0,1,0],[0,1,0],[0,1,0],[0,1,0],[0,1,0],[1,1,1]],
+    'L': [[1,0,0],[1,0,0],[1,0,0],[1,0,0],[1,0,0],[1,0,0],[1,1,1]],
+    'M': [[1,0,0,0,1],[1,1,0,1,1],[1,0,1,0,1],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1]],
+    'N': [[1,0,0,1],[1,1,0,1],[1,0,1,1],[1,0,0,1],[1,0,0,1],[1,0,0,1],[1,0,0,1]],
+    'O': [[1,1,1,1],[1,0,0,1],[1,0,0,1],[1,0,0,1],[1,0,0,1],[1,0,0,1],[1,1,1,1]],
+    'P': [[1,1,1,1],[1,0,0,1],[1,0,0,1],[1,1,1,1],[1,0,0,0],[1,0,0,0],[1,0,0,0]],
+    'R': [[1,1,1,0],[1,0,0,1],[1,0,0,1],[1,1,1,0],[1,0,1,0],[1,0,0,1],[1,0,0,1]],
+    'S': [[1,1,1,1],[1,0,0,0],[1,0,0,0],[1,1,1,1],[0,0,0,1],[0,0,0,1],[1,1,1,1]],
+    'T': [[1,1,1],[0,1,0],[0,1,0],[0,1,0],[0,1,0],[0,1,0],[0,1,0]],
+    'U': [[1,0,0,1],[1,0,0,1],[1,0,0,1],[1,0,0,1],[1,0,0,1],[1,0,0,1],[1,1,1,1]],
+    'W': [[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[1,0,1,0,1],[1,0,1,0,1],[1,1,0,1,1],[1,0,0,0,1]],
+    'Y': [[1,0,1],[1,0,1],[0,1,0],[0,1,0],[0,1,0],[0,1,0],[0,1,0]],
+    '!': [[1],[1],[1],[1],[1],[0],[1]],
+    ' ': [[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0]],
+};
+
+export function generatePixelCommitGridHtml(options: CommitGridRenderOptions = {}): string {
+    const rawText = (options.text || '256').trim().toUpperCase();
+    const repoTag = options.repoTag || (rawText === '256' ? '● git://evergreeners/day-256' : `● git://evergreeners/${rawText.toLowerCase()}`);
+    const subBadge = options.subBadge || (rawText === '256' ? '2⁸ = 256 bytes · 0x100' : 'consistency matrix');
+    const footerNote = options.footerNote || (rawText === '256' ? '256 commits to the craft' : `${rawText} · compounding momentum`);
+
+    const totalCols = 24;
+    const grid: number[][] = Array.from({ length: 7 }, () => Array(totalCols).fill(0));
+
+    if (rawText === '256') {
+        const d2 = BITMAP_FONT_7X4_SERVER['2'];
+        const d5 = BITMAP_FONT_7X4_SERVER['5'];
+        const d6 = BITMAP_FONT_7X4_SERVER['6'];
+
+        for (let r = 0; r < 7; r++) {
+            for (let c = 0; c < 4; c++) {
+                if (d2[r][c]) grid[r][3 + c] = 4;
+                if (d5[r][c]) grid[r][10 + c] = 4;
+                if (d6[r][c]) grid[r][17 + c] = 4;
+            }
+        }
+
+        const faintCoords: [number, number][] = [
+            [0, 0], [1, 1], [3, 0], [5, 1], [6, 0],
+            [0, 8], [2, 7], [4, 9], [6, 8],
+            [1, 14], [3, 15], [5, 16],
+            [0, 22], [2, 21], [3, 23], [5, 22], [6, 23]
+        ];
+        for (const [r, c] of faintCoords) {
+            if (grid[r][c] === 0) grid[r][c] = (r + c) % 2 === 0 ? 2 : 1;
+        }
+    } else {
+        const glyphs = rawText.split('').map(char => BITMAP_FONT_7X4_SERVER[char] || BITMAP_FONT_7X4_SERVER[' ']);
+        const totalGlyphWidth = glyphs.reduce((sum, g) => sum + g[0].length, 0) + Math.max(0, glyphs.length - 1);
+        let startCol = Math.max(1, Math.floor((totalCols - totalGlyphWidth) / 2));
+
+        for (const glyph of glyphs) {
+            const charWidth = glyph[0].length;
+            for (let r = 0; r < 7; r++) {
+                for (let c = 0; c < charWidth; c++) {
+                    if (startCol + c < totalCols && glyph[r][c]) {
+                        grid[r][startCol + c] = 4;
+                    }
+                }
+            }
+            startCol += charWidth + 1;
+        }
+
+        // Faint authentic background commit activity
+        for (let c = 0; c < totalCols; c++) {
+            const hasGlyph = grid.some(row => row[c] === 4);
+            if (!hasGlyph && (c < 3 || c >= totalCols - 3 || c % 5 === 0)) {
+                const r = (c * 3 + 2) % 7;
+                if (grid[r][c] === 0) {
+                    grid[r][c] = c % 2 === 0 ? 2 : 1;
+                }
+            }
+        }
+    }
+
+    const getCellColor = (val: number) => {
+        switch (val) {
+            case 4: return '#39d353';
+            case 2: return '#006d32';
+            case 1: return '#0e4429';
+            default: return '#161b22';
+        }
+    };
+
+    const getCellBorder = (val: number) => {
+        if (val === 4) return '1px solid rgba(255,255,255,0.25)';
+        if (val > 0) return '1px solid rgba(0,0,0,0.3)';
+        return '1px solid #21262d';
+    };
+
+    let rowsHtml = '';
+    for (let r = 0; r < 7; r++) {
+        const showLabel = r === 1 ? 'Mon' : r === 3 ? 'Wed' : r === 5 ? 'Fri' : '';
+        let cellsHtml = '';
+        for (let c = 0; c < totalCols; c++) {
+            const val = grid[r][c];
+            const color = getCellColor(val);
+            const border = getCellBorder(val);
+            const glow = val === 4 ? 'box-shadow:0 0 3px rgba(57,211,83,0.6);' : '';
+            cellsHtml += `
+              <td style="padding:1.5px 1.5px;">
+                <div style="width:10px;height:10px;min-width:10px;min-height:10px;background-color:${color};border:${border};border-radius:2px;${glow}font-size:0;line-height:0;">&nbsp;</div>
+              </td>`;
+        }
+
+        rowsHtml += `
+          <tr>
+            <td align="left" style="padding-right:8px;font-family:ui-monospace,'SF Mono','Fira Code',monospace;font-size:9px;color:#7d8590;line-height:1;width:24px;">
+              ${showLabel}
+            </td>
+            ${cellsHtml}
+          </tr>`;
+    }
+
+    return `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#0d1117;border:1px solid #30363d;border-radius:10px;overflow:hidden;margin:20px 0 20px;">
+        <tr>
+          <td style="padding:14px 18px 10px;border-bottom:1px solid #21262d;background-color:#090d13;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td align="left">
+                  <span style="font-family:ui-monospace,'SF Mono','Fira Code',monospace;font-size:12px;font-weight:600;color:#58a6ff;">${repoTag}</span>
+                </td>
+                <td align="right">
+                  <span style="font-family:ui-monospace,'SF Mono','Fira Code',monospace;font-size:11px;font-weight:600;color:#7d8590;">${subBadge}</span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <tr>
+          <td align="center" style="padding:14px 12px 0;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="width:24px;padding-right:8px;">&nbsp;</td>
+                <td align="left" style="font-family:ui-monospace,'SF Mono',monospace;font-size:9px;color:#7d8590;letter-spacing:0.05em;padding-bottom:6px;">
+                  <span style="display:inline-block;width:60px;">JAN</span>
+                  <span style="display:inline-block;width:60px;">MAR</span>
+                  <span style="display:inline-block;width:60px;">MAY</span>
+                  <span style="display:inline-block;width:60px;">JUL</span>
+                  <span style="color:#39d353;font-weight:700;">SEP 13 (DAY 256)</span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <tr>
+          <td align="center" style="padding:4px 12px 14px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;">
+              ${rowsHtml}
+            </table>
+          </td>
+        </tr>
+
+        <tr>
+          <td style="padding:10px 18px 12px;border-top:1px solid #21262d;background-color:#090d13;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td align="left">
+                  <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                      <td style="font-family:ui-monospace,'SF Mono',monospace;font-size:10px;color:#7d8590;padding-right:5px;line-height:1;">Less</td>
+                      <td style="padding:1px;"><div style="width:9px;height:9px;border-radius:2px;background-color:#161b22;border:1px solid #21262d;font-size:0;line-height:0;">&nbsp;</div></td>
+                      <td style="padding:1px;"><div style="width:9px;height:9px;border-radius:2px;background-color:#0e4429;font-size:0;line-height:0;">&nbsp;</div></td>
+                      <td style="padding:1px;"><div style="width:9px;height:9px;border-radius:2px;background-color:#006d32;font-size:0;line-height:0;">&nbsp;</div></td>
+                      <td style="padding:1px;"><div style="width:9px;height:9px;border-radius:2px;background-color:#26a641;font-size:0;line-height:0;">&nbsp;</div></td>
+                      <td style="padding:1px;"><div style="width:9px;height:9px;border-radius:2px;background-color:#39d353;box-shadow:0 0 3px rgba(57,211,83,0.6);font-size:0;line-height:0;">&nbsp;</div></td>
+                      <td style="font-family:ui-monospace,'SF Mono',monospace;font-size:10px;color:#7d8590;padding-left:5px;line-height:1;">More</td>
+                    </tr>
+                  </table>
+                </td>
+                <td align="right">
+                  <span style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;font-weight:600;color:#39d353;">${footerNote}</span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>`;
+}
+
 export interface ProgrammersDayEmailOptions {
     to: string;
     name?: string;
@@ -2012,10 +2223,11 @@ export interface CustomBroadcastEmailOptions {
     message: string;
     buttonText?: string;
     buttonUrl?: string;
+    commitGrid?: CommitGridRenderOptions;
 }
 
 export async function sendCustomBroadcastEmail(options: CustomBroadcastEmailOptions) {
-    const { to, subject, headline, previewText, message, buttonText, buttonUrl } = options;
+    const { to, subject, headline, previewText, message, buttonText, buttonUrl, commitGrid } = options;
     const displayHeadline = headline || subject;
 
     const formattedMessage = message
@@ -2027,6 +2239,10 @@ export async function sendCustomBroadcastEmail(options: CustomBroadcastEmailOpti
         })
         .filter(Boolean)
         .join('');
+
+    const commitGridHtml = commitGrid?.enabled
+        ? `<tr><td style="padding-top:10px;padding-bottom:12px;">${generatePixelCommitGridHtml(commitGrid)}</td></tr>`
+        : '';
 
     const buttonHtml = buttonText && buttonUrl ? `
       <tr>
@@ -2059,6 +2275,7 @@ export async function sendCustomBroadcastEmail(options: CustomBroadcastEmailOpti
             ${formattedMessage}
           </td>
         </tr>
+        ${commitGridHtml}
         ${buttonHtml}
       </table>`;
 
