@@ -4,7 +4,8 @@ import {
     Check, Star, Trash2, Award, 
     MessageSquare, Loader2, AlertCircle, ExternalLink, ShieldCheck,
     BookOpen, GraduationCap, Plus, Save, X, Users, Inbox, Brain, Eye,
-    Mail, Send, CheckSquare, Square, Search, Sparkles, RefreshCw, AlertTriangle, Grid
+    Mail, Send, CheckSquare, Square, Search, Sparkles, RefreshCw, AlertTriangle, Grid,
+    GripVertical, ChevronUp, ChevronDown, Image as ImageIcon, UploadCloud, MoveVertical
 } from 'lucide-react';
 import {
     AlertDialog,
@@ -27,6 +28,7 @@ import {
 import { getApiUrl } from '@/lib/api-config';
 import { useSession } from '@/lib/auth-client';
 import { buildCommitGridMatrix } from '@/lib/commit-grid';
+import { optimizeEmailImage, formatBytes, ImageOptimizationResult } from '@/lib/image-optimizer';
 import { toast } from 'sonner';
 import './AdminDashboard.css';
 
@@ -291,6 +293,28 @@ export default function AdminDashboard() {
     const [commitGridRepoTag, setCommitGridRepoTag] = useState('● git://evergreeners/day-256');
     const [commitGridSubBadge, setCommitGridSubBadge] = useState('2⁸ = 256 bytes · 0x100');
     const [commitGridFooterNote, setCommitGridFooterNote] = useState('256 commits to the craft');
+    const [commitGridPosition, setCommitGridPosition] = useState<'top' | 'middle' | 'bottom'>('bottom');
+
+    // External / HD Image Attachment state
+    const [customImageEnabled, setCustomImageEnabled] = useState(false);
+    const [customImageUrl, setCustomImageUrl] = useState('');
+    const [customImageAlt, setCustomImageAlt] = useState('');
+    const [customImageCaption, setCustomImageCaption] = useState('');
+    const [customImageLinkUrl, setCustomImageLinkUrl] = useState('');
+    const [customImagePosition, setCustomImagePosition] = useState<'top' | 'middle' | 'bottom'>('middle');
+    const [customImageOptimizing, setCustomImageOptimizing] = useState(false);
+    const [customImageStats, setCustomImageStats] = useState<ImageOptimizationResult | null>(null);
+
+    // Dynamic Block Layout Order state (draggable)
+    const [blockOrder, setBlockOrder] = useState<string[]>([
+        'headline',
+        'message_top',
+        'commit_grid',
+        'custom_image',
+        'message_bottom',
+        'button'
+    ]);
+    const [draggedBlockId, setDraggedBlockId] = useState<string | null>(null);
 
     const applyCommitGridPreset = (presetId: string) => {
         const found = COMMIT_GRID_PRESETS.find(p => p.id === presetId);
@@ -301,6 +325,69 @@ export default function AdminDashboard() {
             setCommitGridSubBadge(found.subBadge);
             setCommitGridFooterNote(found.footerNote);
         }
+    };
+
+    const handleImageUpload = async (file: File) => {
+        if (!file.type.startsWith('image/')) {
+            toast.error('Please select an image file (PNG, JPG, WebP)');
+            return;
+        }
+
+        setCustomImageOptimizing(true);
+        try {
+            const optimized = await optimizeEmailImage(file);
+            setCustomImageStats(optimized);
+
+            const formData = new FormData();
+            formData.append('file', optimized.file);
+
+            const res = await fetch(getApiUrl('/api/community/upload'), {
+                method: 'POST',
+                headers: authHeaders(),
+                credentials: 'include',
+                body: formData,
+            });
+
+            const data = await res.json();
+            if (!res.ok || !data.url) {
+                throw new Error(data.message || 'Image upload failed');
+            }
+
+            setCustomImageUrl(data.url);
+            setCustomImageEnabled(true);
+            toast.success(`HD image optimized: ${formatBytes(optimized.originalSize)} reduced to ${formatBytes(optimized.optimizedSize)} (${optimized.compressionRatio}% saved)`);
+        } catch (err: any) {
+            console.error('Image optimization/upload error:', err);
+            toast.error(err.message || 'Failed to optimize or upload image');
+        } finally {
+            setCustomImageOptimizing(false);
+        }
+    };
+
+    const moveBlock = (fromIndex: number, toIndex: number) => {
+        if (toIndex < 0 || toIndex >= blockOrder.length) return;
+        const next = [...blockOrder];
+        const [moved] = next.splice(fromIndex, 1);
+        next.splice(toIndex, 0, moved);
+        setBlockOrder(next);
+    };
+
+    const setPositionForBlock = (blockId: 'commit_grid' | 'custom_image', position: 'top' | 'middle' | 'bottom') => {
+        if (blockId === 'commit_grid') setCommitGridPosition(position);
+        if (blockId === 'custom_image') setCustomImagePosition(position);
+
+        const filtered = blockOrder.filter(id => id !== blockId);
+        if (position === 'top') {
+            const headlineIdx = filtered.indexOf('headline');
+            filtered.splice(headlineIdx >= 0 ? headlineIdx + 1 : 0, 0, blockId);
+        } else if (position === 'middle') {
+            const topMsgIdx = filtered.indexOf('message_top');
+            filtered.splice(topMsgIdx >= 0 ? topMsgIdx + 1 : 1, 0, blockId);
+        } else {
+            const buttonIdx = filtered.indexOf('button');
+            filtered.splice(buttonIdx >= 0 ? buttonIdx : filtered.length, 0, blockId);
+        }
+        setBlockOrder(filtered);
     };
 
     // AI Broadcast Copilot state (powered by Gemini 2.5 Flash)
@@ -323,7 +410,17 @@ export default function AdminDashboard() {
             repoTag?: string;
             subBadge?: string;
             footerNote?: string;
+            position?: 'top' | 'middle' | 'bottom';
         };
+        customImage?: {
+            enabled: boolean;
+            url: string;
+            alt?: string;
+            caption?: string;
+            linkUrl?: string;
+            position?: 'top' | 'middle' | 'bottom';
+        };
+        blockOrder?: string[];
     }>({
         subject: '',
         headline: '',
@@ -332,6 +429,8 @@ export default function AdminDashboard() {
         buttonText: 'Open Dashboard',
         buttonUrl: 'https://evergreeners.dev/dashboard',
         commitGrid: undefined,
+        customImage: undefined,
+        blockOrder: undefined,
     });
     const [aiOriginalDraft, setAiOriginalDraft] = useState<{
         subject: string;
@@ -346,7 +445,17 @@ export default function AdminDashboard() {
             repoTag?: string;
             subBadge?: string;
             footerNote?: string;
+            position?: 'top' | 'middle' | 'bottom';
         };
+        customImage?: {
+            enabled: boolean;
+            url: string;
+            alt?: string;
+            caption?: string;
+            linkUrl?: string;
+            position?: 'top' | 'middle' | 'bottom';
+        };
+        blockOrder?: string[];
     }>({
         subject: '',
         headline: '',
@@ -355,6 +464,8 @@ export default function AdminDashboard() {
         buttonText: 'Open Dashboard',
         buttonUrl: 'https://evergreeners.dev/dashboard',
         commitGrid: undefined,
+        customImage: undefined,
+        blockOrder: undefined,
     });
     const [aiRevisionPrompt, setAiRevisionPrompt] = useState('');
 
@@ -502,7 +613,17 @@ export default function AdminDashboard() {
                         repoTag: commitGridRepoTag.trim() || undefined,
                         subBadge: commitGridSubBadge.trim() || undefined,
                         footerNote: commitGridFooterNote.trim() || undefined,
+                        position: commitGridPosition,
                     } : undefined,
+                    customImage: customImageEnabled && customImageUrl ? {
+                        enabled: true,
+                        url: customImageUrl.trim(),
+                        alt: customImageAlt.trim() || undefined,
+                        caption: customImageCaption.trim() || undefined,
+                        linkUrl: customImageLinkUrl.trim() || undefined,
+                        position: customImagePosition,
+                    } : undefined,
+                    blockOrder: blockOrder,
                 })
             });
 
@@ -555,7 +676,17 @@ export default function AdminDashboard() {
                     repoTag: commitGridRepoTag.trim() || undefined,
                     subBadge: commitGridSubBadge.trim() || undefined,
                     footerNote: commitGridFooterNote.trim() || undefined,
+                    position: commitGridPosition,
                 } : undefined,
+                customImage: customImageEnabled && customImageUrl ? {
+                    enabled: true,
+                    url: customImageUrl.trim(),
+                    alt: customImageAlt.trim() || undefined,
+                    caption: customImageCaption.trim() || undefined,
+                    linkUrl: customImageLinkUrl.trim() || undefined,
+                    position: customImagePosition,
+                } : undefined,
+                blockOrder,
             };
 
             const res = await fetch(getApiUrl('/api/admin/broadcast/ai-assist'), {
@@ -591,7 +722,17 @@ export default function AdminDashboard() {
                     repoTag: commitGridRepoTag,
                     subBadge: commitGridSubBadge,
                     footerNote: commitGridFooterNote,
+                    position: commitGridPosition,
                 } : undefined,
+                customImage: customImageEnabled && customImageUrl ? {
+                    enabled: true,
+                    url: customImageUrl,
+                    alt: customImageAlt,
+                    caption: customImageCaption,
+                    linkUrl: customImageLinkUrl,
+                    position: customImagePosition,
+                } : undefined,
+                blockOrder,
             });
 
             setAiStagedDraft({
@@ -607,7 +748,17 @@ export default function AdminDashboard() {
                     repoTag: commitGridRepoTag,
                     subBadge: commitGridSubBadge,
                     footerNote: commitGridFooterNote,
+                    position: commitGridPosition,
                 } : undefined),
+                customImage: data.draft.customImage || (customImageEnabled && customImageUrl ? {
+                    enabled: true,
+                    url: customImageUrl,
+                    alt: customImageAlt,
+                    caption: customImageCaption,
+                    linkUrl: customImageLinkUrl,
+                    position: customImagePosition,
+                } : undefined),
+                blockOrder: data.draft.blockOrder || blockOrder,
             });
 
             setAiReviewMode(mode);
@@ -641,6 +792,18 @@ export default function AdminDashboard() {
             if (aiStagedDraft.commitGrid.repoTag) setCommitGridRepoTag(aiStagedDraft.commitGrid.repoTag);
             if (aiStagedDraft.commitGrid.subBadge) setCommitGridSubBadge(aiStagedDraft.commitGrid.subBadge);
             if (aiStagedDraft.commitGrid.footerNote) setCommitGridFooterNote(aiStagedDraft.commitGrid.footerNote);
+            if (aiStagedDraft.commitGrid.position) setCommitGridPosition(aiStagedDraft.commitGrid.position);
+        }
+        if (aiStagedDraft.customImage) {
+            setCustomImageEnabled(Boolean(aiStagedDraft.customImage.enabled));
+            if (aiStagedDraft.customImage.url) setCustomImageUrl(aiStagedDraft.customImage.url);
+            if (aiStagedDraft.customImage.alt) setCustomImageAlt(aiStagedDraft.customImage.alt);
+            if (aiStagedDraft.customImage.caption) setCustomImageCaption(aiStagedDraft.customImage.caption);
+            if (aiStagedDraft.customImage.linkUrl) setCustomImageLinkUrl(aiStagedDraft.customImage.linkUrl);
+            if (aiStagedDraft.customImage.position) setCustomImagePosition(aiStagedDraft.customImage.position);
+        }
+        if (aiStagedDraft.blockOrder && Array.isArray(aiStagedDraft.blockOrder) && aiStagedDraft.blockOrder.length > 0) {
+            setBlockOrder(aiStagedDraft.blockOrder);
         }
         setAiReviewOpen(false);
         toast.success('AI copy applied directly to composer.');
@@ -1778,6 +1941,160 @@ export default function AdminDashboard() {
                                     </p>
                                 </div>
 
+                                {/* Drag and Drop Layout Sequence Reorder */}
+                                <div className="broadcast-drag-panel">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <MoveVertical size={15} className="text-emerald-400" />
+                                            <div>
+                                                <span className="text-xs font-semibold text-white uppercase tracking-wider block">
+                                                    Layout Block Order (Drag to Reposition)
+                                                </span>
+                                                <span className="text-[11px] text-zinc-400">
+                                                    Drag blocks to place the Pixel Grid or HD Image at the beginning, middle, or anywhere else.
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">
+                                            {blockOrder.length} Blocks
+                                        </span>
+                                    </div>
+
+                                    <div className="broadcast-drag-list">
+                                        {blockOrder.map((blockId, index) => {
+                                            const getBlockMeta = (id: string) => {
+                                                switch (id) {
+                                                    case 'headline':
+                                                        return {
+                                                            title: 'Headline & Title',
+                                                            desc: broadcastHeadline || broadcastSubject || 'Email headline banner',
+                                                            icon: <Sparkles size={13} className="text-emerald-400" />,
+                                                            badge: 'Header',
+                                                            active: true,
+                                                        };
+                                                    case 'message_top':
+                                                        return {
+                                                            title: 'Message Body (Top)',
+                                                            desc: 'First half of paragraphs',
+                                                            icon: <MessageSquare size={13} className="text-sky-400" />,
+                                                            badge: 'Text',
+                                                            active: Boolean(broadcastMessage.trim()),
+                                                        };
+                                                    case 'commit_grid':
+                                                        return {
+                                                            title: 'Pixel Commit Heatmap',
+                                                            desc: commitGridEnabled ? `Matrix: "${commitGridText}" · ${commitGridPosition}` : 'Currently disabled',
+                                                            icon: <Grid size={13} className="text-emerald-400" />,
+                                                            badge: commitGridEnabled ? 'Active' : 'Off',
+                                                            active: commitGridEnabled,
+                                                        };
+                                                    case 'custom_image':
+                                                        return {
+                                                            title: 'Attached HD Image',
+                                                            desc: (customImageEnabled && customImageUrl) ? `Visual attached · ${customImagePosition}` : 'No image active',
+                                                            icon: <ImageIcon size={13} className="text-purple-400" />,
+                                                            badge: (customImageEnabled && customImageUrl) ? 'Active' : 'Off',
+                                                            active: Boolean(customImageEnabled && customImageUrl),
+                                                        };
+                                                    case 'message_bottom':
+                                                        return {
+                                                            title: 'Message Body (Bottom)',
+                                                            desc: 'Second half of paragraphs',
+                                                            icon: <MessageSquare size={13} className="text-sky-400" />,
+                                                            badge: 'Text',
+                                                            active: Boolean(broadcastMessage.trim()),
+                                                        };
+                                                    case 'button':
+                                                        return {
+                                                            title: 'Call to Action Button',
+                                                            desc: broadcastButtonText ? `"${broadcastButtonText}"` : 'Optional button',
+                                                            icon: <ExternalLink size={13} className="text-amber-400" />,
+                                                            badge: broadcastButtonText ? 'Active' : 'Optional',
+                                                            active: Boolean(broadcastButtonText),
+                                                        };
+                                                    default:
+                                                        return {
+                                                            title: id,
+                                                            desc: '',
+                                                            icon: <MoveVertical size={13} className="text-zinc-400" />,
+                                                            badge: 'Block',
+                                                            active: true,
+                                                        };
+                                                }
+                                            };
+                                            const info = getBlockMeta(blockId);
+
+                                            return (
+                                                <div
+                                                    key={blockId}
+                                                    draggable
+                                                    onDragStart={() => setDraggedBlockId(blockId)}
+                                                    onDragOver={(e) => e.preventDefault()}
+                                                    onDrop={(e) => {
+                                                        e.preventDefault();
+                                                        if (draggedBlockId && draggedBlockId !== blockId) {
+                                                            const fromIdx = blockOrder.indexOf(draggedBlockId);
+                                                            moveBlock(fromIdx, index);
+                                                        }
+                                                        setDraggedBlockId(null);
+                                                    }}
+                                                    onDragEnd={() => setDraggedBlockId(null)}
+                                                    className={`broadcast-drag-item ${draggedBlockId === blockId ? 'is-dragging' : ''}`}
+                                                >
+                                                    <div className="broadcast-drag-handle">
+                                                        <GripVertical size={15} className="text-zinc-500 cursor-grab" />
+                                                        <div className="w-6 h-6 rounded bg-zinc-900 border border-zinc-800 flex items-center justify-center">
+                                                            {info.icon}
+                                                        </div>
+                                                        <div>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-xs font-semibold text-white">{info.title}</span>
+                                                                <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
+                                                                    info.active
+                                                                        ? 'bg-emerald-950/40 text-emerald-400 border-emerald-800/40'
+                                                                        : 'bg-zinc-800 text-zinc-400 border-zinc-700'
+                                                                }`}>
+                                                                    {info.badge}
+                                                                </span>
+                                                            </div>
+                                                            <span className="text-[11px] text-zinc-400 block truncate max-w-[220px] sm:max-w-xs">
+                                                                {info.desc}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="broadcast-drag-actions">
+                                                        <button
+                                                            type="button"
+                                                            className="broadcast-drag-btn"
+                                                            disabled={index === 0}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                moveBlock(index, index - 1);
+                                                            }}
+                                                            title="Move up"
+                                                        >
+                                                            <ChevronUp size={14} />
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            className="broadcast-drag-btn"
+                                                            disabled={index === blockOrder.length - 1}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                moveBlock(index, index + 1);
+                                                            }}
+                                                            title="Move down"
+                                                        >
+                                                            <ChevronDown size={14} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
                                 {/* Pixelated Commit Grid Graphic Section */}
                                 <div className="p-4 rounded-xl border border-white/10 bg-[#0c0c0f] space-y-4">
                                     <div className="flex items-center justify-between">
@@ -1804,7 +2121,49 @@ export default function AdminDashboard() {
                                     </div>
 
                                     {commitGridEnabled && (
-                                        <div className="space-y-3 pt-2 border-t border-white/5">
+                                        <div className="space-y-4 pt-2 border-t border-white/5">
+                                            {/* Graphic Placement Selector */}
+                                            <div>
+                                                <label className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider block mb-1.5">
+                                                    Graphic Placement In Email
+                                                </label>
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    <button
+                                                        type="button"
+                                                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                                                            commitGridPosition === 'top'
+                                                                ? 'bg-emerald-500 text-black font-bold shadow-sm'
+                                                                : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
+                                                        }`}
+                                                        onClick={() => setPositionForBlock('commit_grid', 'top')}
+                                                    >
+                                                        Beginning (Top under Headline)
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                                                            commitGridPosition === 'middle'
+                                                                ? 'bg-emerald-500 text-black font-bold shadow-sm'
+                                                                : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
+                                                        }`}
+                                                        onClick={() => setPositionForBlock('commit_grid', 'middle')}
+                                                    >
+                                                        Middle (Between Paragraphs)
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                                                            commitGridPosition === 'bottom'
+                                                                ? 'bg-emerald-500 text-black font-bold shadow-sm'
+                                                                : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
+                                                        }`}
+                                                        onClick={() => setPositionForBlock('commit_grid', 'bottom')}
+                                                    >
+                                                        End (Bottom before Button)
+                                                    </button>
+                                                </div>
+                                            </div>
+
                                             {/* Quick Presets */}
                                             <div>
                                                 <label className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider block mb-1.5">
@@ -1897,6 +2256,215 @@ export default function AdminDashboard() {
                                                     repoTag={commitGridRepoTag}
                                                     subBadge={commitGridSubBadge}
                                                     footerNote={commitGridFooterNote}
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Attached HD Image Section */}
+                                <div className="p-4 rounded-xl border border-white/10 bg-[#0c0c0f] space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2.5">
+                                            <div className="w-7 h-7 rounded-md bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+                                                <ImageIcon size={15} />
+                                            </div>
+                                            <div>
+                                                <label className="admin-label block font-semibold text-white text-xs uppercase tracking-wider">
+                                                    Attached HD Image
+                                                </label>
+                                                <p className="text-[11px] text-muted-foreground">
+                                                    Upload or attach a visual. Photos are optimized client-side for rapid inbox load while retaining 1200px Retina HD clarity.
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            className={`admin-btn !text-xs !py-1 !px-3 ${customImageEnabled ? 'bg-purple-500 hover:bg-purple-600 text-white font-bold' : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300'}`}
+                                            onClick={() => setCustomImageEnabled(!customImageEnabled)}
+                                        >
+                                            {customImageEnabled ? 'Enabled' : 'Disabled'}
+                                        </button>
+                                    </div>
+
+                                    {customImageEnabled && (
+                                        <div className="space-y-4 pt-2 border-t border-white/5">
+                                            {/* Image Placement Selector */}
+                                            <div>
+                                                <label className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider block mb-1.5">
+                                                    Image Placement In Email
+                                                </label>
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    <button
+                                                        type="button"
+                                                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                                                            customImagePosition === 'top'
+                                                                ? 'bg-purple-500 text-white font-bold shadow-sm'
+                                                                : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
+                                                        }`}
+                                                        onClick={() => setPositionForBlock('custom_image', 'top')}
+                                                    >
+                                                        Beginning (Top under Headline)
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                                                            customImagePosition === 'middle'
+                                                                ? 'bg-purple-500 text-white font-bold shadow-sm'
+                                                                : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
+                                                        }`}
+                                                        onClick={() => setPositionForBlock('custom_image', 'middle')}
+                                                    >
+                                                        Middle (Between Paragraphs)
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                                                            customImagePosition === 'bottom'
+                                                                ? 'bg-purple-500 text-white font-bold shadow-sm'
+                                                                : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
+                                                        }`}
+                                                        onClick={() => setPositionForBlock('custom_image', 'bottom')}
+                                                    >
+                                                        End (Bottom before Button)
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* Dropzone / Upload area */}
+                                            <div>
+                                                <label className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider block mb-1.5">
+                                                    Upload From Device (Auto HD Compressed)
+                                                </label>
+                                                <label className="broadcast-image-dropzone block relative cursor-pointer">
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        className="hidden"
+                                                        onChange={(e) => {
+                                                            const file = e.target.files?.[0];
+                                                            if (file) handleImageUpload(file);
+                                                        }}
+                                                        disabled={customImageOptimizing}
+                                                    />
+                                                    <div className="flex flex-col items-center justify-center gap-2">
+                                                        {customImageOptimizing ? (
+                                                            <div className="flex items-center gap-2 text-purple-400 py-3">
+                                                                <Loader2 size={20} className="animate-spin" />
+                                                                <span className="text-xs font-semibold">Compressing and optimizing HD Retina image...</span>
+                                                            </div>
+                                                        ) : (
+                                                            <>
+                                                                <div className="w-10 h-10 rounded-full bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+                                                                    <UploadCloud size={18} />
+                                                                </div>
+                                                                <div className="text-xs text-zinc-200 font-semibold">
+                                                                    Click or drop an image file here
+                                                                </div>
+                                                                <p className="text-[11px] text-zinc-500">
+                                                                    PNG, JPG, WebP supported. Auto compressed to 1200px Retina HD width with high fidelity.
+                                                                </p>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </label>
+                                            </div>
+
+                                            {/* Compression Stats Badge */}
+                                            {customImageStats && (
+                                                <div className="p-3 rounded-lg border border-purple-500/30 bg-purple-500/10 flex items-center justify-between text-xs">
+                                                    <div className="flex items-center gap-2">
+                                                        <Check size={14} className="text-purple-400" />
+                                                        <span className="text-purple-300 font-medium">
+                                                            HD Optimized: {formatBytes(customImageStats.originalSize)} to {formatBytes(customImageStats.optimizedSize)} ({customImageStats.compressionRatio}% saved)
+                                                        </span>
+                                                    </div>
+                                                    <span className="font-mono text-[11px] text-purple-400 bg-purple-950/60 px-2 py-0.5 rounded border border-purple-800/40">
+                                                        {customImageStats.width}x{customImageStats.height}px HD
+                                                    </span>
+                                                </div>
+                                            )}
+
+                                            {/* Image Preview Card if URL is present */}
+                                            {customImageUrl && (
+                                                <div className="broadcast-image-preview-card p-3 space-y-2">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-xs font-semibold text-zinc-300">Attached Visual Preview</span>
+                                                        <button
+                                                            type="button"
+                                                            className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 font-medium"
+                                                            onClick={() => {
+                                                                setCustomImageUrl('');
+                                                                setCustomImageStats(null);
+                                                            }}
+                                                        >
+                                                            <Trash2 size={12} />
+                                                            Remove Image
+                                                        </button>
+                                                    </div>
+                                                    <div className="rounded-lg overflow-hidden border border-zinc-800 bg-black max-h-48 flex items-center justify-center">
+                                                        <img
+                                                            src={customImageUrl}
+                                                            alt={customImageAlt || 'Attached visual'}
+                                                            className="max-h-48 w-auto object-contain"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Manual Image URL Input */}
+                                            <div>
+                                                <label className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider block mb-1">
+                                                    Image Source URL
+                                                </label>
+                                                <input
+                                                    type="url"
+                                                    className="admin-input !text-xs !font-mono"
+                                                    placeholder="https://... or uploaded above"
+                                                    value={customImageUrl}
+                                                    onChange={(e) => setCustomImageUrl(e.target.value)}
+                                                />
+                                            </div>
+
+                                            {/* Alt & Caption */}
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                <div>
+                                                    <label className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider block mb-1">
+                                                        Alt Text (Accessibility)
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        className="admin-input !text-xs"
+                                                        placeholder="Description for screen readers"
+                                                        value={customImageAlt}
+                                                        onChange={(e) => setCustomImageAlt(e.target.value)}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider block mb-1">
+                                                        Image Caption (Optional)
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        className="admin-input !text-xs"
+                                                        placeholder="Caption displayed below image"
+                                                        value={customImageCaption}
+                                                        onChange={(e) => setCustomImageCaption(e.target.value)}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {/* Clickable Link URL */}
+                                            <div>
+                                                <label className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider block mb-1">
+                                                    Clickable Destination Link (Optional)
+                                                </label>
+                                                <input
+                                                    type="url"
+                                                    className="admin-input !text-xs !font-mono"
+                                                    placeholder="https://... (image will be clickable in email)"
+                                                    value={customImageLinkUrl}
+                                                    onChange={(e) => setCustomImageLinkUrl(e.target.value)}
                                                 />
                                             </div>
                                         </div>
@@ -2022,47 +2590,110 @@ export default function AdminDashboard() {
                                             </span>
                                         </div>
 
-                                        {/* Headline */}
-                                        <h3 className="text-xl font-bold text-white mb-4 tracking-tight">
-                                            {(broadcastHeadline || broadcastSubject || 'Your Headline Here').replace(/\{name\}/gi, 'Alex')}
-                                        </h3>
+                                        {/* Dynamic Block Ordering In Preview */}
+                                        {(() => {
+                                            const rawParagraphs = (broadcastMessage || '')
+                                                .replace(/\{name\}/gi, 'Alex')
+                                                .split(/\n\s*\n/)
+                                                .map(p => p.trim())
+                                                .filter(Boolean);
+                                            const midPoint = Math.max(1, Math.floor(rawParagraphs.length / 2));
+                                            const topParagraphs = rawParagraphs.slice(0, midPoint);
+                                            const bottomParagraphs = rawParagraphs.slice(midPoint);
 
-                                        {/* Body */}
-                                        <div className="text-sm text-gray-300 leading-relaxed space-y-3">
-                                            {broadcastMessage ? (
-                                                broadcastMessage
-                                                    .replace(/\{name\}/gi, 'Alex')
-                                                    .split(/\n\s*\n/)
-                                                    .map((paragraph, idx) => (
-                                                        <p key={idx}>{paragraph}</p>
-                                                    ))
-                                            ) : (
-                                                <p className="text-muted-foreground italic">
-                                                    Start typing your email message on the left to see the live rendered preview here...
-                                                </p>
-                                            )}
-                                        </div>
+                                            const renderPreviewBlock = (blockId: string) => {
+                                                switch (blockId) {
+                                                    case 'headline':
+                                                        return (
+                                                            <h3 key="headline" className="text-xl font-bold text-white mb-4 tracking-tight">
+                                                                {(broadcastHeadline || broadcastSubject || 'Your Headline Here').replace(/\{name\}/gi, 'Alex')}
+                                                            </h3>
+                                                        );
+                                                    case 'message_top':
+                                                        return topParagraphs.length > 0 ? (
+                                                            <div key="message_top" className="text-sm text-gray-300 leading-relaxed space-y-3 mb-4">
+                                                                {topParagraphs.map((paragraph, idx) => (
+                                                                    <p key={idx}>{paragraph}</p>
+                                                                ))}
+                                                            </div>
+                                                        ) : null;
+                                                    case 'message_bottom':
+                                                        return bottomParagraphs.length > 0 ? (
+                                                            <div key="message_bottom" className="text-sm text-gray-300 leading-relaxed space-y-3 mb-4">
+                                                                {bottomParagraphs.map((paragraph, idx) => (
+                                                                    <p key={idx}>{paragraph}</p>
+                                                                ))}
+                                                            </div>
+                                                        ) : null;
+                                                    case 'message':
+                                                        return rawParagraphs.length > 0 ? (
+                                                            <div key="message" className="text-sm text-gray-300 leading-relaxed space-y-3 mb-4">
+                                                                {rawParagraphs.map((paragraph, idx) => (
+                                                                    <p key={idx}>{paragraph}</p>
+                                                                ))}
+                                                            </div>
+                                                        ) : null;
+                                                    case 'commit_grid':
+                                                        return commitGridEnabled ? (
+                                                            <div key="commit_grid" className="py-2 mb-4">
+                                                                <CommitGridPreview
+                                                                    text={commitGridText}
+                                                                    repoTag={commitGridRepoTag}
+                                                                    subBadge={commitGridSubBadge}
+                                                                    footerNote={commitGridFooterNote}
+                                                                />
+                                                            </div>
+                                                        ) : null;
+                                                    case 'custom_image':
+                                                        return customImageEnabled && customImageUrl ? (
+                                                            <div key="custom_image" className="py-2 mb-4">
+                                                                <div className="rounded-lg overflow-hidden border border-white/10 bg-black/40">
+                                                                    {customImageLinkUrl ? (
+                                                                        <a href={customImageLinkUrl} target="_blank" rel="noopener noreferrer" className="block">
+                                                                            <img
+                                                                                src={customImageUrl}
+                                                                                alt={customImageAlt || 'Broadcast visual'}
+                                                                                className="w-full max-h-[360px] object-cover block"
+                                                                            />
+                                                                        </a>
+                                                                    ) : (
+                                                                        <img
+                                                                            src={customImageUrl}
+                                                                            alt={customImageAlt || 'Broadcast visual'}
+                                                                            className="w-full max-h-[360px] object-cover block"
+                                                                        />
+                                                                    )}
+                                                                    {customImageCaption && (
+                                                                        <p className="p-2.5 text-xs text-center text-zinc-400 italic bg-black/60 border-t border-white/5">
+                                                                            {customImageCaption}
+                                                                        </p>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        ) : null;
+                                                    case 'button':
+                                                        return broadcastButtonText ? (
+                                                            <div key="button" className="pt-3 mb-2">
+                                                                <div className="inline-block px-6 py-2.5 bg-primary text-black font-semibold text-sm rounded-lg shadow-md">
+                                                                    {broadcastButtonText}
+                                                                </div>
+                                                            </div>
+                                                        ) : null;
+                                                    default:
+                                                        return null;
+                                                }
+                                            };
 
-                                        {/* Pixel Commit Grid Graphic Preview */}
-                                        {commitGridEnabled && (
-                                            <div className="pt-2">
-                                                <CommitGridPreview
-                                                    text={commitGridText}
-                                                    repoTag={commitGridRepoTag}
-                                                    subBadge={commitGridSubBadge}
-                                                    footerNote={commitGridFooterNote}
-                                                />
-                                            </div>
-                                        )}
+                                            if (!broadcastMessage && !commitGridEnabled && !customImageUrl && !broadcastButtonText) {
+                                                return (
+                                                    <p className="text-muted-foreground italic text-sm">
+                                                        Start typing your email message on the left to see the live rendered preview here...
+                                                    </p>
+                                                );
+                                            }
 
-                                        {/* Optional Action Button */}
-                                        {broadcastButtonText && (
-                                            <div className="pt-6">
-                                                <div className="inline-block px-6 py-2.5 bg-primary text-black font-semibold text-sm rounded-lg shadow-md">
-                                                    {broadcastButtonText}
-                                                </div>
-                                            </div>
-                                        )}
+                                            return blockOrder.map(renderPreviewBlock);
+                                        })()}
                                     </div>
 
                                     {/* Footer */}
@@ -2250,6 +2881,37 @@ export default function AdminDashboard() {
                                                 subBadge={aiStagedDraft.commitGrid.subBadge}
                                                 footerNote={aiStagedDraft.commitGrid.footerNote}
                                             />
+                                        </div>
+                                    )}
+
+                                    {/* AI Staged Attached Image */}
+                                    {aiStagedDraft.customImage?.enabled && aiStagedDraft.customImage?.url && (
+                                        <div className="p-4 rounded-xl border border-zinc-800 bg-[#0c0c0f] space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <ImageIcon size={15} className="text-purple-400" />
+                                                    <span className="text-xs font-mono uppercase text-zinc-300 font-semibold">
+                                                        Attached Visual
+                                                    </span>
+                                                </div>
+                                                {aiStagedDraft.customImage.position && (
+                                                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700 uppercase">
+                                                        Position: {aiStagedDraft.customImage.position}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="rounded-lg overflow-hidden border border-zinc-800 max-h-52 bg-black flex items-center justify-center">
+                                                <img
+                                                    src={aiStagedDraft.customImage.url}
+                                                    alt={aiStagedDraft.customImage.alt || 'Attached visual'}
+                                                    className="max-h-52 w-auto object-contain"
+                                                />
+                                            </div>
+                                            {aiStagedDraft.customImage.caption && (
+                                                <p className="text-xs text-zinc-400 text-center italic">
+                                                    {aiStagedDraft.customImage.caption}
+                                                </p>
+                                            )}
                                         </div>
                                     )}
 
