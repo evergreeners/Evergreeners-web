@@ -114,8 +114,12 @@ export default function Signup() {
 
                 <div className="w-full max-w-md mx-auto space-y-8 py-20 lg:py-0">
                     <div className="space-y-2 text-center">
-                        <div className="flex justify-center mb-6">
-                            <Logo className="w-12 h-12" />
+                        <div className="flex justify-center mb-5">
+                            <Link to="/" className="inline-flex items-center justify-center group">
+                                <span className="font-handwritten text-4xl text-primary tracking-tight transition-transform duration-200 group-hover:scale-105">
+                                    Evergreeners
+                                </span>
+                            </Link>
                         </div>
                         <h1 className="text-3xl font-bold tracking-tight">Create an account</h1>
                         <p className="text-muted-foreground">
