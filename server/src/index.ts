@@ -2909,6 +2909,13 @@ server.register(async (instance) => {
                 buttonUrl?: string;
                 selectedUserIds?: string[];
                 testEmail?: string;
+                commitGrid?: {
+                    enabled?: boolean;
+                    text?: string;
+                    repoTag?: string;
+                    subBadge?: string;
+                    footerNote?: string;
+                };
             }
         }>('/api/admin/broadcast/send', async (req, reply) => {
             const { sendCustomBroadcastEmail } = await import('./lib/email.js');
@@ -2988,6 +2995,7 @@ server.register(async (instance) => {
                             message: personalizedMessage,
                             buttonText: body.buttonText,
                             buttonUrl: body.buttonUrl,
+                            commitGrid: body.commitGrid,
                         });
                         sent++;
                         results.push({ email: recipient.email, success: true, resendId: (res as any)?.data?.id });
@@ -3027,6 +3035,13 @@ server.register(async (instance) => {
                     message?: string;
                     buttonText?: string;
                     buttonUrl?: string;
+                    commitGrid?: {
+                        enabled?: boolean;
+                        text?: string;
+                        repoTag?: string;
+                        subBadge?: string;
+                        footerNote?: string;
+                    };
                 };
                 tone?: 'badass' | 'direct' | 'celebratory';
             }
@@ -3065,6 +3080,7 @@ Headline: ${currentDraft?.headline || '(none)'}
 Message: ${currentDraft?.message || '(none)'}
 Button Text: ${currentDraft?.buttonText || 'Open Dashboard'}
 Button URL: ${currentDraft?.buttonUrl || 'https://evergreeners.dev/dashboard'}
+Commit Grid Active: ${currentDraft?.commitGrid?.enabled ? `Yes, Text: ${currentDraft.commitGrid.text || '256'}` : 'No'}
 ${instruction ? `Additional admin instruction: ${instruction}` : ''}`
     : `The admin wants you to write a complete broadcast email based on this instruction:
 INSTRUCTION: "${instruction || 'Write an inspiring announcement to our developer community about keeping their consistency momentum strong.'}"
@@ -3086,6 +3102,10 @@ CRITICAL NEGATIVE CONSTRAINTS (STRICTLY ENFORCED):
 - Instead of dashes, use commas, colons, periods, or standard parenthetical formatting.
 - Do NOT sound like generic productivity app fluff (avoid "supercharge", "unleash", "level up your productivity hacks").
 
+OPTIONAL PIXEL COMMIT GRID:
+- You can suggest or include a pixel commit grid matrix graphic if the announcement relates to milestone milestones, developer day, year progress, or commit streaks.
+- Commit grid text should be 1 to 4 characters (e.g. 256, 100, SHIP, DEV, FIRE, 365).
+
 OUTPUT FORMAT:
 Return valid JSON matching this exact schema:
 {
@@ -3094,7 +3114,14 @@ Return valid JSON matching this exact schema:
   "previewText": "string",
   "message": "string",
   "buttonText": "string",
-  "buttonUrl": "string"
+  "buttonUrl": "string",
+  "commitGrid": {
+    "enabled": boolean,
+    "text": "string (1-4 characters, e.g. 256, 100, SHIP, DEV, 365)",
+    "repoTag": "string (e.g. ● git://evergreeners/day-256)",
+    "subBadge": "string",
+    "footerNote": "string"
+  }
 }`;
 
                 const result = await model.generateContent(prompt);
@@ -3113,6 +3140,14 @@ Return valid JSON matching this exact schema:
                     return str.replace(/—/g, ': ').replace(/–/g, '-').replace(/--/g, '-');
                 };
 
+                const resolvedCommitGrid = parsed.commitGrid ? {
+                    enabled: Boolean(parsed.commitGrid.enabled),
+                    text: sanitize(parsed.commitGrid.text)?.toUpperCase().slice(0, 5) || '256',
+                    repoTag: sanitize(parsed.commitGrid.repoTag) || '● git://evergreeners/day-256',
+                    subBadge: sanitize(parsed.commitGrid.subBadge) || 'consistency matrix',
+                    footerNote: sanitize(parsed.commitGrid.footerNote) || '256 commits to the craft',
+                } : currentDraft?.commitGrid;
+
                 return {
                     success: true,
                     draft: {
@@ -3122,6 +3157,7 @@ Return valid JSON matching this exact schema:
                         message: sanitize(parsed.message) || '',
                         buttonText: sanitize(parsed.buttonText) || 'Open Dashboard',
                         buttonUrl: parsed.buttonUrl || 'https://evergreeners.dev/dashboard',
+                        commitGrid: resolvedCommitGrid,
                     }
                 };
             } catch (err: any) {
