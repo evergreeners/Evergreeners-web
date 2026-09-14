@@ -15,7 +15,7 @@ import { createClient } from '@supabase/supabase-js';
 
 import { db } from './db/index.js';
 import * as schema from './db/schema.js';
-import { eq, and, desc, gt, sql, ne, isNotNull, isNull } from 'drizzle-orm';
+import { eq, and, desc, gt, sql, ne, isNotNull, isNull, inArray } from 'drizzle-orm';
 import { getGithubContributions, checkQuestProgress } from './lib/github.js';
 import { setupCronJobs } from './cron.js';
 import { updateUserGoals, notifyGoalCompletion } from './lib/goals.js';
@@ -2869,6 +2869,149 @@ server.register(async (instance) => {
             } catch (error) {
                 console.error("Academy admin reviews error:", error);
                 return reply.status(500).send({ message: "Failed to load reviews" });
+            }
+        });
+
+        // GET /api/admin/broadcast/users: list all registered users for email broadcast
+        adminInstance.get('/api/admin/broadcast/users', async (_req, reply) => {
+            try {
+                const users = await db.select({
+                    id: schema.users.id,
+                    name: schema.users.name,
+                    username: schema.users.username,
+                    email: schema.users.email,
+                    image: schema.users.image,
+                    streak: schema.users.streak,
+                    totalCommits: schema.users.totalCommits,
+                    createdAt: schema.users.createdAt,
+                    role: schema.users.role,
+                })
+                    .from(schema.users)
+                    .where(isNotNull(schema.users.email))
+                    .orderBy(desc(schema.users.createdAt));
+
+                return { success: true, users };
+            } catch (error: any) {
+                console.error("Admin broadcast users fetch error:", error);
+                return reply.status(500).send({ success: false, error: error.message });
+            }
+        });
+
+        // POST /api/admin/broadcast/send: send email to all, selected, or test recipient
+        adminInstance.post<{
+            Body: {
+                target: 'all' | 'selected' | 'test';
+                subject: string;
+                headline?: string;
+                previewText?: string;
+                message: string;
+                buttonText?: string;
+                buttonUrl?: string;
+                selectedUserIds?: string[];
+                testEmail?: string;
+            }
+        }>('/api/admin/broadcast/send', async (req, reply) => {
+            const { sendCustomBroadcastEmail } = await import('./lib/email.js');
+            const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+            const body = req.body;
+
+            if (!body.subject?.trim()) {
+                return reply.status(400).send({ success: false, error: 'Subject is required' });
+            }
+            if (!body.message?.trim()) {
+                return reply.status(400).send({ success: false, error: 'Email message is required' });
+            }
+
+            try {
+                let recipientList: { email: string; name?: string; id?: string }[] = [];
+
+                if (body.target === 'test') {
+                    const targetEmail = body.testEmail?.trim();
+                    if (!targetEmail) {
+                        return reply.status(400).send({ success: false, error: 'Test email address is required' });
+                    }
+                    recipientList = [{ email: targetEmail, name: 'Admin Test' }];
+                } else if (body.target === 'selected') {
+                    if (!body.selectedUserIds || body.selectedUserIds.length === 0) {
+                        return reply.status(400).send({ success: false, error: 'Please select at least one recipient' });
+                    }
+                    const selectedUsers = await db.select({
+                        id: schema.users.id,
+                        name: schema.users.name,
+                        username: schema.users.username,
+                        email: schema.users.email,
+                    })
+                        .from(schema.users)
+                        .where(and(
+                            isNotNull(schema.users.email),
+                            inArray(schema.users.id, body.selectedUserIds)
+                        ));
+
+                    recipientList = selectedUsers
+                        .filter(u => !!u.email)
+                        .map(u => ({ email: u.email!, name: u.name || u.username || '', id: u.id }));
+                } else {
+                    const allUsers = await db.select({
+                        id: schema.users.id,
+                        name: schema.users.name,
+                        username: schema.users.username,
+                        email: schema.users.email,
+                    })
+                        .from(schema.users)
+                        .where(isNotNull(schema.users.email));
+
+                    recipientList = allUsers
+                        .filter(u => !!u.email)
+                        .map(u => ({ email: u.email!, name: u.name || u.username || '', id: u.id }));
+                }
+
+                if (recipientList.length === 0) {
+                    return reply.status(400).send({ success: false, error: 'No recipients found with a valid email' });
+                }
+
+                let sent = 0;
+                let failed = 0;
+                const results: { email: string; success: boolean; resendId?: string; error?: string }[] = [];
+
+                for (const recipient of recipientList) {
+                    try {
+                        const firstName = recipient.name?.split(' ')[0] || 'there';
+                        const personalizedMessage = body.message.replace(/\{name\}/gi, firstName);
+                        const personalizedHeadline = (body.headline || body.subject).replace(/\{name\}/gi, firstName);
+
+                        const res = await sendCustomBroadcastEmail({
+                            to: recipient.email,
+                            name: recipient.name,
+                            subject: body.subject,
+                            headline: personalizedHeadline,
+                            previewText: body.previewText,
+                            message: personalizedMessage,
+                            buttonText: body.buttonText,
+                            buttonUrl: body.buttonUrl,
+                        });
+                        sent++;
+                        results.push({ email: recipient.email, success: true, resendId: (res as any)?.data?.id });
+                    } catch (err: any) {
+                        failed++;
+                        results.push({ email: recipient.email, success: false, error: err.message });
+                    }
+
+                    if (recipientList.length > 1) {
+                        await sleep(500);
+                    }
+                }
+
+                return {
+                    success: true,
+                    message: `Broadcast complete. Sent: ${sent}, Failed: ${failed}`,
+                    sent,
+                    failed,
+                    total: recipientList.length,
+                    results,
+                };
+            } catch (err: any) {
+                console.error('Broadcast send error:', err);
+                return reply.status(500).send({ success: false, error: err.message });
             }
         });
     });
