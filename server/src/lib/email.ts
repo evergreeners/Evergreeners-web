@@ -1047,6 +1047,47 @@ export interface CommitGridRenderOptions {
     repoTag?: string;
     subBadge?: string;
     footerNote?: string;
+    position?: 'top' | 'middle' | 'bottom';
+}
+
+export interface CustomBroadcastImageOptions {
+    enabled?: boolean;
+    url?: string;
+    alt?: string;
+    caption?: string;
+    linkUrl?: string;
+    position?: 'top' | 'middle' | 'bottom';
+}
+
+export function generateCustomImageHtml(options: CustomBroadcastImageOptions = {}): string {
+    if (!options.enabled || !options.url) return '';
+    const { url, alt, caption, linkUrl } = options;
+
+    const imgTag = `
+      <img src="${url}" alt="${alt || 'Evergreeners Announcement'}" width="520" style="width:100%;max-width:520px;height:auto;border-radius:10px;border:1px solid #27272a;display:block;margin:0 auto;" />
+    `;
+
+    const linkedImg = linkUrl ? `
+      <a href="${linkUrl}" target="_blank" style="text-decoration:none;display:block;">
+        ${imgTag}
+      </a>
+    ` : imgTag;
+
+    const captionHtml = caption ? `
+      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;color:#71717a;text-align:center;margin-top:6px;line-height:1.4;">
+        ${caption}
+      </div>
+    ` : '';
+
+    return `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0 18px;">
+        <tr>
+          <td align="center">
+            ${linkedImg}
+            ${captionHtml}
+          </td>
+        </tr>
+      </table>`;
 }
 
 const BITMAP_FONT_7X4_SERVER: Record<string, number[][]> = {
@@ -2224,24 +2265,20 @@ export interface CustomBroadcastEmailOptions {
     buttonText?: string;
     buttonUrl?: string;
     commitGrid?: CommitGridRenderOptions;
+    customImage?: CustomBroadcastImageOptions;
+    blockOrder?: string[];
 }
 
 export async function sendCustomBroadcastEmail(options: CustomBroadcastEmailOptions) {
-    const { to, subject, headline, previewText, message, buttonText, buttonUrl, commitGrid } = options;
+    const { to, subject, headline, previewText, message, buttonText, buttonUrl, commitGrid, customImage, blockOrder } = options;
     const displayHeadline = headline || subject;
-
-    const formattedMessage = message
-        .split(/\n\s*\n/)
-        .map(p => {
-            const trimmed = p.trim();
-            if (!trimmed) return '';
-            return `<p class="text-body" style="margin:0 0 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;color:#52525b;line-height:1.75;">${trimmed.replace(/\n/g, '<br/>')}</p>`;
-        })
-        .filter(Boolean)
-        .join('');
 
     const commitGridHtml = commitGrid?.enabled
         ? `<tr><td style="padding-top:10px;padding-bottom:12px;">${generatePixelCommitGridHtml(commitGrid)}</td></tr>`
+        : '';
+
+    const customImageHtml = customImage?.enabled && customImage?.url
+        ? `<tr><td style="padding-top:10px;padding-bottom:12px;">${generateCustomImageHtml(customImage)}</td></tr>`
         : '';
 
     const buttonHtml = buttonText && buttonUrl ? `
@@ -2260,23 +2297,97 @@ export async function sendCustomBroadcastEmail(options: CustomBroadcastEmailOpti
       </tr>
     ` : '';
 
+    const rawParagraphs = message
+        .split(/\n\s*\n/)
+        .map(p => p.trim())
+        .filter(Boolean);
+
+    const renderParagraph = (p: string) =>
+        `<p class="text-body" style="margin:0 0 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;color:#52525b;line-height:1.75;">${p.replace(/\n/g, '<br/>')}</p>`;
+
+    let assembledBlocksHtml = '';
+
+    // Check if inline placeholders {{grid}} or {{image}} exist in the message
+    if (message.includes('{{grid}}') || message.includes('{{image}}')) {
+        const headlineHtml = `<tr><td style="padding-bottom:12px;"><h1 class="text-heading" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',Helvetica,Arial,sans-serif;font-size:24px;font-weight:700;color:#09090b;letter-spacing:-0.4px;line-height:1.3;">${displayHeadline}</h1></td></tr>`;
+        const processedMessage = rawParagraphs.map(p => {
+            if (p === '{{grid}}') return commitGridHtml;
+            if (p === '{{image}}') return customImageHtml;
+            let replaced = renderParagraph(p);
+            if (replaced.includes('{{grid}}')) {
+                replaced = replaced.replace(/\{\{grid\}\}/g, commitGridHtml);
+            }
+            if (replaced.includes('{{image}}')) {
+                replaced = replaced.replace(/\{\{image\}\}/g, customImageHtml);
+            }
+            return replaced;
+        }).join('');
+
+        assembledBlocksHtml = [
+            headlineHtml,
+            `<tr><td style="padding-bottom:4px;">${processedMessage}</td></tr>`,
+            buttonHtml
+        ].join('');
+    } else if (blockOrder && blockOrder.length > 0) {
+        const midPoint = Math.max(1, Math.floor(rawParagraphs.length / 2));
+        const headlineHtml = `<tr><td style="padding-bottom:12px;"><h1 class="text-heading" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',Helvetica,Arial,sans-serif;font-size:24px;font-weight:700;color:#09090b;letter-spacing:-0.4px;line-height:1.3;">${displayHeadline}</h1></td></tr>`;
+        const part1Html = rawParagraphs.length > 0 ? `<tr><td style="padding-bottom:4px;">${rawParagraphs.slice(0, midPoint).map(renderParagraph).join('')}</td></tr>` : '';
+        const part2Html = rawParagraphs.length > midPoint ? `<tr><td style="padding-bottom:4px;">${rawParagraphs.slice(midPoint).map(renderParagraph).join('')}</td></tr>` : '';
+        const allMessageHtml = rawParagraphs.length > 0 ? `<tr><td style="padding-bottom:4px;">${rawParagraphs.map(renderParagraph).join('')}</td></tr>` : '';
+
+        const blockMap: Record<string, string> = {
+            headline: headlineHtml,
+            commit_grid: commitGridHtml,
+            custom_image: customImageHtml,
+            message: allMessageHtml,
+            message_top: part1Html,
+            message_bottom: part2Html,
+            button: buttonHtml,
+        };
+
+        assembledBlocksHtml = blockOrder
+            .map(id => blockMap[id] || '')
+            .filter(Boolean)
+            .join('');
+    } else {
+        const headlineHtml = `<tr><td style="padding-bottom:12px;"><h1 class="text-heading" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',Helvetica,Arial,sans-serif;font-size:24px;font-weight:700;color:#09090b;letter-spacing:-0.4px;line-height:1.3;">${displayHeadline}</h1></td></tr>`;
+        const midPoint = Math.max(1, Math.floor(rawParagraphs.length / 2));
+        const part1Html = rawParagraphs.length > 0 ? `<tr><td style="padding-bottom:4px;">${rawParagraphs.slice(0, midPoint).map(renderParagraph).join('')}</td></tr>` : '';
+        const part2Html = rawParagraphs.length > midPoint ? `<tr><td style="padding-bottom:4px;">${rawParagraphs.slice(midPoint).map(renderParagraph).join('')}</td></tr>` : '';
+
+        const topBlocks: string[] = [];
+        const middleBlocks: string[] = [];
+        const bottomBlocks: string[] = [];
+
+        if (commitGrid?.enabled) {
+            const pos = commitGrid.position || 'bottom';
+            if (pos === 'top') topBlocks.push(commitGridHtml);
+            else if (pos === 'middle') middleBlocks.push(commitGridHtml);
+            else bottomBlocks.push(commitGridHtml);
+        }
+
+        if (customImage?.enabled && customImage?.url) {
+            const pos = customImage.position || 'middle';
+            if (pos === 'top') topBlocks.push(customImageHtml);
+            else if (pos === 'middle') middleBlocks.push(customImageHtml);
+            else bottomBlocks.push(customImageHtml);
+        }
+
+        assembledBlocksHtml = [
+            headlineHtml,
+            ...topBlocks,
+            part1Html,
+            ...middleBlocks,
+            part2Html,
+            ...bottomBlocks,
+            buttonHtml,
+        ].join('');
+    }
+
     const body = `
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
         ${previewText ? `<div style="display:none;font-size:1px;color:#ffffff;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">${previewText}</div>` : ''}
-        <tr>
-          <td style="padding-bottom:12px;">
-            <h1 class="text-heading" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',Helvetica,Arial,sans-serif;font-size:24px;font-weight:700;color:#09090b;letter-spacing:-0.4px;line-height:1.3;">
-              ${displayHeadline}
-            </h1>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding-bottom:4px;">
-            ${formattedMessage}
-          </td>
-        </tr>
-        ${commitGridHtml}
-        ${buttonHtml}
+        ${assembledBlocksHtml}
       </table>`;
 
     try {
