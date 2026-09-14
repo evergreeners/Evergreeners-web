@@ -2001,3 +2001,79 @@ export async function sendQuestSolvedEmail(opts: QuestSolvedEmailOptions) {
         throw err;
     }
 }
+
+// Custom Admin Broadcast Email
+export interface CustomBroadcastEmailOptions {
+    to: string;
+    name?: string;
+    subject: string;
+    headline?: string;
+    previewText?: string;
+    message: string;
+    buttonText?: string;
+    buttonUrl?: string;
+}
+
+export async function sendCustomBroadcastEmail(options: CustomBroadcastEmailOptions) {
+    const { to, subject, headline, previewText, message, buttonText, buttonUrl } = options;
+    const displayHeadline = headline || subject;
+
+    const formattedMessage = message
+        .split(/\n\s*\n/)
+        .map(p => {
+            const trimmed = p.trim();
+            if (!trimmed) return '';
+            return `<p class="text-body" style="margin:0 0 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;color:#52525b;line-height:1.75;">${trimmed.replace(/\n/g, '<br/>')}</p>`;
+        })
+        .filter(Boolean)
+        .join('');
+
+    const buttonHtml = buttonText && buttonUrl ? `
+      <tr>
+        <td style="padding-top:12px;padding-bottom:12px;">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td style="background-color:#10b981;border-radius:8px;">
+                <a href="${buttonUrl}" style="display:inline-block;padding:12px 28px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;color:#ffffff;text-decoration:none;letter-spacing:-0.1px;">
+                  ${buttonText}
+                </a>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    ` : '';
+
+    const body = `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        ${previewText ? `<div style="display:none;font-size:1px;color:#ffffff;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">${previewText}</div>` : ''}
+        <tr>
+          <td style="padding-bottom:12px;">
+            <h1 class="text-heading" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',Helvetica,Arial,sans-serif;font-size:24px;font-weight:700;color:#09090b;letter-spacing:-0.4px;line-height:1.3;">
+              ${displayHeadline}
+            </h1>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding-bottom:4px;">
+            ${formattedMessage}
+          </td>
+        </tr>
+        ${buttonHtml}
+      </table>`;
+
+    try {
+        const result = await getResend().emails.send({
+            from: FROM_EMAIL,
+            to,
+            subject,
+            html: emailShell(body),
+        });
+        console.log(`Custom broadcast email sent to ${to} [${subject}]:`, result.data?.id);
+        return result;
+    } catch (err) {
+        console.error(`Failed to send custom broadcast email to ${to}:`, err);
+        throw err;
+    }
+}
+
