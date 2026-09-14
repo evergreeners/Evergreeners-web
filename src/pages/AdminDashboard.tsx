@@ -16,6 +16,14 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import { getApiUrl } from '@/lib/api-config';
 import { useSession } from '@/lib/auth-client';
 import { toast } from 'sonner';
@@ -154,6 +162,31 @@ export default function AdminDashboard() {
     const [broadcastSending, setBroadcastSending] = useState(false);
     const [broadcastConfirmOpen, setBroadcastConfirmOpen] = useState(false);
     const [broadcastResult, setBroadcastResult] = useState<{ sent: number; failed: number; message: string } | null>(null);
+
+    // AI Broadcast Copilot state (powered by Gemini 2.5 Flash)
+    const [aiPrompt, setAiPrompt] = useState('');
+    const [aiTone, setAiTone] = useState<'badass' | 'direct' | 'celebratory'>('badass');
+    const [aiLoading, setAiLoading] = useState(false);
+    const [aiActionType, setAiActionType] = useState<'generate' | 'enhance' | null>(null);
+    const [aiReviewOpen, setAiReviewOpen] = useState(false);
+    const [aiReviewMode, setAiReviewMode] = useState<'generate' | 'enhance'>('generate');
+    const [aiStagedDraft, setAiStagedDraft] = useState({
+        subject: '',
+        headline: '',
+        previewText: '',
+        message: '',
+        buttonText: 'Open Dashboard',
+        buttonUrl: 'https://evergreeners.dev/dashboard',
+    });
+    const [aiOriginalDraft, setAiOriginalDraft] = useState({
+        subject: '',
+        headline: '',
+        previewText: '',
+        message: '',
+        buttonText: 'Open Dashboard',
+        buttonUrl: 'https://evergreeners.dev/dashboard',
+    });
+    const [aiRevisionPrompt, setAiRevisionPrompt] = useState('');
 
     const authHeaders = (): Record<string, string> => {
         const headers: Record<string, string> = {};
@@ -320,6 +353,94 @@ export default function AdminDashboard() {
         }
     };
 
+    const handleAiAssist = async (mode: 'generate' | 'enhance', customInstruction?: string) => {
+        const instructionToUse = (customInstruction || aiPrompt).trim();
+        
+        if (mode === 'enhance' && !broadcastMessage.trim() && !broadcastSubject.trim()) {
+            toast.error('Please draft a subject or message in the composer first before enhancing.');
+            return;
+        }
+
+        setAiLoading(true);
+        setAiActionType(mode);
+
+        try {
+            const currentDraft = {
+                subject: broadcastSubject.trim() || undefined,
+                headline: broadcastHeadline.trim() || undefined,
+                previewText: broadcastPreviewText.trim() || undefined,
+                message: broadcastMessage.trim() || undefined,
+                buttonText: broadcastButtonText.trim() || undefined,
+                buttonUrl: broadcastButtonUrl.trim() || undefined,
+            };
+
+            const res = await fetch(getApiUrl('/api/admin/broadcast/ai-assist'), {
+                method: 'POST',
+                headers: {
+                    ...authHeaders(),
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify({
+                    mode,
+                    instruction: instructionToUse || undefined,
+                    currentDraft,
+                    tone: aiTone,
+                }),
+            });
+
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                throw new Error(data.error || 'AI assistance failed');
+            }
+
+            setAiOriginalDraft({
+                subject: broadcastSubject,
+                headline: broadcastHeadline,
+                previewText: broadcastPreviewText,
+                message: broadcastMessage,
+                buttonText: broadcastButtonText,
+                buttonUrl: broadcastButtonUrl,
+            });
+
+            setAiStagedDraft({
+                subject: data.draft.subject || '',
+                headline: data.draft.headline || '',
+                previewText: data.draft.previewText || '',
+                message: data.draft.message || '',
+                buttonText: data.draft.buttonText || 'Open Dashboard',
+                buttonUrl: data.draft.buttonUrl || 'https://evergreeners.dev/dashboard',
+            });
+
+            setAiReviewMode(mode);
+            setAiReviewOpen(true);
+            setAiRevisionPrompt('');
+            toast.success(mode === 'enhance' ? 'Draft elevated by Gemini. Review before applying.' : 'AI draft synthesized. Review before applying.');
+        } catch (err: any) {
+            console.error('AI assist error:', err);
+            toast.error(err.message || 'Failed to communicate with AI assist');
+        } finally {
+            setAiLoading(false);
+            setAiActionType(null);
+        }
+    };
+
+    const handleAiRefine = async () => {
+        if (!aiRevisionPrompt.trim()) return;
+        await handleAiAssist('enhance', `Admin revision adjustment: ${aiRevisionPrompt.trim()}`);
+    };
+
+    const handleAiApply = () => {
+        setBroadcastSubject(aiStagedDraft.subject);
+        setBroadcastHeadline(aiStagedDraft.headline);
+        setBroadcastPreviewText(aiStagedDraft.previewText);
+        setBroadcastMessage(aiStagedDraft.message);
+        setBroadcastButtonText(aiStagedDraft.buttonText);
+        setBroadcastButtonUrl(aiStagedDraft.buttonUrl);
+        setAiReviewOpen(false);
+        toast.success('AI copy applied directly to composer.');
+    };
+
     useEffect(() => {
         if (!authLoading) fetchStories();
     }, [authLoading]);
@@ -480,14 +601,26 @@ export default function AdminDashboard() {
             <Header />
             <div className="admin-container">
                 <div className="admin-header">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-primary/10 rounded-xl border border-primary/20">
-                            <ShieldCheck className="text-primary" size={24} />
+                    <div className="flex items-center gap-3.5">
+                        <div className="admin-header-badge-icon">
+                            <ShieldCheck size={20} className="text-emerald-400" />
                         </div>
-                        <h1>Admin Dashboard</h1>
+                        <div>
+                            <div className="flex items-center gap-2.5">
+                                <h1>Admin Command Center</h1>
+                                <span className="admin-live-badge">
+                                    <span className="admin-live-dot" />
+                                    ROOT
+                                </span>
+                            </div>
+                            <p className="admin-header-subtitle">
+                                Evergreeners Core Platform &amp; Communications
+                            </p>
+                        </div>
                     </div>
-                    <div className="text-sm text-muted-foreground bg-secondary/50 px-4 py-2 rounded-full border border-primary/10">
-                        Full Access
+                    <div className="admin-header-auth-chip">
+                        <span className="admin-live-dot" />
+                        <span>SESSION ACTIVE</span>
                     </div>
                 </div>
 
@@ -798,7 +931,7 @@ export default function AdminDashboard() {
                                     </div>
                                     <div className="admin-stat-card">
                                         <div className="admin-stat-label">Avg Review Score</div>
-                                        <div className="admin-stat-value text-cyan-500">{summary?.avgReviewScore ?? '—'}</div>
+                                        <div className="admin-stat-value text-cyan-500">{summary?.avgReviewScore ?? 'N/A'}</div>
                                     </div>
                                     <div className="admin-stat-card">
                                         <div className="admin-stat-label">Lessons in Curriculum</div>
@@ -857,12 +990,12 @@ export default function AdminDashboard() {
                                                                 {student.prScore}
                                                             </span>
                                                         ) : (
-                                                            <span className="text-muted-foreground text-sm">—</span>
+                                                            <span className="text-muted-foreground text-sm font-mono">N/A</span>
                                                         )}
                                                     </td>
                                                     <td>
                                                         <span className="text-sm text-muted-foreground">
-                                                            {student.academyJoinedAt ? new Date(student.academyJoinedAt).toLocaleDateString() : '—'}
+                                                            {student.academyJoinedAt ? new Date(student.academyJoinedAt).toLocaleDateString() : 'N/A'}
                                                         </span>
                                                     </td>
                                                 </tr>
@@ -1196,6 +1329,109 @@ export default function AdminDashboard() {
                                     </div>
                                 )}
 
+                                {/* AI Broadcast Copilot Console */}
+                                <div className="admin-ai-copilot">
+                                    <div className="admin-ai-copilot-header">
+                                        <div className="flex items-center gap-2.5">
+                                            <div className="admin-ai-icon-chip">
+                                                <Sparkles size={16} className="text-emerald-400" />
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="admin-ai-title">AI Broadcast Copilot</span>
+                                                    <span className="admin-ai-model-pill">Gemini 2.5 Flash</span>
+                                                </div>
+                                                <p className="admin-ai-subtitle">
+                                                    Draft announcements from instructions or elevate your draft into commanding developer prose.
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {/* Tone Selector */}
+                                        <div className="admin-ai-tone-group">
+                                            <button
+                                                type="button"
+                                                className={`admin-ai-tone-btn ${aiTone === 'badass' ? 'active' : ''}`}
+                                                onClick={() => setAiTone('badass')}
+                                            >
+                                                Badass &amp; Elite
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className={`admin-ai-tone-btn ${aiTone === 'direct' ? 'active' : ''}`}
+                                                onClick={() => setAiTone('direct')}
+                                            >
+                                                Direct &amp; Concise
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className={`admin-ai-tone-btn ${aiTone === 'celebratory' ? 'active' : ''}`}
+                                                onClick={() => setAiTone('celebratory')}
+                                            >
+                                                Celebratory
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="admin-ai-prompt-row">
+                                        <div className="relative flex-1">
+                                            <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+                                            <input
+                                                type="text"
+                                                className="admin-ai-input"
+                                                placeholder="Instruct AI (e.g. 'Announce streak shields and motivate engineers to ship today')..."
+                                                value={aiPrompt}
+                                                onChange={(e) => setAiPrompt(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        e.preventDefault();
+                                                        handleAiAssist('generate');
+                                                    }
+                                                }}
+                                            />
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                className="admin-btn admin-btn--ai-primary"
+                                                onClick={() => handleAiAssist('generate')}
+                                                disabled={aiLoading}
+                                            >
+                                                {aiLoading && aiActionType === 'generate' ? (
+                                                    <>
+                                                        <Loader2 size={13} className="animate-spin" />
+                                                        Generating...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Sparkles size={13} />
+                                                        Draft with AI
+                                                    </>
+                                                )}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="admin-btn admin-btn--ai-secondary"
+                                                onClick={() => handleAiAssist('enhance')}
+                                                disabled={aiLoading || (!broadcastMessage.trim() && !broadcastSubject.trim())}
+                                                title={!broadcastMessage.trim() && !broadcastSubject.trim() ? "Type a subject or message below first to enhance" : "Advance grammar and vocabulary with Gemini"}
+                                            >
+                                                {aiLoading && aiActionType === 'enhance' ? (
+                                                    <>
+                                                        <Loader2 size={13} className="animate-spin" />
+                                                        Elevating...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <RefreshCw size={13} />
+                                                        Advance Writing
+                                                    </>
+                                                )}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 {/* Quick Templates */}
                                 <div>
                                     <div className="flex items-center justify-between mb-2">
@@ -1302,15 +1538,27 @@ export default function AdminDashboard() {
                                         <label className="admin-label font-semibold text-white text-xs uppercase tracking-wider">
                                             Email Message Body *
                                         </label>
-                                        <button
-                                            type="button"
-                                            className="text-xs text-primary hover:underline font-medium"
-                                            onClick={() => {
-                                                setBroadcastMessage(prev => prev + ' {name}');
-                                            }}
-                                        >
-                                            + Insert {'{name}'}
-                                        </button>
+                                        <div className="flex items-center gap-3">
+                                            <button
+                                                type="button"
+                                                className="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1 font-medium disabled:opacity-40"
+                                                disabled={aiLoading || (!broadcastMessage.trim() && !broadcastSubject.trim())}
+                                                onClick={() => handleAiAssist('enhance')}
+                                                title="Advance grammar, vocabulary, and phrasing with Gemini"
+                                            >
+                                                <Sparkles size={12} />
+                                                Advance Writing
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="text-xs text-primary hover:underline font-medium"
+                                                onClick={() => {
+                                                    setBroadcastMessage(prev => prev + ' {name}');
+                                                }}
+                                            >
+                                                + Insert {'{name}'}
+                                            </button>
+                                        </div>
                                     </div>
                                     <textarea
                                         className="admin-input admin-textarea !min-h-[160px]"
@@ -1524,6 +1772,174 @@ export default function AdminDashboard() {
                                 </AlertDialogFooter>
                             </AlertDialogContent>
                         </AlertDialog>
+
+                        {/* AI Staged Copy Review Dialog */}
+                        <Dialog open={aiReviewOpen} onOpenChange={setAiReviewOpen}>
+                            <DialogContent className="max-w-3xl bg-[#09090b] border border-zinc-800 text-white p-0 overflow-hidden shadow-2xl">
+                                <DialogHeader className="p-5 border-b border-zinc-800/80 bg-[#0c0c0f]">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                                                <Sparkles size={18} />
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <DialogTitle className="text-base font-semibold text-white tracking-tight">
+                                                        AI Copy Review &amp; Staging
+                                                    </DialogTitle>
+                                                    <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">
+                                                        {aiReviewMode === 'enhance' ? 'Advanced &amp; Polished' : 'AI Generated'}
+                                                    </span>
+                                                    <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-emerald-950/40 text-emerald-400 border border-emerald-800/40">
+                                                        {aiTone}
+                                                    </span>
+                                                </div>
+                                                <DialogDescription className="text-xs text-zinc-400 mt-0.5">
+                                                    Review and edit staged copy synthesized by Gemini 2.5 Flash before applying to the active composer.
+                                                </DialogDescription>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </DialogHeader>
+
+                                <div className="p-6 max-h-[66vh] overflow-y-auto space-y-5">
+                                    {aiReviewMode === 'enhance' && (
+                                        <div className="p-3.5 rounded-lg border border-zinc-800 bg-[#0c0c0f] text-xs text-zinc-400">
+                                            <span className="text-emerald-400 font-semibold">Prose Upgrade Applied:</span> Your draft has been elevated with enriched vocabulary, high-end phrasing, and proper cadence while preserving your core message.
+                                        </div>
+                                    )}
+
+                                    {/* Subject and Headline */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider block mb-1.5">
+                                                Proposed Subject Line
+                                            </label>
+                                            <input
+                                                type="text"
+                                                className="admin-input !bg-[#121215] !border-zinc-800 !text-white text-sm"
+                                                value={aiStagedDraft.subject}
+                                                onChange={(e) => setAiStagedDraft({ ...aiStagedDraft, subject: e.target.value })}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider block mb-1.5">
+                                                Proposed Headline
+                                            </label>
+                                            <input
+                                                type="text"
+                                                className="admin-input !bg-[#121215] !border-zinc-800 !text-white text-sm"
+                                                value={aiStagedDraft.headline}
+                                                onChange={(e) => setAiStagedDraft({ ...aiStagedDraft, headline: e.target.value })}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Preheader */}
+                                    <div>
+                                        <label className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider block mb-1.5">
+                                            Inbox Preview Preheader
+                                        </label>
+                                        <input
+                                            type="text"
+                                            className="admin-input !bg-[#121215] !border-zinc-800 !text-white text-sm"
+                                            value={aiStagedDraft.previewText}
+                                            onChange={(e) => setAiStagedDraft({ ...aiStagedDraft, previewText: e.target.value })}
+                                        />
+                                    </div>
+
+                                    {/* Message Body */}
+                                    <div>
+                                        <label className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider block mb-1.5">
+                                            Proposed Message Body (Editable)
+                                        </label>
+                                        <textarea
+                                            rows={7}
+                                            className="admin-input admin-textarea !bg-[#121215] !border-zinc-800 !text-white text-sm leading-relaxed"
+                                            value={aiStagedDraft.message}
+                                            onChange={(e) => setAiStagedDraft({ ...aiStagedDraft, message: e.target.value })}
+                                        />
+                                    </div>
+
+                                    {/* Button Settings */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider block mb-1.5">
+                                                Call to Action Button Text
+                                            </label>
+                                            <input
+                                                type="text"
+                                                className="admin-input !bg-[#121215] !border-zinc-800 !text-white text-sm"
+                                                value={aiStagedDraft.buttonText}
+                                                onChange={(e) => setAiStagedDraft({ ...aiStagedDraft, buttonText: e.target.value })}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider block mb-1.5">
+                                                Destination URL
+                                            </label>
+                                            <input
+                                                type="text"
+                                                className="admin-input !bg-[#121215] !border-zinc-800 !text-white text-sm font-mono"
+                                                value={aiStagedDraft.buttonUrl}
+                                                onChange={(e) => setAiStagedDraft({ ...aiStagedDraft, buttonUrl: e.target.value })}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Revision Row */}
+                                    <div className="pt-3 border-t border-zinc-800/80">
+                                        <label className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider block mb-1.5">
+                                            Quick Revision Request
+                                        </label>
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="text"
+                                                className="admin-input !bg-[#121215] !border-zinc-800 !text-xs"
+                                                placeholder="Ask Gemini to adjust (e.g. 'Make paragraph 2 shorter', 'Focus on daily commit habits')..."
+                                                value={aiRevisionPrompt}
+                                                onChange={(e) => setAiRevisionPrompt(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        e.preventDefault();
+                                                        handleAiRefine();
+                                                    }
+                                                }}
+                                            />
+                                            <button
+                                                type="button"
+                                                className="admin-btn admin-btn--secondary !text-xs whitespace-nowrap flex items-center gap-1.5"
+                                                onClick={handleAiRefine}
+                                                disabled={aiLoading || !aiRevisionPrompt.trim()}
+                                            >
+                                                {aiLoading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+                                                Adjust Copy
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="p-4 border-t border-zinc-800 bg-[#0c0c0f] flex items-center justify-between">
+                                    <button
+                                        type="button"
+                                        className="admin-btn admin-btn--ghost text-xs text-zinc-400 hover:text-white"
+                                        onClick={() => setAiReviewOpen(false)}
+                                    >
+                                        Discard
+                                    </button>
+                                    <div className="flex items-center gap-3">
+                                        <button
+                                            type="button"
+                                            className="admin-btn admin-btn--approve flex items-center gap-2 !px-5 !py-2 font-bold text-xs"
+                                            onClick={handleAiApply}
+                                        >
+                                            <Check size={15} />
+                                            Apply to Composer
+                                        </button>
+                                    </div>
+                                </div>
+                            </DialogContent>
+                        </Dialog>
                     </div>
                 )}
             </div>
