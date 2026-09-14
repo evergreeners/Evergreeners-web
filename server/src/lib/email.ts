@@ -1,6 +1,12 @@
 import { Resend } from 'resend';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-const getResend = () => new Resend(process.env.RESEND_API_KEY);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+export const getResend = () => new Resend(process.env.RESEND_API_KEY);
 
 const FROM_EMAIL = process.env.EMAIL_FROM || 'Evergreeners <noreply@yourdomain.com>';
 const APP_URL = process.env.APP_URL || 'https://evergreeners.dev';
@@ -1057,14 +1063,17 @@ export interface CustomBroadcastImageOptions {
     caption?: string;
     linkUrl?: string;
     position?: 'top' | 'middle' | 'bottom';
+    dataUrl?: string;
 }
 
-export function generateCustomImageHtml(options: CustomBroadcastImageOptions = {}): string {
-    if (!options.enabled || !options.url) return '';
-    const { url, alt, caption, linkUrl } = options;
+export function generateCustomImageHtml(options: CustomBroadcastImageOptions = {}, imageSrcOverride?: string): string {
+    if (!options.enabled) return '';
+    const resolvedSrc = imageSrcOverride || options.url || options.dataUrl;
+    if (!resolvedSrc) return '';
+    const { alt, caption, linkUrl } = options;
 
     const imgTag = `
-      <img src="${url}" alt="${alt || 'Evergreeners Announcement'}" width="520" style="width:100%;max-width:520px;height:auto;border-radius:10px;border:1px solid #27272a;display:block;margin:0 auto;" />
+      <img src="${resolvedSrc}" alt="${alt || 'Evergreeners Announcement'}" width="520" style="width:100%;max-width:520px;height:auto;border-radius:10px;border:1px solid #27272a;display:block;margin:0 auto;" />
     `;
 
     const linkedImg = linkUrl ? `
@@ -2273,12 +2282,75 @@ export async function sendCustomBroadcastEmail(options: CustomBroadcastEmailOpti
     const { to, subject, headline, previewText, message, buttonText, buttonUrl, commitGrid, customImage, blockOrder } = options;
     const displayHeadline = headline || subject;
 
+    const attachments: Array<{ filename: string; content: Buffer; contentId?: string; contentType?: string }> = [];
+    let customImageSrcOverride: string | undefined = undefined;
+
+    if (customImage?.enabled && (customImage.url || customImage.dataUrl)) {
+        const url = customImage.url || '';
+        const dataUrl = customImage.dataUrl || (url.startsWith('data:') ? url : '');
+
+        if (dataUrl) {
+            try {
+                const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+                if (match) {
+                    const contentType = match[1];
+                    const base64Data = match[2];
+                    const extension = contentType.split('/')[1] || 'png';
+                    const buffer = Buffer.from(base64Data, 'base64');
+                    const filename = `broadcast-image.${extension}`;
+                    attachments.push({
+                        filename,
+                        content: buffer,
+                        contentType,
+                        contentId: 'broadcast-custom-image',
+                    });
+                    customImageSrcOverride = 'cid:broadcast-custom-image';
+                }
+            } catch (e) {
+                console.error('Failed to parse dataUrl for custom broadcast image:', e);
+            }
+        }
+
+        if (!customImageSrcOverride && url) {
+            if (url.includes('/uploads/') || url.includes('/public/') || url.includes('localhost') || url.includes('127.0.0.1') || !url.startsWith('http')) {
+                const cleanUrl = url.split('?')[0].split('#')[0];
+                const filename = path.basename(cleanUrl);
+                const candidates = [
+                    path.join(process.cwd(), 'server', 'public', 'uploads', filename),
+                    path.join(process.cwd(), 'public', 'uploads', filename),
+                    path.join(__dirname, '..', '..', 'public', 'uploads', filename),
+                    path.join(__dirname, '..', 'public', 'uploads', filename),
+                ];
+
+                for (const candidate of candidates) {
+                    if (fs.existsSync(candidate)) {
+                        try {
+                            const buffer = fs.readFileSync(candidate);
+                            const ext = path.extname(candidate).toLowerCase().replace('.', '');
+                            const contentType = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : ext === 'webp' ? 'image/webp' : 'image/png';
+                            attachments.push({
+                                filename,
+                                content: buffer,
+                                contentType,
+                                contentId: 'broadcast-custom-image',
+                            });
+                            customImageSrcOverride = 'cid:broadcast-custom-image';
+                            break;
+                        } catch (e) {
+                            console.error(`Failed to read local image file at ${candidate}:`, e);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     const commitGridHtml = commitGrid?.enabled
         ? `<tr><td style="padding-top:10px;padding-bottom:12px;">${generatePixelCommitGridHtml(commitGrid)}</td></tr>`
         : '';
 
-    const customImageHtml = customImage?.enabled && customImage?.url
-        ? `<tr><td style="padding-top:10px;padding-bottom:12px;">${generateCustomImageHtml(customImage)}</td></tr>`
+    const customImageHtml = customImage?.enabled && (customImage?.url || customImage?.dataUrl || customImageSrcOverride)
+        ? `<tr><td style="padding-top:10px;padding-bottom:12px;">${generateCustomImageHtml(customImage, customImageSrcOverride)}</td></tr>`
         : '';
 
     const buttonHtml = buttonText && buttonUrl ? `
@@ -2366,7 +2438,7 @@ export async function sendCustomBroadcastEmail(options: CustomBroadcastEmailOpti
             else bottomBlocks.push(commitGridHtml);
         }
 
-        if (customImage?.enabled && customImage?.url) {
+        if (customImage?.enabled && (customImage?.url || customImage?.dataUrl || customImageSrcOverride)) {
             const pos = customImage.position || 'middle';
             if (pos === 'top') topBlocks.push(customImageHtml);
             else if (pos === 'middle') middleBlocks.push(customImageHtml);
@@ -2396,6 +2468,7 @@ export async function sendCustomBroadcastEmail(options: CustomBroadcastEmailOpti
             to,
             subject,
             html: emailShell(body),
+            ...(attachments.length > 0 ? { attachments } : {}),
         });
         console.log(`Custom broadcast email sent to ${to} [${subject}]:`, result.data?.id);
         return result;

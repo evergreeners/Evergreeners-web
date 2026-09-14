@@ -298,6 +298,7 @@ export default function AdminDashboard() {
     // External / HD Image Attachment state
     const [customImageEnabled, setCustomImageEnabled] = useState(false);
     const [customImageUrl, setCustomImageUrl] = useState('');
+    const [customImageDataUrl, setCustomImageDataUrl] = useState('');
     const [customImageAlt, setCustomImageAlt] = useState('');
     const [customImageCaption, setCustomImageCaption] = useState('');
     const [customImageLinkUrl, setCustomImageLinkUrl] = useState('');
@@ -337,6 +338,7 @@ export default function AdminDashboard() {
         try {
             const optimized = await optimizeEmailImage(file);
             setCustomImageStats(optimized);
+            setCustomImageDataUrl(optimized.dataUrl);
 
             const formData = new FormData();
             formData.append('file', optimized.file);
@@ -419,6 +421,7 @@ export default function AdminDashboard() {
             caption?: string;
             linkUrl?: string;
             position?: 'top' | 'middle' | 'bottom';
+            dataUrl?: string;
         };
         blockOrder?: string[];
     }>({
@@ -454,6 +457,7 @@ export default function AdminDashboard() {
             caption?: string;
             linkUrl?: string;
             position?: 'top' | 'middle' | 'bottom';
+            dataUrl?: string;
         };
         blockOrder?: string[];
     }>({
@@ -615,13 +619,14 @@ export default function AdminDashboard() {
                         footerNote: commitGridFooterNote.trim() || undefined,
                         position: commitGridPosition,
                     } : undefined,
-                    customImage: customImageEnabled && customImageUrl ? {
+                    customImage: customImageEnabled && (customImageUrl || customImageDataUrl) ? {
                         enabled: true,
                         url: customImageUrl.trim(),
                         alt: customImageAlt.trim() || undefined,
                         caption: customImageCaption.trim() || undefined,
                         linkUrl: customImageLinkUrl.trim() || undefined,
                         position: customImagePosition,
+                        dataUrl: customImageDataUrl || undefined,
                     } : undefined,
                     blockOrder: blockOrder,
                 })
@@ -678,13 +683,14 @@ export default function AdminDashboard() {
                     footerNote: commitGridFooterNote.trim() || undefined,
                     position: commitGridPosition,
                 } : undefined,
-                customImage: customImageEnabled && customImageUrl ? {
+                customImage: customImageEnabled && (customImageUrl || customImageDataUrl) ? {
                     enabled: true,
                     url: customImageUrl.trim(),
                     alt: customImageAlt.trim() || undefined,
                     caption: customImageCaption.trim() || undefined,
                     linkUrl: customImageLinkUrl.trim() || undefined,
                     position: customImagePosition,
+                    dataUrl: customImageDataUrl || undefined,
                 } : undefined,
                 blockOrder,
             };
@@ -724,13 +730,14 @@ export default function AdminDashboard() {
                     footerNote: commitGridFooterNote,
                     position: commitGridPosition,
                 } : undefined,
-                customImage: customImageEnabled && customImageUrl ? {
+                customImage: customImageEnabled && (customImageUrl || customImageDataUrl) ? {
                     enabled: true,
                     url: customImageUrl,
                     alt: customImageAlt,
                     caption: customImageCaption,
                     linkUrl: customImageLinkUrl,
                     position: customImagePosition,
+                    dataUrl: customImageDataUrl || undefined,
                 } : undefined,
                 blockOrder,
             });
@@ -750,13 +757,14 @@ export default function AdminDashboard() {
                     footerNote: commitGridFooterNote,
                     position: commitGridPosition,
                 } : undefined),
-                customImage: data.draft.customImage || (customImageEnabled && customImageUrl ? {
+                customImage: data.draft.customImage || (customImageEnabled && (customImageUrl || customImageDataUrl) ? {
                     enabled: true,
                     url: customImageUrl,
                     alt: customImageAlt,
                     caption: customImageCaption,
                     linkUrl: customImageLinkUrl,
                     position: customImagePosition,
+                    dataUrl: customImageDataUrl || undefined,
                 } : undefined),
                 blockOrder: data.draft.blockOrder || blockOrder,
             });
@@ -797,6 +805,7 @@ export default function AdminDashboard() {
         if (aiStagedDraft.customImage) {
             setCustomImageEnabled(Boolean(aiStagedDraft.customImage.enabled));
             if (aiStagedDraft.customImage.url) setCustomImageUrl(aiStagedDraft.customImage.url);
+            if (aiStagedDraft.customImage.dataUrl) setCustomImageDataUrl(aiStagedDraft.customImage.dataUrl);
             if (aiStagedDraft.customImage.alt) setCustomImageAlt(aiStagedDraft.customImage.alt);
             if (aiStagedDraft.customImage.caption) setCustomImageCaption(aiStagedDraft.customImage.caption);
             if (aiStagedDraft.customImage.linkUrl) setCustomImageLinkUrl(aiStagedDraft.customImage.linkUrl);
@@ -1991,10 +2000,10 @@ export default function AdminDashboard() {
                                                     case 'custom_image':
                                                         return {
                                                             title: 'Attached HD Image',
-                                                            desc: (customImageEnabled && customImageUrl) ? `Visual attached · ${customImagePosition}` : 'No image active',
+                                                            desc: (customImageEnabled && (customImageUrl || customImageDataUrl)) ? `Visual attached · ${customImagePosition}` : 'No image active',
                                                             icon: <ImageIcon size={13} className="text-purple-400" />,
-                                                            badge: (customImageEnabled && customImageUrl) ? 'Active' : 'Off',
-                                                            active: Boolean(customImageEnabled && customImageUrl),
+                                                            badge: (customImageEnabled && (customImageUrl || customImageDataUrl)) ? 'Active' : 'Off',
+                                                            active: Boolean(customImageEnabled && (customImageUrl || customImageDataUrl)),
                                                         };
                                                     case 'message_bottom':
                                                         return {
@@ -2385,8 +2394,8 @@ export default function AdminDashboard() {
                                                 </div>
                                             )}
 
-                                            {/* Image Preview Card if URL is present */}
-                                            {customImageUrl && (
+                                            {/* Image Preview Card if URL or dataUrl is present */}
+                                            {(customImageUrl || customImageDataUrl) && (
                                                 <div className="broadcast-image-preview-card p-3 space-y-2">
                                                     <div className="flex items-center justify-between">
                                                         <span className="text-xs font-semibold text-zinc-300">Attached Visual Preview</span>
@@ -2395,6 +2404,7 @@ export default function AdminDashboard() {
                                                             className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 font-medium"
                                                             onClick={() => {
                                                                 setCustomImageUrl('');
+                                                                setCustomImageDataUrl('');
                                                                 setCustomImageStats(null);
                                                             }}
                                                         >
@@ -2404,7 +2414,7 @@ export default function AdminDashboard() {
                                                     </div>
                                                     <div className="rounded-lg overflow-hidden border border-zinc-800 bg-black max-h-48 flex items-center justify-center">
                                                         <img
-                                                            src={customImageUrl}
+                                                            src={customImageDataUrl || customImageUrl}
                                                             alt={customImageAlt || 'Attached visual'}
                                                             className="max-h-48 w-auto object-contain"
                                                         />
@@ -2645,20 +2655,20 @@ export default function AdminDashboard() {
                                                             </div>
                                                         ) : null;
                                                     case 'custom_image':
-                                                        return customImageEnabled && customImageUrl ? (
+                                                        return customImageEnabled && (customImageDataUrl || customImageUrl) ? (
                                                             <div key="custom_image" className="py-2 mb-4">
                                                                 <div className="rounded-lg overflow-hidden border border-white/10 bg-black/40">
                                                                     {customImageLinkUrl ? (
                                                                         <a href={customImageLinkUrl} target="_blank" rel="noopener noreferrer" className="block">
                                                                             <img
-                                                                                src={customImageUrl}
+                                                                                src={customImageDataUrl || customImageUrl}
                                                                                 alt={customImageAlt || 'Broadcast visual'}
                                                                                 className="w-full max-h-[360px] object-cover block"
                                                                             />
                                                                         </a>
                                                                     ) : (
                                                                         <img
-                                                                            src={customImageUrl}
+                                                                            src={customImageDataUrl || customImageUrl}
                                                                             alt={customImageAlt || 'Broadcast visual'}
                                                                             className="w-full max-h-[360px] object-cover block"
                                                                         />
@@ -2684,7 +2694,7 @@ export default function AdminDashboard() {
                                                 }
                                             };
 
-                                            if (!broadcastMessage && !commitGridEnabled && !customImageUrl && !broadcastButtonText) {
+                                            if (!broadcastMessage && !commitGridEnabled && !customImageUrl && !customImageDataUrl && !broadcastButtonText) {
                                                 return (
                                                     <p className="text-muted-foreground italic text-sm">
                                                         Start typing your email message on the left to see the live rendered preview here...

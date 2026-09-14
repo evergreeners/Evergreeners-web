@@ -2924,6 +2924,7 @@ server.register(async (instance) => {
                     caption?: string;
                     linkUrl?: string;
                     position?: 'top' | 'middle' | 'bottom';
+                    dataUrl?: string;
                 };
                 blockOrder?: string[];
             }
@@ -3062,6 +3063,7 @@ server.register(async (instance) => {
                         caption?: string;
                         linkUrl?: string;
                         position?: 'top' | 'middle' | 'bottom';
+                        dataUrl?: string;
                     };
                     blockOrder?: string[];
                 };

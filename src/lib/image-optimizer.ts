@@ -6,6 +6,7 @@ export interface ImageOptimizationResult {
     blob: Blob;
     file: File;
     previewUrl: string;
+    dataUrl: string;
     originalSize: number;
     optimizedSize: number;
     width: number;
@@ -62,12 +63,14 @@ export async function optimizeEmailImage(file: File): Promise<ImageOptimizationR
                             type: outputType,
                         });
                         const previewUrl = URL.createObjectURL(blob);
+                        const dataUrl = canvas.toDataURL(outputType, quality);
                         const ratio = Math.round((1 - blob.size / file.size) * 100);
 
                         resolve({
                             blob,
                             file: optimizedFile,
                             previewUrl,
+                            dataUrl,
                             originalSize: file.size,
                             optimizedSize: blob.size,
                             width,
