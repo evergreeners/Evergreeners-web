@@ -13,7 +13,6 @@ import {
   BookOpen, 
   UserRound 
 } from "lucide-react";
-import { Logo } from "./Logo";
 import { useState } from "react";
 import { useSession, signOut } from "@/lib/auth-client";
 import { useQuery } from "@tanstack/react-query";
@@ -98,12 +97,13 @@ export function AcademyHeader() {
       <div className="w-full max-w-5xl bg-black/60 backdrop-blur-xl border border-white/10 rounded-full pl-6 pr-2 py-2 flex items-center justify-between shadow-2xl shadow-black/50 transition-all duration-300 hover:border-white/20 hover:bg-black/70">
         
         {/* Logo Branding */}
-        <Link to="/academy" onClick={() => triggerHaptic()} className="flex items-center gap-3 group shrink-0">
-          <Logo className="w-6 h-6" />
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-foreground tracking-tight text-lg group-hover:text-green-400 transition-colors">Evergreen</span>
-            <span className="text-[10px] bg-primary/20 text-primary border border-primary/30 rounded-full px-2.5 py-0.5 font-extrabold uppercase tracking-widest hidden sm:inline-block">Academy</span>
-          </div>
+        <Link to="/academy" onClick={() => triggerHaptic()} className="flex items-center gap-2.5 group shrink-0">
+          <span className="font-handwritten text-2xl text-primary group-hover:brightness-110 transition-all">
+            Evergreeners
+          </span>
+          <span className="text-[10px] bg-primary/20 text-primary border border-primary/30 rounded-full px-2.5 py-0.5 font-extrabold uppercase tracking-widest hidden sm:inline-block">
+            Academy
+          </span>
         </Link>
 
         {/* Desktop Navigation */}
@@ -254,8 +254,8 @@ export function AcademyHeader() {
             <SheetContent side="right" className="bg-black/95 border-l border-white/10 p-6 flex flex-col justify-between">
               <div className="space-y-6 pt-8">
                 <div className="flex items-center gap-2.5 pb-4 border-b border-white/10">
-                  <Logo className="w-5 h-5" />
-                  <span className="font-bold text-foreground tracking-tight text-md">Evergreen Academy</span>
+                  <span className="font-handwritten text-xl text-primary">Evergreeners</span>
+                  <span className="text-[10px] bg-primary/20 text-primary border border-primary/30 rounded-full px-2 py-0.5 font-extrabold uppercase tracking-widest">Academy</span>
                 </div>
 
                 <div className="flex flex-col gap-3">
