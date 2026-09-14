@@ -7,7 +7,7 @@
     "dev": "concurrently -k -p \"[{name}]\" -n \"FRONTEND,BACKEND\" -c \"cyan,green\" \"vite\" \"npm run api\"",
     "dev:frontend": "vite",
     "dev:backend": "npm run api",
-    "api": "npx tsx server/src/index.ts",
+    "api": "npx tsx watch server/src/index.ts",
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
