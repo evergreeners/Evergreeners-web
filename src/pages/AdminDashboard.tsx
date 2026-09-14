@@ -4,7 +4,7 @@ import {
     Check, Star, Trash2, Award, 
     MessageSquare, Loader2, AlertCircle, ExternalLink, ShieldCheck,
     BookOpen, GraduationCap, Plus, Save, X, Users, Inbox, Brain, Eye,
-    Mail, Send, CheckSquare, Square, Search, Sparkles, RefreshCw, AlertTriangle
+    Mail, Send, CheckSquare, Square, Search, Sparkles, RefreshCw, AlertTriangle, Grid
 } from 'lucide-react';
 import {
     AlertDialog,
@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/dialog";
 import { getApiUrl } from '@/lib/api-config';
 import { useSession } from '@/lib/auth-client';
+import { buildCommitGridMatrix } from '@/lib/commit-grid';
 import { toast } from 'sonner';
 import './AdminDashboard.css';
 
@@ -125,6 +126,127 @@ const STATUS_LABELS: Record<string, string> = {
     graduated: 'Graduated',
 };
 
+const COMMIT_GRID_PRESETS = [
+    {
+        id: '256',
+        label: '256 (Programmer Day)',
+        text: '256',
+        repoTag: '● git://evergreeners/day-256',
+        subBadge: '2⁸ = 256 bytes · 0x100',
+        footerNote: '256 commits to the craft'
+    },
+    {
+        id: '100',
+        label: '100 (Century Milestone)',
+        text: '100',
+        repoTag: '● git://evergreeners/100-days-of-code',
+        subBadge: 'century milestone',
+        footerNote: '100 days of relentless execution'
+    },
+    {
+        id: '365',
+        label: '365 (Year in Code)',
+        text: '365',
+        repoTag: '● git://evergreeners/year-one',
+        subBadge: 'full rotation complete',
+        footerNote: '365/365 days committed'
+    },
+    {
+        id: 'SHIP',
+        label: 'SHIP',
+        text: 'SHIP',
+        repoTag: '● git://evergreeners/production',
+        subBadge: 'build and ship',
+        footerNote: 'unbroken shipping streak'
+    },
+    {
+        id: 'DEV',
+        label: 'DEV',
+        text: 'DEV',
+        repoTag: '● git://evergreeners/engineering',
+        subBadge: 'developer craft',
+        footerNote: 'code compounding daily'
+    },
+    {
+        id: 'FIRE',
+        label: 'FIRE',
+        text: 'FIRE',
+        repoTag: '● git://evergreeners/on-fire',
+        subBadge: 'active streak',
+        footerNote: 'unyielding developer discipline'
+    }
+];
+
+function CommitGridPreview({
+    text = '256',
+    repoTag = '● git://evergreeners/day-256',
+    subBadge = '2⁸ = 256 bytes · 0x100',
+    footerNote = '256 commits to the craft'
+}: {
+    text?: string;
+    repoTag?: string;
+    subBadge?: string;
+    footerNote?: string;
+}) {
+    const grid = buildCommitGridMatrix(text, 24);
+    const cleanText = (text || '256').trim().toUpperCase();
+
+    return (
+        <div className="commit-grid-card">
+            <div className="commit-grid-card-header">
+                <span className="commit-grid-repo-tag">{repoTag}</span>
+                <span className="commit-grid-sub-badge">{subBadge}</span>
+            </div>
+
+            <div className="commit-grid-body">
+                <div className="commit-grid-month-bar">
+                    <span>JAN</span>
+                    <span>MAR</span>
+                    <span>MAY</span>
+                    <span>JUL</span>
+                    <span className="commit-grid-month-active">
+                        {cleanText === '256' ? 'SEP 13 (DAY 256)' : `CURRENT: ${cleanText}`}
+                    </span>
+                </div>
+
+                <table className="commit-grid-table" role="presentation">
+                    <tbody>
+                        {grid.map((row, rIdx) => {
+                            const label = rIdx === 1 ? 'Mon' : rIdx === 3 ? 'Wed' : rIdx === 5 ? 'Fri' : '';
+                            return (
+                                <tr key={rIdx}>
+                                    <td className="commit-grid-day-label">{label}</td>
+                                    {row.map((val, cIdx) => (
+                                        <td key={cIdx} className="p-0">
+                                            <div
+                                                className={`commit-grid-cell level-${val}`}
+                                                title={`Row ${rIdx + 1}, Col ${cIdx + 1}: Level ${val}`}
+                                            />
+                                        </td>
+                                    ))}
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
+
+            <div className="commit-grid-card-footer">
+                <div className="commit-grid-legend">
+                    <span>Less</span>
+                    <div className="commit-grid-legend-cell level-0" />
+                    <div className="commit-grid-legend-cell level-1" />
+                    <div className="commit-grid-legend-cell level-2" />
+                    <div className="commit-grid-legend-cell level-3" />
+                    <div className="commit-grid-legend-cell level-4" />
+                    <span>More</span>
+                </div>
+                <div className="commit-grid-footer-note">{footerNote}</div>
+            </div>
+        </div>
+    );
+}
+
 export default function AdminDashboard() {
     const { data: session, isPending: authLoading } = useSession();
     const [tab, setTab] = useState<Tab>('stories');
@@ -163,6 +285,24 @@ export default function AdminDashboard() {
     const [broadcastConfirmOpen, setBroadcastConfirmOpen] = useState(false);
     const [broadcastResult, setBroadcastResult] = useState<{ sent: number; failed: number; message: string } | null>(null);
 
+    // Pixel Commit Grid Graphic state
+    const [commitGridEnabled, setCommitGridEnabled] = useState(false);
+    const [commitGridText, setCommitGridText] = useState('256');
+    const [commitGridRepoTag, setCommitGridRepoTag] = useState('● git://evergreeners/day-256');
+    const [commitGridSubBadge, setCommitGridSubBadge] = useState('2⁸ = 256 bytes · 0x100');
+    const [commitGridFooterNote, setCommitGridFooterNote] = useState('256 commits to the craft');
+
+    const applyCommitGridPreset = (presetId: string) => {
+        const found = COMMIT_GRID_PRESETS.find(p => p.id === presetId);
+        if (found) {
+            setCommitGridEnabled(true);
+            setCommitGridText(found.text);
+            setCommitGridRepoTag(found.repoTag);
+            setCommitGridSubBadge(found.subBadge);
+            setCommitGridFooterNote(found.footerNote);
+        }
+    };
+
     // AI Broadcast Copilot state (powered by Gemini 2.5 Flash)
     const [aiPrompt, setAiPrompt] = useState('');
     const [aiTone, setAiTone] = useState<'badass' | 'direct' | 'celebratory'>('badass');
@@ -170,21 +310,51 @@ export default function AdminDashboard() {
     const [aiActionType, setAiActionType] = useState<'generate' | 'enhance' | null>(null);
     const [aiReviewOpen, setAiReviewOpen] = useState(false);
     const [aiReviewMode, setAiReviewMode] = useState<'generate' | 'enhance'>('generate');
-    const [aiStagedDraft, setAiStagedDraft] = useState({
+    const [aiStagedDraft, setAiStagedDraft] = useState<{
+        subject: string;
+        headline: string;
+        previewText: string;
+        message: string;
+        buttonText: string;
+        buttonUrl: string;
+        commitGrid?: {
+            enabled: boolean;
+            text: string;
+            repoTag?: string;
+            subBadge?: string;
+            footerNote?: string;
+        };
+    }>({
         subject: '',
         headline: '',
         previewText: '',
         message: '',
         buttonText: 'Open Dashboard',
         buttonUrl: 'https://evergreeners.dev/dashboard',
+        commitGrid: undefined,
     });
-    const [aiOriginalDraft, setAiOriginalDraft] = useState({
+    const [aiOriginalDraft, setAiOriginalDraft] = useState<{
+        subject: string;
+        headline: string;
+        previewText: string;
+        message: string;
+        buttonText: string;
+        buttonUrl: string;
+        commitGrid?: {
+            enabled: boolean;
+            text: string;
+            repoTag?: string;
+            subBadge?: string;
+            footerNote?: string;
+        };
+    }>({
         subject: '',
         headline: '',
         previewText: '',
         message: '',
         buttonText: 'Open Dashboard',
         buttonUrl: 'https://evergreeners.dev/dashboard',
+        commitGrid: undefined,
     });
     const [aiRevisionPrompt, setAiRevisionPrompt] = useState('');
 
@@ -326,6 +496,13 @@ export default function AdminDashboard() {
                     buttonUrl: broadcastButtonUrl.trim() || undefined,
                     selectedUserIds: target === 'selected' ? selectedUserIds : undefined,
                     testEmail: target === 'test' ? testEmail.trim() : undefined,
+                    commitGrid: commitGridEnabled ? {
+                        enabled: true,
+                        text: commitGridText.trim().toUpperCase().slice(0, 5) || '256',
+                        repoTag: commitGridRepoTag.trim() || undefined,
+                        subBadge: commitGridSubBadge.trim() || undefined,
+                        footerNote: commitGridFooterNote.trim() || undefined,
+                    } : undefined,
                 })
             });
 
@@ -372,6 +549,13 @@ export default function AdminDashboard() {
                 message: broadcastMessage.trim() || undefined,
                 buttonText: broadcastButtonText.trim() || undefined,
                 buttonUrl: broadcastButtonUrl.trim() || undefined,
+                commitGrid: commitGridEnabled ? {
+                    enabled: true,
+                    text: commitGridText.trim().toUpperCase().slice(0, 5) || '256',
+                    repoTag: commitGridRepoTag.trim() || undefined,
+                    subBadge: commitGridSubBadge.trim() || undefined,
+                    footerNote: commitGridFooterNote.trim() || undefined,
+                } : undefined,
             };
 
             const res = await fetch(getApiUrl('/api/admin/broadcast/ai-assist'), {
@@ -401,6 +585,13 @@ export default function AdminDashboard() {
                 message: broadcastMessage,
                 buttonText: broadcastButtonText,
                 buttonUrl: broadcastButtonUrl,
+                commitGrid: commitGridEnabled ? {
+                    enabled: true,
+                    text: commitGridText,
+                    repoTag: commitGridRepoTag,
+                    subBadge: commitGridSubBadge,
+                    footerNote: commitGridFooterNote,
+                } : undefined,
             });
 
             setAiStagedDraft({
@@ -410,6 +601,13 @@ export default function AdminDashboard() {
                 message: data.draft.message || '',
                 buttonText: data.draft.buttonText || 'Open Dashboard',
                 buttonUrl: data.draft.buttonUrl || 'https://evergreeners.dev/dashboard',
+                commitGrid: data.draft.commitGrid || (commitGridEnabled ? {
+                    enabled: true,
+                    text: commitGridText,
+                    repoTag: commitGridRepoTag,
+                    subBadge: commitGridSubBadge,
+                    footerNote: commitGridFooterNote,
+                } : undefined),
             });
 
             setAiReviewMode(mode);
@@ -437,6 +635,13 @@ export default function AdminDashboard() {
         setBroadcastMessage(aiStagedDraft.message);
         setBroadcastButtonText(aiStagedDraft.buttonText);
         setBroadcastButtonUrl(aiStagedDraft.buttonUrl);
+        if (aiStagedDraft.commitGrid) {
+            setCommitGridEnabled(Boolean(aiStagedDraft.commitGrid.enabled));
+            if (aiStagedDraft.commitGrid.text) setCommitGridText(aiStagedDraft.commitGrid.text);
+            if (aiStagedDraft.commitGrid.repoTag) setCommitGridRepoTag(aiStagedDraft.commitGrid.repoTag);
+            if (aiStagedDraft.commitGrid.subBadge) setCommitGridSubBadge(aiStagedDraft.commitGrid.subBadge);
+            if (aiStagedDraft.commitGrid.footerNote) setCommitGridFooterNote(aiStagedDraft.commitGrid.footerNote);
+        }
         setAiReviewOpen(false);
         toast.success('AI copy applied directly to composer.');
     };
@@ -1573,6 +1778,131 @@ export default function AdminDashboard() {
                                     </p>
                                 </div>
 
+                                {/* Pixelated Commit Grid Graphic Section */}
+                                <div className="p-4 rounded-xl border border-white/10 bg-[#0c0c0f] space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2.5">
+                                            <div className="w-7 h-7 rounded-md bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                                                <Grid size={15} />
+                                            </div>
+                                            <div>
+                                                <label className="admin-label block font-semibold text-white text-xs uppercase tracking-wider">
+                                                    Pixel Commit Heatmap Graphic
+                                                </label>
+                                                <p className="text-[11px] text-muted-foreground">
+                                                    Embed an authentic 7-row developer commit grid graphic inside the email.
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            className={`admin-btn !text-xs !py-1 !px-3 ${commitGridEnabled ? 'bg-emerald-500 hover:bg-emerald-600 text-black font-bold' : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300'}`}
+                                            onClick={() => setCommitGridEnabled(!commitGridEnabled)}
+                                        >
+                                            {commitGridEnabled ? 'Enabled' : 'Disabled'}
+                                        </button>
+                                    </div>
+
+                                    {commitGridEnabled && (
+                                        <div className="space-y-3 pt-2 border-t border-white/5">
+                                            {/* Quick Presets */}
+                                            <div>
+                                                <label className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider block mb-1.5">
+                                                    Heatmap Presets
+                                                </label>
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {COMMIT_GRID_PRESETS.map((preset) => (
+                                                        <button
+                                                            key={preset.id}
+                                                            type="button"
+                                                            className={`px-2.5 py-1 rounded text-xs font-mono transition-colors ${
+                                                                commitGridText === preset.text
+                                                                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 font-bold'
+                                                                    : 'bg-zinc-800/60 hover:bg-zinc-800 text-zinc-300 border border-zinc-700/60'
+                                                            }`}
+                                                            onClick={() => applyCommitGridPreset(preset.id)}
+                                                        >
+                                                            {preset.label}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* Custom Grid Controls */}
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                <div>
+                                                    <label className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider block mb-1">
+                                                        Pixel Art Text (1 to 4 chars)
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        maxLength={5}
+                                                        className="admin-input !font-mono uppercase !text-sm"
+                                                        placeholder="256"
+                                                        value={commitGridText}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value.toUpperCase();
+                                                            setCommitGridText(val);
+                                                            if (val && !commitGridRepoTag.includes(val.toLowerCase())) {
+                                                                setCommitGridRepoTag(`● git://evergreeners/${val.toLowerCase()}`);
+                                                            }
+                                                        }}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider block mb-1">
+                                                        Repository Tag / Header
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        className="admin-input !font-mono !text-sm"
+                                                        placeholder="● git://evergreeners/day-256"
+                                                        value={commitGridRepoTag}
+                                                        onChange={(e) => setCommitGridRepoTag(e.target.value)}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                <div>
+                                                    <label className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider block mb-1">
+                                                        Sub Badge (Top Right)
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        className="admin-input !text-xs"
+                                                        placeholder="2⁸ = 256 bytes · 0x100"
+                                                        value={commitGridSubBadge}
+                                                        onChange={(e) => setCommitGridSubBadge(e.target.value)}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider block mb-1">
+                                                        Footer Legend Note
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        className="admin-input !text-xs"
+                                                        placeholder="256 commits to the craft"
+                                                        value={commitGridFooterNote}
+                                                        onChange={(e) => setCommitGridFooterNote(e.target.value)}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {/* In-Composer Compact Graphic Preview */}
+                                            <div className="pt-2">
+                                                <CommitGridPreview
+                                                    text={commitGridText}
+                                                    repoTag={commitGridRepoTag}
+                                                    subBadge={commitGridSubBadge}
+                                                    footerNote={commitGridFooterNote}
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
                                 {/* Call to Action Button */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-xl border border-white/5 bg-black/30">
                                     <div>
@@ -1712,6 +2042,18 @@ export default function AdminDashboard() {
                                                 </p>
                                             )}
                                         </div>
+
+                                        {/* Pixel Commit Grid Graphic Preview */}
+                                        {commitGridEnabled && (
+                                            <div className="pt-2">
+                                                <CommitGridPreview
+                                                    text={commitGridText}
+                                                    repoTag={commitGridRepoTag}
+                                                    subBadge={commitGridSubBadge}
+                                                    footerNote={commitGridFooterNote}
+                                                />
+                                            </div>
+                                        )}
 
                                         {/* Optional Action Button */}
                                         {broadcastButtonText && (
@@ -1886,6 +2228,30 @@ export default function AdminDashboard() {
                                             />
                                         </div>
                                     </div>
+
+                                    {/* AI Staged Commit Grid Graphic */}
+                                    {aiStagedDraft.commitGrid?.enabled && (
+                                        <div className="p-4 rounded-xl border border-zinc-800 bg-[#0c0c0f] space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <Grid size={15} className="text-emerald-400" />
+                                                    <span className="text-xs font-mono uppercase text-zinc-300 font-semibold">
+                                                        Synthesized Commit Grid Matrix
+                                                    </span>
+                                                </div>
+                                                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950/40 text-emerald-400 border border-emerald-800/40 font-bold">
+                                                    {aiStagedDraft.commitGrid.text || '256'}
+                                                </span>
+                                            </div>
+
+                                            <CommitGridPreview
+                                                text={aiStagedDraft.commitGrid.text}
+                                                repoTag={aiStagedDraft.commitGrid.repoTag}
+                                                subBadge={aiStagedDraft.commitGrid.subBadge}
+                                                footerNote={aiStagedDraft.commitGrid.footerNote}
+                                            />
+                                        </div>
+                                    )}
 
                                     {/* Revision Row */}
                                     <div className="pt-3 border-t border-zinc-800/80">
