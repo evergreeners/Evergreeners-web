@@ -994,3 +994,107 @@
     font-weight: 600;
     color: #39d353;
 }
+
+/* Drag and Drop Layout Reorder Styles */
+.broadcast-drag-panel {
+    background: #0c0c0e;
+    border: 1px solid #1f1f23;
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 20px;
+}
+
+.broadcast-drag-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.broadcast-drag-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 12px;
+    background: #141418;
+    border: 1px solid #27272a;
+    border-radius: 8px;
+    cursor: grab;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+    user-select: none;
+}
+
+.broadcast-drag-item:hover {
+    background: #191920;
+    border-color: #3f3f46;
+}
+
+.broadcast-drag-item:active {
+    cursor: grabbing;
+}
+
+.broadcast-drag-item.is-dragging {
+    opacity: 0.4;
+    border-color: #10b981;
+}
+
+.broadcast-drag-handle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #a1a1aa;
+}
+
+.broadcast-drag-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.broadcast-drag-btn {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    background: #1f1f24;
+    color: #a1a1aa;
+    border: none;
+    cursor: pointer;
+    transition: background 0.12s ease, color 0.12s ease;
+}
+
+.broadcast-drag-btn:hover:not(:disabled) {
+    background: #27272e;
+    color: #ffffff;
+}
+
+.broadcast-drag-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+/* Image Upload Dropzone Styles */
+.broadcast-image-dropzone {
+    border: 2px dashed #27272a;
+    border-radius: 10px;
+    padding: 20px 16px;
+    text-align: center;
+    background: #09090c;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.broadcast-image-dropzone:hover {
+    border-color: #10b981;
+    background: rgba(16, 185, 129, 0.02);
+}
+
+.broadcast-image-preview-card {
+    border-radius: 10px;
+    border: 1px solid #27272a;
+    background: #09090b;
+    overflow: hidden;
+    margin-top: 10px;
+}
