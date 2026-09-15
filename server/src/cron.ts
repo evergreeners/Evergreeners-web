@@ -4,7 +4,7 @@ import { users, accounts, lessonProgress } from './db/schema.js';
 import { eq, and, lt, or, isNull, isNotNull, ne, sql } from 'drizzle-orm';
 import { getGithubContributions } from './lib/github.js';
 import { updateUserGoals } from './lib/goals.js';
-import { sendDailyDigestEmail, sendStreakBrokenEmail, sendAcademyNudgeEmail, sendProgrammersDayEmail, type AcademyTimeLeft, type DailyAcademyInfo } from './lib/email.js';
+import { sendDailyDigestEmail, sendStreakBrokenEmail, sendAcademyNudgeEmail, sendProgrammersDayEmail, sendProgrammersDayAdminApprovalEmail, getProgrammersDayToken, type AcademyTimeLeft, type DailyAcademyInfo } from './lib/email.js';
 import { createNotificationIfMissing } from './lib/notifications.js';
 
 const ACADEMY_LAUNCH_DATE = process.env.ACADEMY_LAUNCH_DATE || '2026-08-31T00:00:00Z';
@@ -110,17 +110,62 @@ export function setupCronJobs() {
         }
     });
 
-let programmersDaySentDate: string | null = null;
+let programmersDayAdminNotifiedDate: string | null = null;
 let dailyDigestSentDate: string | null = null;
+
+    // ── Programmer's Day (Day 256) Check at 8:00 AM Nigerian time (Africa/Lagos) ────
+    // Only runs on the 256th day of each year (Sep 13 on normal years, Sep 12 on leap years).
+    // Sends the admin (muhammadadamualiyu33@gmail.com) an approval email with a secure 1-click
+    // broadcast approval button.
+    // GUARANTEE: NO celebration emails are sent to users until the admin explicitly approves!
+    cron.schedule('0 8 * * *', async () => {
+        if (!isProgrammersDay()) {
+            return;
+        }
+
+        const todayKey = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Lagos' });
+        if (programmersDayAdminNotifiedDate === todayKey) {
+            console.log("Admin already notified for Programmer's Day today, skipping duplicate.");
+            return;
+        }
+
+        console.log("Today is Programmer's Day (Day 256)! Sending approval email to admin...");
+
+        try {
+            const adminEmail = process.env.ADMIN_EMAIL || 'muhammadadamualiyu33@gmail.com';
+            const year = parseInt(todayKey.split('-')[0], 10);
+            const token = getProgrammersDayToken(year);
+            const appUrl = process.env.APP_URL || 'https://evergreeners.dev';
+            const approvalUrl = `${appUrl}/api/admin/approve-programmers-day?token=${token}&year=${year}`;
+            const adminDashboardUrl = `${appUrl}/admin`;
+
+            const allAccountsCount = (await db.select({ count: sql<number>`count(*)::int` })
+                .from(users)
+                .where(isNotNull(users.email)))[0]?.count || 0;
+
+            await sendProgrammersDayAdminApprovalEmail({
+                to: adminEmail,
+                year,
+                totalEligibleUsers: allAccountsCount,
+                approvalUrl,
+                adminDashboardUrl,
+                dateLabel: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'Africa/Lagos' }),
+            });
+
+            programmersDayAdminNotifiedDate = todayKey;
+            console.log(`[Programmer's Day] Approval request email sent to admin (${adminEmail}). Broadcast pending approval.`);
+        } catch (error) {
+            console.error("Failed to send Programmer's Day admin approval notification:", error);
+        }
+    }, {
+        timezone: 'Africa/Lagos'
+    });
 
     // ── Daily digest at 8 PM Nigerian time (20:00 WAT / Africa/Lagos) ──────────
     // Smart filtering rules:
-    //   1. On Day 256 (Programmer's Day), broadcast celebration email to EVERY user with an account!
-    //      Automatically reverts to regular streak-only digest tomorrow.
-    //   2. On ordinary days:
-    //      - Only send to users who explicitly opted in (emailNotifications = true)
-    //      - Only send if user has streak >= 2 (they're actually doing streaks)
-    //      - If a user's streak is 0 but they had one yesterday, send a one-time broken email
+    //   - Only send to users who explicitly opted in (emailNotifications = true)
+    //   - Only send if user has streak >= 2 (they're actually doing streaks)
+    //   - If a user's streak is 0 but they had one yesterday, send a one-time broken email
     cron.schedule('0 20 * * *', async () => {
         console.log("Running daily digest emails...");
 
@@ -130,43 +175,6 @@ let dailyDigestSentDate: string | null = null;
             const todayKey = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Lagos' });
             if (dailyDigestSentDate === todayKey) {
                 console.log("Daily digest already sent today, skipping duplicate run.");
-                return;
-            }
-            // ── Day 256 (Programmer's Day) Broadcast to ALL accounts ──────────
-            if (isProgrammersDay()) {
-                const todayKey = new Date().toISOString().split('T')[0];
-                if (programmersDaySentDate === todayKey) {
-                    console.log("Programmer's Day email already sent today, skipping duplicate run.");
-                    return;
-                }
-
-                console.log("Today is Programmer's Day (Day 256)! Sending celebration email to ALL accounts with us...");
-                const allAccounts = await db.select().from(users).where(isNotNull(users.email));
-                let sent = 0;
-                let failed = 0;
-
-                for (const u of allAccounts) {
-                    if (!u.email) continue;
-                    try {
-                        await sendProgrammersDayEmail({
-                            to: u.email,
-                            name: u.name || u.username || 'Dev',
-                            username: u.username || '',
-                            streak: u.streak || 0,
-                            todayCommits: u.todayCommits || 0,
-                            totalCommits: u.totalCommits || 0,
-                            weeklyCommits: u.weeklyCommits || 0,
-                            isGithubConnected: u.isGithubConnected || false,
-                        });
-                        sent++;
-                    } catch (err) {
-                        console.error(`Failed to send Programmer's Day email to ${u.email}:`, err);
-                        failed++;
-                    }
-                    await sleep(600);
-                }
-
-                console.log(`Programmer's Day broadcast complete. Sent: ${sent}, Failed: ${failed}`);
                 return;
             }
 
