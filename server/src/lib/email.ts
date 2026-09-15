@@ -1,4 +1,5 @@
 import { Resend } from 'resend';
+import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -1597,6 +1598,117 @@ export async function sendProgrammersDayEmail(opts: ProgrammersDayEmailOptions) 
         return result;
     } catch (err) {
         console.error(`Failed to send Programmer's Day email to ${to}:`, err);
+        throw err;
+    }
+}
+
+export function getProgrammersDayToken(year: number): string {
+    const secret = process.env.BETTER_AUTH_SECRET || process.env.RESEND_API_KEY || 'evergreeners-day-256-secret';
+    return crypto.createHmac('sha256', secret).update(`programmers-day-${year}`).digest('hex');
+}
+
+export interface ProgrammersDayAdminApprovalOptions {
+    to: string;
+    year: number;
+    totalEligibleUsers: number;
+    approvalUrl: string;
+    adminDashboardUrl: string;
+    dateLabel: string;
+}
+
+export async function sendProgrammersDayAdminApprovalEmail(opts: ProgrammersDayAdminApprovalOptions) {
+    const { to, year, totalEligibleUsers, approvalUrl, adminDashboardUrl, dateLabel } = opts;
+
+    const subject = `🚀 Programmer's Day ${year} (Day 256) is here! Review & Approve Broadcast`;
+
+    const body = `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td style="padding-bottom:12px;">
+            <span style="display:inline-block;padding:4px 10px;border-radius:12px;background-color:rgba(57,211,83,0.15);border:1px solid rgba(57,211,83,0.3);font-family:ui-monospace,'SF Mono',monospace;font-size:11px;font-weight:700;color:#39d353;letter-spacing:0.05em;text-transform:uppercase;">
+              ⚡ DAY 256 · APPROVAL REQUIRED
+            </span>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding-bottom:12px;">
+            <h1 class="text-heading" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',Helvetica,Arial,sans-serif;font-size:24px;font-weight:700;color:#09090b;letter-spacing:-0.4px;line-height:1.3;">
+              Happy Programmer's Day, Adam! 💻
+            </h1>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding-bottom:16px;">
+            <p class="text-body" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;color:#52525b;line-height:1.75;">
+              Today (${dateLabel}) is the <strong>256th day of ${year}</strong> — the global celebration of developers and makers!
+            </p>
+          </td>
+        </tr>
+
+        <tr>
+          <td style="padding-bottom:20px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f4f5;border:1px solid #e4e4e7;border-radius:12px;padding:16px;">
+              <tr>
+                <td>
+                  <p style="margin:0 0 6px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:12px;font-weight:600;color:#71717a;text-transform:uppercase;letter-spacing:0.05em;">
+                    Broadcast Audience
+                  </p>
+                  <p style="margin:0 0 8px;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',sans-serif;font-size:24px;font-weight:800;color:#09090b;">
+                    ${totalEligibleUsers} <span style="font-size:15px;font-weight:500;color:#52525b;">developer accounts</span>
+                  </p>
+                  <p style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;color:#dc2626;font-weight:600;">
+                    ⚠️ On hold: No celebration emails have been sent to users yet.
+                  </p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <tr>
+          <td style="padding-bottom:16px;">
+            <p class="text-body" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;color:#52525b;line-height:1.6;">
+              As the administrator, your approval is required before the broadcast goes out. Once you approve, Evergreeners will send personalized Day 256 celebration emails with individual streaks, commits, and the interactive 256 pixel grid graphic.
+            </p>
+          </td>
+        </tr>
+
+        <tr>
+          <td style="padding-bottom:24px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="background-color:#39d353;border-radius:12px;">
+                  <a href="${approvalUrl}" style="display:inline-block;padding:14px 28px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;font-weight:700;color:#000000;text-decoration:none;letter-spacing:-0.1px;">
+                    ✅ Approve & Send Broadcast Now →
+                  </a>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        ${divider}
+
+        <tr>
+          <td style="padding-top:8px;">
+            <p style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;color:#71717a;">
+              Prefer to send from the dashboard or customize the message? <a href="${adminDashboardUrl}" style="color:#09090b;font-weight:600;text-decoration:underline;">Open Admin Broadcast Dashboard</a>
+            </p>
+          </td>
+        </tr>
+      </table>`;
+
+    try {
+        const result = await getResend().emails.send({
+            from: FROM_EMAIL,
+            to,
+            subject,
+            html: emailShell(body),
+        });
+        console.log(`Programmer's Day admin approval email sent to ${to}:`, result.data?.id);
+        return result;
+    } catch (err) {
+        console.error(`Failed to send Programmer's Day admin approval email to ${to}:`, err);
         throw err;
     }
 }
