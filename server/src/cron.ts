@@ -98,6 +98,7 @@ export function setupCronJobs() {
     });
 
 let programmersDaySentDate: string | null = null;
+let dailyDigestSentDate: string | null = null;
 
 function isProgrammersDay(): boolean {
     const now = new Date();
@@ -113,7 +114,7 @@ function isProgrammersDay(): boolean {
     return (utcMonth === 8 && utcDate === targetDate) || (localMonth === 8 && localDate === targetDate);
 }
 
-    // ── Daily digest at 7 PM / 8 PM ───────────────────────────────────────────
+    // ── Daily digest at 8 PM Nigerian time (20:00 WAT / Africa/Lagos) ──────────
     // Smart filtering rules:
     //   1. On Day 256 (Programmer's Day), broadcast celebration email to EVERY user with an account!
     //      Automatically reverts to regular streak-only digest tomorrow.
@@ -121,12 +122,17 @@ function isProgrammersDay(): boolean {
     //      - Only send to users who explicitly opted in (emailNotifications = true)
     //      - Only send if user has streak >= 2 (they're actually doing streaks)
     //      - If a user's streak is 0 but they had one yesterday, send a one-time broken email
-    cron.schedule('0 19,20 * * *', async () => {
+    cron.schedule('0 20 * * *', async () => {
         console.log("Running daily digest emails...");
 
         const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
         try {
+            const todayKey = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Lagos' });
+            if (dailyDigestSentDate === todayKey) {
+                console.log("Daily digest already sent today, skipping duplicate run.");
+                return;
+            }
             // ── Day 256 (Programmer's Day) Broadcast to ALL accounts ──────────
             if (isProgrammersDay()) {
                 const todayKey = new Date().toISOString().split('T')[0];
@@ -301,13 +307,16 @@ function isProgrammersDay(): boolean {
                 await sleep(600);
             }
 
+            dailyDigestSentDate = todayKey;
             console.log(`Daily digest done. Sent: ${sent}, Streak-broken emails: ${broken}, Skipped (no streak): ${skipped}, Failed: ${failed}`);
         } catch (error) {
             console.error("Daily digest cron error:", error);
         }
+    }, {
+        timezone: 'Africa/Lagos'
     });
 
-    // ── Academy nudge at 6 PM ─────────────────────────────────────────────────
+    // ── Academy nudge at 6 PM Nigerian time ────────────────────────────────────
     // Enrolled, opted-in students who've been inactive for 3+ days get a
     // gentle reminder (max once every 3 days).
     cron.schedule('0 18 * * *', async () => {
@@ -370,6 +379,8 @@ function isProgrammersDay(): boolean {
         } catch (error) {
             console.error("Academy nudge cron error:", error);
         }
+    }, {
+        timezone: 'Africa/Lagos'
     });
 }
 
