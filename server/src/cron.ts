@@ -31,6 +31,19 @@ const academyLaunchDateLabel = new Date(ACADEMY_LAUNCH_DATE).toLocaleDateString(
     timeZone: 'UTC',
 });
 
+export function isProgrammersDay(date: Date = new Date()): boolean {
+    const lagosDateStr = date.toLocaleDateString('en-CA', { timeZone: 'Africa/Lagos' });
+    const [yearStr, monthStr, dayStr] = lagosDateStr.split('-');
+    const year = parseInt(yearStr, 10);
+    const month = parseInt(monthStr, 10);
+    const day = parseInt(dayStr, 10);
+
+    const isLeap = (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
+    const targetDay = isLeap ? 12 : 13;
+
+    return month === 9 && day === targetDay;
+}
+
 export function setupCronJobs() {
     console.log("Setting up cron jobs...");
 
@@ -99,20 +112,6 @@ export function setupCronJobs() {
 
 let programmersDaySentDate: string | null = null;
 let dailyDigestSentDate: string | null = null;
-
-function isProgrammersDay(): boolean {
-    const now = new Date();
-    const utcMonth = now.getUTCMonth(); // 8 = September
-    const utcDate = now.getUTCDate();
-    const localMonth = now.getMonth();
-    const localDate = now.getDate();
-    const year = now.getFullYear();
-    const isLeap = (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
-    const targetDate = isLeap ? 12 : 13;
-
-    // Matches September 13th (Day 256) in either UTC or server local time
-    return (utcMonth === 8 && utcDate === targetDate) || (localMonth === 8 && localDate === targetDate);
-}
 
     // ── Daily digest at 8 PM Nigerian time (20:00 WAT / Africa/Lagos) ──────────
     // Smart filtering rules:
