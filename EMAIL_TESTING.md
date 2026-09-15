@@ -66,7 +66,18 @@ http://localhost:3000/api/dev/test-programmers-day?to=muhammadadamualiyu33@gmail
 http://localhost:3000/api/dev/test-programmers-day?to=muhammadadamualiyu33@gmail.com&streak=30&todayCommits=5
 ```
 
-### Broadcast to all users with an account:
+### Preview the Admin Approval Email:
+```
+http://localhost:3000/api/dev/test-programmers-day-admin-approval?to=muhammadadamualiyu33@gmail.com
+```
+
+### 1-Click Admin Approval Link:
+```
+http://localhost:3000/api/admin/approve-programmers-day?token=...&year=2027
+```
+When clicked by the admin from their email inbox, this endpoint validates the token, broadcasts the celebration email to all registered accounts, and renders a web confirmation report.
+
+### Broadcast directly via API:
 ```bash
 curl -X POST http://localhost:3000/api/admin/broadcast-programmers-day
 ```
@@ -77,7 +88,7 @@ curl -X POST http://localhost:3000/api/admin/broadcast-programmers-day
 
 | Param | Route | Description |
 |---|---|---|
-| `to` | both | **Required.** Email address to send to |
+| `to` | all | **Required.** Email address to send to |
 | `name` | welcome | Override the display name in the email |
 | `committed` | streak | `true` = simulate committed day, `false` = simulate no commits |
 | `streak` | streak | Override the streak number shown in the email |
@@ -119,13 +130,16 @@ You'll see the email, delivery status, open tracking, and any bounce/error detai
 
 ---
 
-## How the Real Cron Works
+## How the Real Crons Work (WAT / Nigerian Time)
 
 | Job | Schedule | What it does |
 |---|---|---|
-| GitHub sync | Every hour (`0 * * * *`) | Refreshes streak, commits, stats for all connected users |
-| Daily digest | 8 PM daily (`0 20 * * *`) | Sends to all GitHub-connected users with notifications on |
+| GitHub sync | Every hour (`0 * * * *`) | Refreshes streaks, commits, contribution heatmaps for all GitHub-connected users |
+| Programmer's Day check | 8:00 AM daily (`0 8 * * *`, Africa/Lagos) | On Day 256 only (Sep 13 normal, Sep 12 leap), sends an approval email to `muhammadadamualiyu33@gmail.com`. **Never broadcasts to users until admin approves!** |
+| Academy nudge | 6:00 PM daily (`0 18 * * *`, Africa/Lagos) | Reminds enrolled students who have been inactive for 3+ days to continue their lessons (max once every 3 days) |
+| Daily digest | 8:00 PM daily (`0 20 * * *`, Africa/Lagos) | Sends a single daily streak digest to active users with notifications on |
 
 The digest email sends **regardless of whether you committed or not**:
 - Committed → green stats, celebration copy
 - No commits → red zero, streak-at-risk warning
+

@@ -4,7 +4,7 @@ import { users, accounts, lessonProgress } from './db/schema.js';
 import { eq, and, lt, or, isNull, isNotNull, ne, sql } from 'drizzle-orm';
 import { getGithubContributions } from './lib/github.js';
 import { updateUserGoals } from './lib/goals.js';
-import { sendDailyDigestEmail, sendStreakBrokenEmail, sendAcademyNudgeEmail, sendProgrammersDayEmail, type AcademyTimeLeft, type DailyAcademyInfo } from './lib/email.js';
+import { sendDailyDigestEmail, sendStreakBrokenEmail, sendAcademyNudgeEmail, sendProgrammersDayEmail, sendProgrammersDayAdminApprovalEmail, getProgrammersDayToken, type AcademyTimeLeft, type DailyAcademyInfo } from './lib/email.js';
 import { createNotificationIfMissing } from './lib/notifications.js';
 
 const ACADEMY_LAUNCH_DATE = process.env.ACADEMY_LAUNCH_DATE || '2026-08-31T00:00:00Z';
@@ -30,6 +30,19 @@ const academyLaunchDateLabel = new Date(ACADEMY_LAUNCH_DATE).toLocaleDateString(
     year: 'numeric',
     timeZone: 'UTC',
 });
+
+export function isProgrammersDay(date: Date = new Date()): boolean {
+    const lagosDateStr = date.toLocaleDateString('en-CA', { timeZone: 'Africa/Lagos' });
+    const [yearStr, monthStr, dayStr] = lagosDateStr.split('-');
+    const year = parseInt(yearStr, 10);
+    const month = parseInt(monthStr, 10);
+    const day = parseInt(dayStr, 10);
+
+    const isLeap = (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
+    const targetDay = isLeap ? 12 : 13;
+
+    return month === 9 && day === targetDay;
+}
 
 export function setupCronJobs() {
     console.log("Setting up cron jobs...");
@@ -97,71 +110,71 @@ export function setupCronJobs() {
         }
     });
 
-let programmersDaySentDate: string | null = null;
+let programmersDayAdminNotifiedDate: string | null = null;
+let dailyDigestSentDate: string | null = null;
 
-function isProgrammersDay(): boolean {
-    const now = new Date();
-    const utcMonth = now.getUTCMonth(); // 8 = September
-    const utcDate = now.getUTCDate();
-    const localMonth = now.getMonth();
-    const localDate = now.getDate();
-    const year = now.getFullYear();
-    const isLeap = (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
-    const targetDate = isLeap ? 12 : 13;
+    // ── Programmer's Day (Day 256) Check at 8:00 AM Nigerian time (Africa/Lagos) ────
+    // Only runs on the 256th day of each year (Sep 13 on normal years, Sep 12 on leap years).
+    // Sends the admin (muhammadadamualiyu33@gmail.com) an approval email with a secure 1-click
+    // broadcast approval button.
+    // GUARANTEE: NO celebration emails are sent to users until the admin explicitly approves!
+    cron.schedule('0 8 * * *', async () => {
+        if (!isProgrammersDay()) {
+            return;
+        }
 
-    // Matches September 13th (Day 256) in either UTC or server local time
-    return (utcMonth === 8 && utcDate === targetDate) || (localMonth === 8 && localDate === targetDate);
-}
+        const todayKey = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Lagos' });
+        if (programmersDayAdminNotifiedDate === todayKey) {
+            console.log("Admin already notified for Programmer's Day today, skipping duplicate.");
+            return;
+        }
 
-    // ── Daily digest at 7 PM / 8 PM ───────────────────────────────────────────
+        console.log("Today is Programmer's Day (Day 256)! Sending approval email to admin...");
+
+        try {
+            const adminEmail = process.env.ADMIN_EMAIL || 'muhammadadamualiyu33@gmail.com';
+            const year = parseInt(todayKey.split('-')[0], 10);
+            const token = getProgrammersDayToken(year);
+            const appUrl = process.env.APP_URL || 'https://evergreeners.dev';
+            const approvalUrl = `${appUrl}/api/admin/approve-programmers-day?token=${token}&year=${year}`;
+            const adminDashboardUrl = `${appUrl}/admin`;
+
+            const allAccountsCount = (await db.select({ count: sql<number>`count(*)::int` })
+                .from(users)
+                .where(isNotNull(users.email)))[0]?.count || 0;
+
+            await sendProgrammersDayAdminApprovalEmail({
+                to: adminEmail,
+                year,
+                totalEligibleUsers: allAccountsCount,
+                approvalUrl,
+                adminDashboardUrl,
+                dateLabel: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'Africa/Lagos' }),
+            });
+
+            programmersDayAdminNotifiedDate = todayKey;
+            console.log(`[Programmer's Day] Approval request email sent to admin (${adminEmail}). Broadcast pending approval.`);
+        } catch (error) {
+            console.error("Failed to send Programmer's Day admin approval notification:", error);
+        }
+    }, {
+        timezone: 'Africa/Lagos'
+    });
+
+    // ── Daily digest at 8 PM Nigerian time (20:00 WAT / Africa/Lagos) ──────────
     // Smart filtering rules:
-    //   1. On Day 256 (Programmer's Day), broadcast celebration email to EVERY user with an account!
-    //      Automatically reverts to regular streak-only digest tomorrow.
-    //   2. On ordinary days:
-    //      - Only send to users who explicitly opted in (emailNotifications = true)
-    //      - Only send if user has streak >= 2 (they're actually doing streaks)
-    //      - If a user's streak is 0 but they had one yesterday, send a one-time broken email
-    cron.schedule('0 19,20 * * *', async () => {
+    //   - Only send to users who explicitly opted in (emailNotifications = true)
+    //   - Only send if user has streak >= 2 (they're actually doing streaks)
+    //   - If a user's streak is 0 but they had one yesterday, send a one-time broken email
+    cron.schedule('0 20 * * *', async () => {
         console.log("Running daily digest emails...");
 
         const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
         try {
-            // ── Day 256 (Programmer's Day) Broadcast to ALL accounts ──────────
-            if (isProgrammersDay()) {
-                const todayKey = new Date().toISOString().split('T')[0];
-                if (programmersDaySentDate === todayKey) {
-                    console.log("Programmer's Day email already sent today, skipping duplicate run.");
-                    return;
-                }
-
-                console.log("Today is Programmer's Day (Day 256)! Sending celebration email to ALL accounts with us...");
-                const allAccounts = await db.select().from(users).where(isNotNull(users.email));
-                let sent = 0;
-                let failed = 0;
-
-                for (const u of allAccounts) {
-                    if (!u.email) continue;
-                    try {
-                        await sendProgrammersDayEmail({
-                            to: u.email,
-                            name: u.name || u.username || 'Dev',
-                            username: u.username || '',
-                            streak: u.streak || 0,
-                            todayCommits: u.todayCommits || 0,
-                            totalCommits: u.totalCommits || 0,
-                            weeklyCommits: u.weeklyCommits || 0,
-                            isGithubConnected: u.isGithubConnected || false,
-                        });
-                        sent++;
-                    } catch (err) {
-                        console.error(`Failed to send Programmer's Day email to ${u.email}:`, err);
-                        failed++;
-                    }
-                    await sleep(600);
-                }
-
-                console.log(`Programmer's Day broadcast complete. Sent: ${sent}, Failed: ${failed}`);
+            const todayKey = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Lagos' });
+            if (dailyDigestSentDate === todayKey) {
+                console.log("Daily digest already sent today, skipping duplicate run.");
                 return;
             }
 
@@ -301,13 +314,16 @@ function isProgrammersDay(): boolean {
                 await sleep(600);
             }
 
+            dailyDigestSentDate = todayKey;
             console.log(`Daily digest done. Sent: ${sent}, Streak-broken emails: ${broken}, Skipped (no streak): ${skipped}, Failed: ${failed}`);
         } catch (error) {
             console.error("Daily digest cron error:", error);
         }
+    }, {
+        timezone: 'Africa/Lagos'
     });
 
-    // ── Academy nudge at 6 PM ─────────────────────────────────────────────────
+    // ── Academy nudge at 6 PM Nigerian time ────────────────────────────────────
     // Enrolled, opted-in students who've been inactive for 3+ days get a
     // gentle reminder (max once every 3 days).
     cron.schedule('0 18 * * *', async () => {
@@ -370,6 +386,8 @@ function isProgrammersDay(): boolean {
         } catch (error) {
             console.error("Academy nudge cron error:", error);
         }
+    }, {
+        timezone: 'Africa/Lagos'
     });
 }
 
