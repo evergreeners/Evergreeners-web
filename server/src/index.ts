@@ -2377,6 +2377,117 @@ if (process.env.NODE_ENV !== 'production') {
         }
     });
 
+    const programmersDayApprovedYears = new Set<number>();
+
+    // 1-Click Admin Approval route for Programmer's Day Broadcast
+    server.get('/api/admin/approve-programmers-day', async (req, reply) => {
+        const query = req.query as { token?: string; year?: string };
+        const year = query.year ? parseInt(query.year, 10) : new Date().getFullYear();
+        const { getProgrammersDayToken, sendProgrammersDayEmail } = await import('./lib/email.js');
+        const expectedToken = getProgrammersDayToken(year);
+
+        if (!query.token || query.token !== expectedToken) {
+            return reply.status(403).type('text/html').send(`
+                <!DOCTYPE html>
+                <html>
+                <head><title>Unauthorized · Evergreeners</title><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+                <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #09090b; color: #f4f4f5; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px;">
+                    <div style="background: #18181b; border: 1px solid #27272a; border-radius: 16px; padding: 32px; max-width: 480px; width: 100%; text-align: center;">
+                        <h2 style="color: #ef4444; margin-top: 0;">Invalid or Expired Approval Token</h2>
+                        <p style="color: #a1a1aa; font-size: 14px; line-height: 1.6;">This approval link is invalid or has expired. Please check your admin dashboard.</p>
+                        <a href="${process.env.APP_URL || 'https://evergreeners.dev'}/admin" style="display: inline-block; background: #27272a; color: #fff; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 600; margin-top: 16px;">Open Admin Dashboard</a>
+                    </div>
+                </body>
+                </html>
+            `);
+        }
+
+        if (programmersDayApprovedYears.has(year)) {
+            return reply.type('text/html').send(`
+                <!DOCTYPE html>
+                <html>
+                <head><title>Already Approved · Evergreeners</title><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+                <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #09090b; color: #f4f4f5; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px;">
+                    <div style="background: #18181b; border: 1px solid #27272a; border-radius: 16px; padding: 32px; max-width: 480px; width: 100%; text-align: center;">
+                        <div style="font-size: 40px; margin-bottom: 12px;">✅</div>
+                        <h2 style="color: #39d353; margin-top: 0;">Already Broadcasted for ${year}</h2>
+                        <p style="color: #a1a1aa; font-size: 14px; line-height: 1.6;">The Programmer's Day celebration broadcast for ${year} has already been approved and sent to all users.</p>
+                        <a href="${process.env.APP_URL || 'https://evergreeners.dev'}/admin" style="display: inline-block; background: #39d353; color: #000; padding: 12px 24px; border-radius: 9999px; text-decoration: none; font-weight: 700; margin-top: 16px;">Return to Admin Dashboard</a>
+                    </div>
+                </body>
+                </html>
+            `);
+        }
+
+        const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+        try {
+            const allUsers = await db.select().from(schema.users)
+                .where(isNotNull(schema.users.email));
+
+            let sent = 0;
+            let failed = 0;
+
+            for (const u of allUsers) {
+                if (!u.email) continue;
+                try {
+                    await sendProgrammersDayEmail({
+                        to: u.email,
+                        name: u.name || u.username || 'Dev',
+                        username: u.username || '',
+                        streak: u.streak || 0,
+                        todayCommits: u.todayCommits || 0,
+                        totalCommits: u.totalCommits || 0,
+                        weeklyCommits: u.weeklyCommits || 0,
+                        isGithubConnected: u.isGithubConnected || false,
+                    });
+                    sent++;
+                } catch (e: any) {
+                    console.error(`Failed to send Programmer's Day email to ${u.email}:`, e);
+                    failed++;
+                }
+                await sleep(600);
+            }
+
+            programmersDayApprovedYears.add(year);
+
+            return reply.type('text/html').send(`
+                <!DOCTYPE html>
+                <html>
+                <head><title>Broadcast Approved · Evergreeners</title><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+                <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #09090b; color: #f4f4f5; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px;">
+                    <div style="background: #18181b; border: 1px solid #27272a; border-radius: 16px; padding: 36px; max-width: 520px; width: 100%; text-align: center;">
+                        <div style="font-size: 48px; margin-bottom: 12px;">🎉</div>
+                        <h2 style="color: #39d353; margin: 0 0 12px; font-size: 24px;">Programmer's Day Broadcast Sent!</h2>
+                        <p style="color: #a1a1aa; font-size: 15px; line-height: 1.6; margin: 0 0 20px;">
+                            You successfully approved and sent the Day 256 celebration email to developers on Evergreeners.
+                        </p>
+                        <div style="background: #27272a; border-radius: 10px; padding: 16px; margin-bottom: 24px; text-align: left;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px;">
+                                <span style="color: #a1a1aa;">Successfully Sent:</span>
+                                <strong style="color: #39d353;">${sent}</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; font-size: 14px;">
+                                <span style="color: #a1a1aa;">Failed:</span>
+                                <strong style="color: ${failed > 0 ? '#ef4444' : '#a1a1aa'};">${failed}</strong>
+                            </div>
+                        </div>
+                        <a href="${process.env.APP_URL || 'https://evergreeners.dev'}/admin" style="display: inline-block; background: #39d353; color: #000; padding: 14px 28px; border-radius: 9999px; text-decoration: none; font-weight: 700; font-size: 14px;">
+                            Back to Admin Dashboard
+                        </a>
+                    </div>
+                </body>
+                </html>
+            `);
+        } catch (err: any) {
+            console.error("Programmer's Day broadcast approval error:", err);
+            return reply.status(500).type('text/html').send(`
+                <h2>Error during broadcast</h2>
+                <p>${err.message}</p>
+            `);
+        }
+    });
+
     // Broadcast Programmer's Day email to all users with an account
     server.post('/api/admin/broadcast-programmers-day', async (req, reply) => {
         const { sendProgrammersDayEmail } = await import('./lib/email.js');
@@ -2412,11 +2523,51 @@ if (process.env.NODE_ENV !== 'production') {
                 await sleep(600);
             }
 
+            programmersDayApprovedYears.add(new Date().getFullYear());
+
             return {
                 success: true,
                 message: `Broadcast complete. Sent: ${sent}, Failed: ${failed}`,
                 total: allUsers.length,
                 results,
+            };
+        } catch (err: any) {
+            return reply.status(500).send({ success: false, error: err.message });
+        }
+    });
+
+    // Test route: send Programmer's Day admin approval notification email to verify template & links
+    server.get('/api/dev/test-programmers-day-admin-approval', async (req, reply) => {
+        const query = req.query as { to?: string };
+        const targetEmail = query.to || 'muhammadadamualiyu33@gmail.com';
+        const { sendProgrammersDayAdminApprovalEmail, getProgrammersDayToken } = await import('./lib/email.js');
+
+        const year = new Date().getFullYear();
+        const token = getProgrammersDayToken(year);
+        const appUrl = process.env.APP_URL || 'https://evergreeners.dev';
+        const approvalUrl = `${appUrl}/api/admin/approve-programmers-day?token=${token}&year=${year}`;
+        const adminDashboardUrl = `${appUrl}/admin`;
+
+        const allAccountsCount = (await db.select({ count: sql<number>`count(*)::int` })
+            .from(schema.users)
+            .where(isNotNull(schema.users.email)))[0]?.count || 0;
+
+        try {
+            const res = await sendProgrammersDayAdminApprovalEmail({
+                to: targetEmail,
+                year,
+                totalEligibleUsers: allAccountsCount,
+                approvalUrl,
+                adminDashboardUrl,
+                dateLabel: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'Africa/Lagos' }),
+            });
+
+            return {
+                success: true,
+                message: `Programmer's Day admin approval email sent to ${targetEmail}`,
+                resendId: (res as any)?.data?.id,
+                approvalUrl,
+                totalEligibleUsers: allAccountsCount,
             };
         } catch (err: any) {
             return reply.status(500).send({ success: false, error: err.message });
@@ -2429,6 +2580,8 @@ if (process.env.NODE_ENV !== 'production') {
     console.log('   GET /api/dev/test-streak?to=you@email.com&committed=true  ← simulate committed day');
     console.log('   GET /api/dev/test-streak?to=you@email.com&committed=false ← simulate no commits');
     console.log('   GET /api/dev/test-programmers-day?to=you@email.com   ← Day 256 special edition');
+    console.log('   GET /api/dev/test-programmers-day-admin-approval?to=you@email.com ← Day 256 admin approval preview');
+    console.log('   GET /api/admin/approve-programmers-day?token=...     ← 1-click admin approval link');
     console.log('   POST /api/admin/broadcast-programmers-day            ← broadcast to all accounts');
 }
 
