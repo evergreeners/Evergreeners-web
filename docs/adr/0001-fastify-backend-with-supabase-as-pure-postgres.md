@@ -1,0 +1,3 @@
+# Fastify Backend with Supabase as Pure PostgreSQL
+
+Evergreeners relies on relational models and scheduled background workers for streak tracking, GitHub synchronization, and notification digests. We decided to use Supabase strictly as a managed PostgreSQL host, placing all authentication, session verification, and business logic inside an authoritative Fastify server powered by Better Auth and Drizzle ORM, rather than using Supabase Auth or client-side Supabase SDK calls. This decouples our architecture from proprietary backend-as-a-service auth features and ensures strict server-side validation of streak states and background jobs.
