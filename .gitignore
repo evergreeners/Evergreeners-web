@@ -48,3 +48,10 @@ supabase/.temp/
 
 # TypeScript build info
 *.tsbuildinfo
+
+# Agent / workflow scratch (never commit tool output)
+.agent/
+.opencode/
+.tool-output/
+*.agent.log
+agent-scratch/

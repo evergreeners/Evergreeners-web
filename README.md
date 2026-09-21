@@ -180,11 +180,13 @@ evergreeners/
 
 ## 🤝 Contributing
 
-1. Fork the repository.
-2. Create a feature branch: `git checkout -b feature/your-feature-name`.
-3. Commit your changes: `git commit -m "Add your feature"`.
-4. Push to your branch: `git push origin feature/your-feature-name`.
-5. Open a Pull Request.
+> Full workflow (issue → branch → PR → branch cleanup) + Evergreeners
+> automation onboarding: see [`CONTRIBUTING.md`](./CONTRIBUTING.md).
+> Target branch: **`main`**. Every PR must say `Closes #<issue>`.
+
+1. Create an issue first, then a branch: `git checkout -b feat/<issue>-slug`.
+2. Commit, push, and open a PR against `main` tied to the issue.
+3. After merge, delete the branch remotely + locally.
 
 ---
 
