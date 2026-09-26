@@ -3,6 +3,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "./db/index.js"; // Drizzle instance
 import * as schema from "./db/schema.js"; // Schema definition
 import { sendWelcomeEmail } from "./lib/email.js";
+import { inviteUserToOrg } from "./lib/org-invite.js";
 
 const getBaseURL = (url: string | undefined) => {
     if (!url) return undefined;
@@ -94,14 +95,38 @@ export const auth = betterAuth({
         user: {
             create: {
                 after: async (user) => {
-                    // Fire-and-forget welcome email for ALL signup methods (email + GitHub OAuth)
+                    const userData = user as Record<string, unknown>;
+                    const isGithubConnected = Boolean(userData.isGithubConnected);
+                    const username = typeof userData.username === "string" ? userData.username : undefined;
+
+                    // 1. Fire-and-forget welcome email for ALL signup methods (email + GitHub OAuth)
                     if (user.email) {
-                        const isGithubConnected = !!(user as any).isGithubConnected;
                         sendWelcomeEmail(
                             user.email,
-                            user.name || (user as any).username || "Developer",
+                            user.name || username || "Developer",
                             isGithubConnected
                         ).catch(err => console.error("Welcome email failed:", err));
+                    }
+
+                    // 2. Fire-and-forget GitHub organization invite for connected GitHub accounts
+                    if (isGithubConnected && username) {
+                        inviteUserToOrg(username).catch(err =>
+                            console.error(`[Org Invite] Auto-invite hook failed for ${username}:`, err)
+                        );
+                    }
+                }
+            },
+            update: {
+                after: async (user) => {
+                    const userData = user as Record<string, unknown>;
+                    const isGithubConnected = Boolean(userData.isGithubConnected);
+                    const username = typeof userData.username === "string" ? userData.username : undefined;
+
+                    // When an existing user updates/connects their GitHub handle
+                    if (isGithubConnected && username) {
+                        inviteUserToOrg(username).catch(err =>
+                            console.error(`[Org Invite] Auto-invite on user update failed for ${username}:`, err)
+                        );
                     }
                 }
             }

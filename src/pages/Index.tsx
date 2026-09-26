@@ -11,6 +11,7 @@ import { StatItem } from "@/components/StatItem";
 import { Section } from "@/components/Section";
 import { EyeSection } from "@/components/EyeSection";
 import { WatchlistSuggestions } from "@/components/WatchlistSuggestions";
+import { OrgInviteBanner } from "@/components/OrgInviteBanner";
 import { useEffect, useState, useMemo } from "react";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
@@ -185,6 +186,9 @@ export default function Index() {
       <Header />
 
       <main className="w-full max-w-[1600px] mx-auto px-4 md:px-8 pt-24 pb-32 md:pb-12 space-y-8">
+        {/* Organization Invitation Banner for New/Existing Gardeners */}
+        <OrgInviteBanner username={profile?.username || (sessionUser as { username?: string })?.username} />
+
         {/* Hero Streak Section */}
         <section className="animate-fade-in">
           <StreakDisplay current={profile?.streak || 0} longest={Math.max(profile?.streak || 0, profile?.longestStreak || 0)} />

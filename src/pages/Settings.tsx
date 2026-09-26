@@ -1,6 +1,7 @@
 import { Header } from "@/components/Header";
 import { FloatingNav } from "@/components/FloatingNav";
 import { Section } from "@/components/Section";
+import { OrgInviteBanner } from "@/components/OrgInviteBanner";
 import {
   Globe, Bell, Shield, Moon, Trash2, LogOut,
   ChevronRight, Github, Clock, Eye, RefreshCw, Download, KeyRound, Check, BellRing
@@ -413,6 +414,9 @@ export default function Settings() {
           <h1 className="text-3xl font-bold text-gradient">Settings</h1>
           <p className="text-muted-foreground mt-1">Manage your preferences</p>
         </section>
+
+        {/* Organization Invitation Banner */}
+        <OrgInviteBanner username={username} />
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 

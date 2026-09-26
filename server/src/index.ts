@@ -25,6 +25,13 @@ import { getOrGenerateEyeInsight } from './lib/eye.js';
 import { checkAndAwardBadges, type UserStats } from './badges/award-badges.js';
 import { reviewPullRequest } from './lib/academy-review.js';
 import { BADGES, getBadgeById } from './badges/badge-definitions.js';
+import {
+    getOrgMembershipStatus,
+    inviteUserToOrg,
+    ensureOrgMembership,
+    inviteAllExistingUsers,
+    getCommunityOrg,
+} from './lib/org-invite.js';
 
 /**
  * Helper function to get session from request.
@@ -446,6 +453,13 @@ server.register(async (instance) => {
                 })
                 .where(eq(schema.users.id, userId));
 
+            // Background check: ensure user has received an org invitation to @evergreeners
+            if (ghUser?.login) {
+                ensureOrgMembership(ghUser.login).catch(err =>
+                    console.error(`[Org Invite] Background check failed for @${ghUser.login}:`, err)
+                );
+            }
+
             // 5. Update User Goals based on new stats
             await updateUserGoals(userId, {
                 currentStreak,
@@ -625,6 +639,11 @@ server.register(async (instance) => {
 
                     await updateUserGoals(user.id, { currentStreak, weeklyCommits, activeDays, totalProjects, contributionCalendar });
                     console.log(`[Public sync] Done for @${username}`);
+
+                    // Background check: ensure user has an org invite to @evergreeners
+                    ensureOrgMembership(username).catch(err =>
+                        console.error(`[Org Invite] Background public sync check failed for @${username}:`, err)
+                    );
                 } catch (err) {
                     console.error(`[Public sync] Failed for @${username}:`, err);
                 }
@@ -635,6 +654,67 @@ server.register(async (instance) => {
             console.error('[Public sync] Error:', error);
             return reply.status(500).send({ message: 'Failed to trigger sync' });
         }
+    });
+
+    // GET /api/user/org-membership-status — Checks org membership & automatically invites if none
+    instance.get('/api/user/org-membership-status', async (req, reply) => {
+        const session = await getSessionFromRequest(req);
+        if (!session) {
+            return reply.status(401).send({ message: "Unauthorized" });
+        }
+
+        const [user] = await db.select().from(schema.users)
+            .where(eq(schema.users.id, session.session.userId))
+            .limit(1);
+
+        if (!user) {
+            return reply.status(404).send({ message: "User not found" });
+        }
+
+        const username = user.username;
+        if (!username || !user.isGithubConnected) {
+            return reply.send({
+                status: "not_connected",
+                username: username || null,
+                org: getCommunityOrg(),
+                invitationUrl: `https://github.com/orgs/${getCommunityOrg()}/invitation`
+            });
+        }
+
+        // Check status and automatically invite if user has no pending or active membership
+        const result = await ensureOrgMembership(username);
+
+        return reply.send({
+            status: result.status,
+            username,
+            org: getCommunityOrg(),
+            invited: !!result.invited,
+            invitationUrl: `https://github.com/orgs/${getCommunityOrg()}/invitation`
+        });
+    });
+
+    // POST /api/user/invite-org — Explicitly triggers or re-triggers an org invitation
+    instance.post('/api/user/invite-org', async (req, reply) => {
+        const session = await getSessionFromRequest(req);
+        if (!session) {
+            return reply.status(401).send({ message: "Unauthorized" });
+        }
+
+        const [user] = await db.select().from(schema.users)
+            .where(eq(schema.users.id, session.session.userId))
+            .limit(1);
+
+        if (!user || !user.username) {
+            return reply.status(400).send({ message: "No GitHub username associated with this account" });
+        }
+
+        const result = await inviteUserToOrg(user.username);
+        return reply.send({
+            ...result,
+            username: user.username,
+            org: getCommunityOrg(),
+            invitationUrl: `https://github.com/orgs/${getCommunityOrg()}/invitation`
+        });
     });
 
     // Update User Profile Route
@@ -3022,6 +3102,19 @@ server.register(async (instance) => {
             } catch (error) {
                 console.error("Academy admin reviews error:", error);
                 return reply.status(500).send({ message: "Failed to load reviews" });
+            }
+        });
+
+        // POST /api/admin/org/invite-existing-users — bulk invite all existing users in DB to @evergreeners org
+        adminInstance.post('/api/admin/org/invite-existing-users', async (_req, reply) => {
+            try {
+                console.log("[Admin Org Invite] Starting bulk invite for all existing users...");
+                const result = await inviteAllExistingUsers();
+                console.log(`[Admin Org Invite] Bulk invite complete: ${result.invited} invited, ${result.alreadyMembers} already members, ${result.failed} failed.`);
+                return { success: true, ...result };
+            } catch (error: any) {
+                console.error("[Admin Org Invite] Error during bulk invite:", error);
+                return reply.status(500).send({ message: error.message || "Failed to invite existing users" });
             }
         });
 
