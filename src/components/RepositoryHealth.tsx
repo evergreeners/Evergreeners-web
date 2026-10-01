@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { githubService } from "@/lib/githubService";
 import { geminiService } from "@/lib/geminiService";
 import { useSession } from "@/lib/auth-client";
-import { ShieldCheck, GitCommit, Search, Sparkles, AlertCircle } from "lucide-react";
+import { ShieldCheck, GitCommit, Search, Terminal, AlertCircle } from "lucide-react";
 
 export function RepositoryHealth() {
     const { data: session } = useSession();
@@ -144,8 +144,8 @@ export function RepositoryHealth() {
                             </div>
 
                             <div className="p-4 rounded-xl border border-border bg-secondary/10">
-                                <h4 className="font-semibold mb-2 flex items-center gap-2 text-sm">
-                                    <Sparkles className="w-4 h-4 text-primary" /> Analysis Insight
+                                <h4 className="font-semibold mb-2 flex items-center gap-2 text-sm font-mono text-zinc-200">
+                                    <Terminal className="w-4 h-4 text-emerald-400" /> Analysis Insight
                                 </h4>
                                 <p className="text-sm font-medium leading-relaxed">{healthScore.insights || "No insight generated."}</p>
                             </div>
