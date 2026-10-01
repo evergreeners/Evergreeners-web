@@ -13,9 +13,7 @@ import {
   Flame,
   TrendingUp,
   BarChart3,
-  Activity,
   Calendar,
-  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -94,76 +92,54 @@ export function WeeklyChart({
       role="region"
       aria-label="Weekly activity chart"
       className={cn(
-        "relative overflow-hidden rounded-2xl border border-zinc-800/80 bg-zinc-950/60 backdrop-blur-xl p-5 md:p-6 shadow-[0_8px_32px_rgba(0,0,0,0.4)] transition-all duration-300 hover:border-zinc-700/80",
+        "w-full overflow-hidden rounded-2xl border border-zinc-800/50 bg-zinc-900/20 backdrop-blur-sm p-6 transition-all duration-300",
         className
       )}
     >
-      {/* Ambient background glow accents */}
-      <div
-        className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full bg-emerald-500/[0.08] blur-3xl transition-opacity duration-700 group-hover:opacity-100"
-        aria-hidden="true"
-      />
-      <div
-        className="pointer-events-none absolute -bottom-24 -left-24 h-64 w-64 rounded-full bg-emerald-600/[0.04] blur-3xl"
-        aria-hidden="true"
-      />
-
       {/* Header with Title, Live Badge & View Toggle */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 border-b border-zinc-800/60">
-        <div className="flex items-center gap-3">
-          <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 shadow-[0_0_15px_rgba(34,197,94,0.18)]">
-            <Activity className="h-5 w-5" />
-            {totalCommits > 0 && (
-              <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
-              </span>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 border-b border-zinc-800/50">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <h3 className="font-semibold text-base text-zinc-100 tracking-tight">
+              Weekly Velocity
+            </h3>
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-mono font-medium bg-emerald-500/10 border border-emerald-500/25 text-emerald-400">
+              {totalCommits} {totalCommits === 1 ? "commit" : "commits"}
+            </span>
+          </div>
+          <p className="text-xs text-zinc-400 mt-1">
+            {totalCommits > 0 ? (
+              <>
+                <span className="text-emerald-400 font-medium">
+                  {activeDaysCount} of 7
+                </span>{" "}
+                active days
+                {peakDay ? (
+                  <>
+                    {" "}
+                    • Peak shipping on{" "}
+                    <span className="text-zinc-200 font-medium">
+                      {peakDay.day}
+                    </span>{" "}
+                    ({peakDay.value})
+                  </>
+                ) : null}
+              </>
+            ) : (
+              "No commits recorded yet for this week • Keep pushing!"
             )}
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-base text-zinc-100 tracking-tight">
-                Weekly Velocity
-              </h3>
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-mono font-medium bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 shadow-[0_0_10px_rgba(34,197,94,0.15)]">
-                <Zap className="w-3 h-3 fill-emerald-400 text-emerald-400" />
-                {totalCommits} {totalCommits === 1 ? "commit" : "commits"}
-              </span>
-            </div>
-            <p className="text-xs text-zinc-400 mt-0.5">
-              {totalCommits > 0 ? (
-                <>
-                  <span className="text-emerald-400/90 font-medium">
-                    {activeDaysCount} of 7
-                  </span>{" "}
-                  active days
-                  {peakDay ? (
-                    <>
-                      {" "}
-                      • Peak shipping on{" "}
-                      <span className="text-zinc-200 font-medium">
-                        {peakDay.day}
-                      </span>{" "}
-                      ({peakDay.value})
-                    </>
-                  ) : null}
-                </>
-              ) : (
-                "No commits recorded yet for this week • Keep pushing!"
-              )}
-            </p>
-          </div>
+          </p>
         </div>
 
         {/* View Switcher: Pillars vs Wave */}
-        <div className="flex items-center self-start sm:self-auto bg-zinc-900/90 border border-zinc-800/80 p-1 rounded-xl shadow-inner">
+        <div className="flex items-center self-start sm:self-auto bg-zinc-900/40 border border-zinc-800/50 p-1 rounded-xl">
           <button
             type="button"
             onClick={() => setViewMode("pillars")}
             className={cn(
               "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200",
               viewMode === "pillars"
-                ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shadow-[0_0_12px_rgba(34,197,94,0.2)]"
+                ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
                 : "text-zinc-400 hover:text-zinc-200"
             )}
           >
@@ -176,7 +152,7 @@ export function WeeklyChart({
             className={cn(
               "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200",
               viewMode === "wave"
-                ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shadow-[0_0_12px_rgba(34,197,94,0.2)]"
+                ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
                 : "text-zinc-400 hover:text-zinc-200"
             )}
           >
@@ -253,14 +229,14 @@ export function WeeklyChart({
                       className={cn(
                         "w-full max-w-[56px] h-36 rounded-xl border p-1 flex flex-col justify-end items-center relative overflow-hidden transition-all duration-300",
                         item.isToday
-                          ? "bg-zinc-900/80 border-emerald-500/40 shadow-[0_0_15px_rgba(34,197,94,0.12)]"
-                          : "bg-zinc-900/40 border-zinc-800/60 group-hover:border-emerald-500/30 group-hover:bg-zinc-900/70"
+                          ? "bg-zinc-900/40 border-emerald-500/40"
+                          : "bg-zinc-900/20 border-zinc-800/40 group-hover:border-emerald-500/30 group-hover:bg-zinc-900/40"
                       )}
                     >
                       {/* Subtle Horizontal Guide Ticks */}
-                      <div className="absolute top-[25%] left-1 right-1 border-t border-zinc-800/40 pointer-events-none" />
-                      <div className="absolute top-[50%] left-1 right-1 border-t border-zinc-800/40 pointer-events-none" />
-                      <div className="absolute top-[75%] left-1 right-1 border-t border-zinc-800/40 pointer-events-none" />
+                      <div className="absolute top-[25%] left-1 right-1 border-t border-zinc-800/30 pointer-events-none" />
+                      <div className="absolute top-[50%] left-1 right-1 border-t border-zinc-800/30 pointer-events-none" />
+                      <div className="absolute top-[75%] left-1 right-1 border-t border-zinc-800/30 pointer-events-none" />
 
                       {/* Active Dynamic Bar */}
                       {hasCommits ? (
@@ -421,8 +397,8 @@ export function WeeklyChart({
       </div>
 
       {/* Footer Metrics Ribbon */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 mt-3 border-t border-zinc-800/60">
-        <div className="flex items-center gap-2.5 p-2 rounded-xl bg-zinc-900/30 border border-zinc-800/40">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 mt-3 border-t border-zinc-800/50">
+        <div className="flex items-center gap-2.5 p-2 rounded-xl bg-zinc-900/20 border border-zinc-800/40">
           <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">
             <GitCommit className="w-3.5 h-3.5" />
           </div>
@@ -436,7 +412,7 @@ export function WeeklyChart({
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 p-2 rounded-xl bg-zinc-900/30 border border-zinc-800/40">
+        <div className="flex items-center gap-2.5 p-2 rounded-xl bg-zinc-900/20 border border-zinc-800/40">
           <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">
             <Calendar className="w-3.5 h-3.5" />
           </div>
@@ -450,7 +426,7 @@ export function WeeklyChart({
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 p-2 rounded-xl bg-zinc-900/30 border border-zinc-800/40">
+        <div className="flex items-center gap-2.5 p-2 rounded-xl bg-zinc-900/20 border border-zinc-800/40">
           <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">
             <Flame className="w-3.5 h-3.5 text-amber-400" />
           </div>
@@ -464,7 +440,7 @@ export function WeeklyChart({
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 p-2 rounded-xl bg-zinc-900/30 border border-zinc-800/40">
+        <div className="flex items-center gap-2.5 p-2 rounded-xl bg-zinc-900/20 border border-zinc-800/40">
           <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">
             <TrendingUp className="w-3.5 h-3.5" />
           </div>
