@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   AreaChart,
@@ -39,6 +39,37 @@ export function WeekdayDistributionChart({
 }: WeekdayDistributionChartProps) {
   const [viewMode, setViewMode] = useState<"pillars" | "wave">("pillars");
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const [refillKey, setRefillKey] = useState(0);
+  const lastRefillTime = useRef(Date.now());
+
+  // Trigger fluid refill animation on reload and when user returns from another tab
+  useEffect(() => {
+    const triggerRefill = () => {
+      const now = Date.now();
+      if (now - lastRefillTime.current > 1200) {
+        lastRefillTime.current = now;
+        setRefillKey((prev) => prev + 1);
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        triggerRefill();
+      }
+    };
+
+    const handleFocus = () => {
+      triggerRefill();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, []);
 
   const safeData = useMemo(() => {
     if (data && data.length > 0) return data;
@@ -251,9 +282,10 @@ export function WeekdayDistributionChart({
                       <div className="absolute top-[50%] left-1 right-1 border-t border-zinc-800/30 pointer-events-none" />
                       <div className="absolute top-[75%] left-1 right-1 border-t border-zinc-800/30 pointer-events-none" />
 
-                      {/* Active Dynamic Bar */}
+                      {/* Active Dynamic Bar (Fluid Energy Column) */}
                       {hasCommits ? (
                         <motion.div
+                          key={`fluid-${refillKey}-${item.day}`}
                           initial={{ height: 0, opacity: 0 }}
                           animate={{
                             height: `${heightPercent}%`,
@@ -262,9 +294,10 @@ export function WeekdayDistributionChart({
                           }}
                           transition={{
                             type: "spring",
-                            stiffness: 240,
-                            damping: 22,
-                            delay: index * 0.04,
+                            stiffness: 130,
+                            damping: 15,
+                            mass: 0.85,
+                            delay: index * 0.055,
                           }}
                           className={cn(
                             "w-full rounded-lg relative overflow-hidden flex flex-col justify-start items-center transition-shadow duration-300",
@@ -274,16 +307,34 @@ export function WeekdayDistributionChart({
                             isHovered && "shadow-[0_0_24px_rgba(74,222,128,0.6)] brightness-110"
                           )}
                         >
-                          {/* Illuminated Top Cap Line */}
+                          {/* Liquid Surface Meniscus & Wave Shimmer */}
                           <div
                             className={cn(
-                              "w-full h-1.5 shrink-0 rounded-t-md bg-emerald-200 shadow-[0_0_8px_#4ade80,0_0_14px_rgba(74,222,128,0.9)]",
-                              isPeak && "bg-emerald-100"
+                              "w-full h-2.5 shrink-0 rounded-t-md relative overflow-hidden bg-gradient-to-r from-emerald-200 via-emerald-300 to-emerald-200 shadow-[0_0_10px_#4ade80,0_0_16px_rgba(74,222,128,0.8)]",
+                              isPeak && "from-emerald-100 via-emerald-200 to-emerald-100 shadow-[0_0_12px_#86efac,0_0_20px_rgba(134,239,172,0.9)]"
                             )}
-                          />
+                          >
+                            {/* Meniscus specular gloss line */}
+                            <div className="absolute inset-x-0 top-0 h-[1px] bg-white/90" />
+                            {/* Subtle liquid surface wave meniscus */}
+                            <svg className="absolute inset-0 w-full h-full opacity-50 pointer-events-none" viewBox="0 0 40 10" preserveAspectRatio="none">
+                              <path d="M0 5 Q 10 1, 20 5 T 40 5 L 40 10 L 0 10 Z" fill="rgba(255,255,255,0.4)" />
+                            </svg>
+                          </div>
 
-                          {/* Inner Vertical Gloss Streak */}
-                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent pointer-events-none" />
+                          {/* Rising Energy Fluid Bubbles & Shimmer */}
+                          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                            <span
+                              className="absolute bottom-2 left-2 w-1 h-1 rounded-full bg-emerald-200/70 animate-bounce"
+                              style={{ animationDuration: '2.2s', animationDelay: `${index * 0.15}s` }}
+                            />
+                            <span
+                              className="absolute bottom-6 right-2 w-1.5 h-1.5 rounded-full bg-emerald-200/50 animate-pulse"
+                              style={{ animationDuration: '1.8s', animationDelay: `${index * 0.25}s` }}
+                            />
+                            {/* Inner Vertical Gloss Streak */}
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent pointer-events-none" />
+                          </div>
                         </motion.div>
                       ) : (
                         /* Zero-Value Rest Day Indicator */

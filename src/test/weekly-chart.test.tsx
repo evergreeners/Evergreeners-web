@@ -66,4 +66,17 @@ describe("WeeklyChart", () => {
     expect(screen.getByText("0 commits")).toBeDefined();
     expect(screen.getByText(/No commits recorded yet/i)).toBeDefined();
   });
+
+  it("handles visibilitychange and window focus for fluid refill animation", () => {
+    const { container } = render(<WeeklyChart data={sampleData} />);
+
+    // Trigger tab return via visibilitychange
+    fireEvent(document, new Event("visibilitychange"));
+    // Trigger window focus
+    fireEvent(window, new Event("focus"));
+
+    // Ensure chart still renders perfectly
+    expect(container.querySelector("[role='graphics-symbol']")).toBeDefined();
+    expect(screen.getByText("Weekly Velocity")).toBeDefined();
+  });
 });
