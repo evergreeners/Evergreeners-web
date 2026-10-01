@@ -16,7 +16,6 @@ import {
   Calendar,
   Briefcase,
   Coffee,
-  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
