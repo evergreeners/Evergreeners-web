@@ -4190,6 +4190,173 @@ Keep the total response under 300 words. Be like a hype coach mixed with a ruthl
         }
     });
 
+    // POST /api/repo/analyze — AI deep codebase audit
+    instance.post('/api/repo/analyze', async (req, reply) => {
+        const session = await getSessionFromRequest(req);
+        if (!session) return reply.status(401).send({ message: 'Unauthorized' });
+
+        const { owner, repo, repoInfo, languages, fileList, recentCommits, readmeSnippet } = req.body as any;
+        if (!owner || !repo) {
+            return reply.status(400).send({ message: 'Owner and repo are required.' });
+        }
+
+        const files: string[] = Array.isArray(fileList) ? fileList : [];
+        const missingFiles: string[] = [];
+        if (!files.some(f => f.toLowerCase() === '.gitignore')) missingFiles.push('.gitignore');
+        if (!files.some(f => f.toLowerCase().includes('readme'))) missingFiles.push('README.md');
+        if (!files.some(f => f.toLowerCase().includes('license'))) missingFiles.push('LICENSE');
+        if (!files.some(f => f.toLowerCase().includes('contributing'))) missingFiles.push('CONTRIBUTING.md');
+        if (!files.some(f => f.startsWith('.github/workflows/'))) missingFiles.push('.github/workflows (CI/CD)');
+        if (!files.some(f => f.toLowerCase().includes('test') || f.toLowerCase().includes('spec'))) missingFiles.push('Test Suite');
+
+        const apiKey = process.env.GEMINI_API_KEY;
+
+        if (apiKey) {
+            try {
+                const { GoogleGenerativeAI } = await import('@google/generative-ai');
+                const genAI = new GoogleGenerativeAI(apiKey);
+                const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+
+                const topLanguages = languages && typeof languages === 'object'
+                    ? Object.entries(languages).slice(0, 5).map(([l, b]) => `${l}: ${b} bytes`).join(', ')
+                    : (repoInfo?.language || 'Unknown');
+                const commitSummary = recentCommits && recentCommits.length > 0
+                    ? recentCommits.slice(0, 8).map((c: any) => `- "${c.message}" by ${c.author || 'contributor'} (${c.date})`).join('\n')
+                    : 'No commit records provided';
+
+                const prompt = `You are a Principal Software Architect and Staff Engineer conducting an authentic codebase audit for a developer workflow platform called Evergreeners.
+Repository: ${owner}/${repo}
+Description: ${repoInfo?.description || 'None provided'}
+Primary Language: ${repoInfo?.language || 'Unknown'}
+Languages Breakdown: ${topLanguages}
+Stars: ${repoInfo?.stargazers_count || 0}, Forks: ${repoInfo?.forks_count || 0}, Open Issues: ${repoInfo?.open_issues_count || 0}
+Missing Standard Files: ${missingFiles.length > 0 ? missingFiles.join(', ') : 'None'}
+Recent Commit History:
+${commitSummary}
+README excerpt:
+${(readmeSnippet || '').slice(0, 1500) || 'None provided'}
+
+Provide a genuine, high-signal, human-crafted architectural review. DO NOT use generic AI clichés. Speak like a pragmatic senior staff engineer pair-programming with the author.
+
+Return ONLY a valid JSON object matching this schema (no markdown formatting, no code fences, pure JSON):
+{
+  "score": <integer 0-100 overall health score based on real practices>,
+  "categoryScores": {
+    "documentation": <integer 0-100>,
+    "architecture": <integer 0-100>,
+    "testing": <integer 0-100>,
+    "maintenance": <integer 0-100>
+  },
+  "readiness": "<Production Ready | Maturing | Early Stage | Needs Attention>",
+  "architectRead": "<2-3 sentences of authentic, direct perspective on what this repo is and its state of maturity>",
+  "strengths": [
+    "<specific positive aspect of codebase>",
+    "<another specific positive aspect>"
+  ],
+  "risks": [
+    "<specific risk, tech debt, or architectural gap>",
+    "<another specific risk or missing practice>"
+  ],
+  "actionItems": [
+    {
+      "title": "<Concise action item title>",
+      "description": "<Specific, actionable advice under 2 sentences>",
+      "timeEstimate": "<e.g. ~15 mins, ~30 mins, ~1 hour>",
+      "priority": "<high | medium | low>"
+    },
+    {
+      "title": "<Concise action item title 2>",
+      "description": "<Specific, actionable advice>",
+      "timeEstimate": "<e.g. ~20 mins>",
+      "priority": "<high | medium | low>"
+    },
+    {
+      "title": "<Concise action item title 3>",
+      "description": "<Specific, actionable advice>",
+      "timeEstimate": "<e.g. ~45 mins>",
+      "priority": "<high | medium | low>"
+    }
+  ],
+  "missingFiles": ${JSON.stringify(missingFiles)}
+}`;
+
+                const result = await model.generateContent(prompt);
+                const text = result.response.text();
+                const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
+                const parsed = JSON.parse(cleaned);
+                return reply.send({
+                    success: true,
+                    data: parsed,
+                    analyzedAt: new Date().toISOString()
+                });
+            } catch (err) {
+                console.error("Gemini repo analysis failed, falling back to heuristic engine:", err);
+            }
+        }
+
+        // Robust heuristic fallback if API key not present or error occurs
+        let score = 92;
+        if (missingFiles.includes('README.md')) score -= 25;
+        if (missingFiles.includes('LICENSE')) score -= 15;
+        if (missingFiles.includes('.gitignore')) score -= 15;
+        if (missingFiles.includes('.github/workflows (CI/CD)')) score -= 15;
+        if (missingFiles.includes('Test Suite')) score -= 15;
+        if (missingFiles.includes('CONTRIBUTING.md')) score -= 5;
+        score = Math.max(score, 35);
+
+        const docScore = missingFiles.includes('README.md') ? 35 : (missingFiles.includes('CONTRIBUTING.md') ? 75 : 95);
+        const testScore = missingFiles.includes('Test Suite') ? 40 : 90;
+        const maintScore = missingFiles.includes('.github/workflows (CI/CD)') ? 55 : 90;
+        const archScore = missingFiles.includes('.gitignore') ? 60 : 85;
+
+        const fallback = {
+            score,
+            categoryScores: {
+                documentation: docScore,
+                architecture: archScore,
+                testing: testScore,
+                maintenance: maintScore
+            },
+            readiness: score >= 80 ? "Production Ready" : (score >= 60 ? "Maturing" : "Early Stage"),
+            architectRead: `This ${repoInfo?.language || 'software'} project has a clear functional purpose with ${repoInfo?.stargazers_count || 0} stars and an active codebase, but addressing foundational hygiene like ${missingFiles.slice(0, 2).join(' and ') || 'automated testing'} will substantially boost reliability.`,
+            strengths: [
+                `Active repository structure with clean language footprint in ${repoInfo?.language || 'main language'}.`,
+                `Direct repository commit lineage with established branch defaults.`
+            ],
+            risks: [
+                missingFiles.length > 0 ? `Missing core hygiene artifacts: ${missingFiles.join(', ')}.` : 'Maintain high test coverage as features scale.',
+                (repoInfo?.open_issues_count || 0) > 10 ? `High volume of open issues (${repoInfo.open_issues_count}) requires triage.` : 'Continuous regression testing needed.'
+            ],
+            actionItems: [
+                {
+                    title: missingFiles.includes('.github/workflows (CI/CD)') ? 'Setup GitHub Actions CI Workflow' : 'Add Automated Lint & Test Step',
+                    description: 'Automate build verification and testing on every pull request to catch regressions before merge.',
+                    timeEstimate: '~20 mins',
+                    priority: 'high'
+                },
+                {
+                    title: missingFiles.includes('README.md') ? 'Craft Comprehensive README with Quickstart' : 'Document Contribution & Architecture Setup',
+                    description: 'Provide reproducible setup instructions, prerequisites, and environment variable references.',
+                    timeEstimate: '~15 mins',
+                    priority: 'high'
+                },
+                {
+                    title: missingFiles.includes('LICENSE') ? 'Add Open Source License' : 'Enhance Codebase Testing Coverage',
+                    description: 'Clarify copyright and usage permissions, or add unit tests for critical business logic paths.',
+                    timeEstimate: '~10 mins',
+                    priority: 'medium'
+                }
+            ],
+            missingFiles
+        };
+
+        return reply.send({
+            success: true,
+            data: fallback,
+            analyzedAt: new Date().toISOString()
+        });
+    });
+
     // GET /api/eye/github-search/:query — search GitHub users for autocomplete
     instance.get('/api/eye/github-search/:query', async (req, reply) => {
         const session = await getSessionFromRequest(req);
