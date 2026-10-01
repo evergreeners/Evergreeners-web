@@ -44,30 +44,17 @@ export default function Index() {
       const res = await fetch(url, { 
         credentials: "include",
         headers: {
-          ...(session?.session?.token ? { Authorization: `Bearer ${session.session.token}` } : {})
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
         }
       });
       if (!res.ok) throw new Error("Failed to fetch fresh profile");
       const data = await res.json();
       return data.user;
     },
-    // Use session data as initial placeholder to render immediately
-    initialData: sessionUser ? {
-      streak: sessionUser.streak || 0,
-      longestStreak: sessionUser.longestStreak || 0,
-      todayCommits: sessionUser.todayCommits || 0,
-      weeklyCommits: sessionUser.weeklyCommits || 0,
-      activeDays: sessionUser.activeDays || 0,
-      totalProjects: sessionUser.totalProjects || 0,
-      contributionData: sessionUser.contributionData || [],
-      yesterdayCommits: sessionUser.yesterdayCommits || 0,
-      ...sessionUser
-    } : undefined,
-    staleTime: 5 * 60 * 1000, // 5 minutes stale time to avoid aggressive re-syncing
-    refetchOnMount: false, // Use pre-cached data instantly
-    refetchOnWindowFocus: false, // Prevent background refetch storms when switching windows
-    placeholderData: (previousData) => previousData, // Keep showing previous data while fetching new data
-    enabled: !!sessionUser, // Only fetch if we have a session
+    staleTime: 60 * 1000, // 1 minute
+    gcTime: 10 * 60 * 1000,
+    refetchOnMount: true, // Always verify profile on mount
+    enabled: !!session, // Fetch as soon as we have a session
   });
 
   const { data: goals = [], isLoading: isLoadingGoals } = useQuery<Goal[]>({
@@ -107,54 +94,64 @@ export default function Index() {
 
   // Parse contribution data for weekly chart
   const weeklyChartData = useMemo(() => {
-    // We strictly need the profile to be loaded
-    if (!profile?.contributionData || !Array.isArray(profile.contributionData) || profile.contributionData.length === 0) {
-      // Fallback: Return empty/zeros with correct labels
-      const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-      const now = new Date();
-      const todayDay = now.getDay(); // 0 = Sun
-      // We want last 7 days ending today
-      const result = [];
-      for (let i = 6; i >= 0; i--) {
-        const d = (todayDay - i + 7) % 7;
-        const targetDate = new Date(now.getTime() - i * 86400000);
-        result.push({
-          day: days[d],
-          value: 0,
-          date: targetDate.toISOString().split("T")[0],
-          fullDate: targetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-          dayNumber: targetDate.getDate(),
-          isToday: i === 0,
-        });
+    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const now = new Date();
+    const todayDay = now.getDay(); // 0 = Sun
+    const contribs = Array.isArray(profile?.contributionData) ? profile.contributionData : [];
+
+    // Map each item's date YYYY-MM-DD -> contributionCount for fast exact lookup
+    const dateMap = new Map<string, number>();
+    for (const item of contribs) {
+      if (item && item.date) {
+        const key = item.date.slice(0, 10);
+        dateMap.set(key, item.contributionCount || 0);
       }
-      return result;
     }
 
-    // user.contributionData is ordered [Today, Yesterday, ...] (Desceding Date)
-    // We want the chart to show [6 days ago, ..., Today] (Ascending Date)
-    // So we take the first 7 items (which are the most recent 7 days) and REVERSE them.
-    const last7Days = profile.contributionData.slice(0, 7).reverse();
+    // We want last 7 days ending today (index 0 = 6 days ago, index 6 = today)
+    const result = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = (todayDay - i + 7) % 7;
+      const targetDate = new Date(now.getTime() - i * 86400000);
+      const dateStr = targetDate.toISOString().split("T")[0];
+      const isToday = i === 0;
 
-    return last7Days.map((d: any, index: number) => {
-      const dateStr = d.date ? (d.date.includes("T") ? d.date : `${d.date}T00:00:00Z`) : null;
-      const date = dateStr ? new Date(dateStr) : new Date();
-      const dayName = date.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' });
-      const fullDate = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
-      const dayNumber = date.getUTCDate();
-      const isToday = index === last7Days.length - 1;
+      let count = dateMap.get(dateStr) ?? 0;
+      // If today has commits recorded in todayCommits but not yet in calendar, use todayCommits
+      if (isToday && count === 0 && (profile?.todayCommits || 0) > 0) {
+        count = profile.todayCommits;
+      }
 
-      return {
-        day: dayName,
-        value: d.contributionCount || 0,
-        date: d.date,
-        fullDate,
-        dayNumber,
+      result.push({
+        day: days[d],
+        value: count,
+        date: dateStr,
+        fullDate: targetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        dayNumber: targetDate.getDate(),
         isToday,
-      };
-    });
-  }, [profile?.contributionData]);
+      });
+    }
+    return result;
+  }, [profile?.contributionData, profile?.todayCommits]);
 
-  const activeDaysCount = profile?.activeDays || 0;
+  const calculatedWeeklyTotal = useMemo(() => {
+    return weeklyChartData.reduce((sum, item) => sum + (item.value || 0), 0);
+  }, [weeklyChartData]);
+
+  const effectiveWeeklyCommits = useMemo(() => {
+    if (profile?.weeklyCommits !== undefined && profile.weeklyCommits > 0) {
+      return profile.weeklyCommits;
+    }
+    return calculatedWeeklyTotal;
+  }, [profile?.weeklyCommits, calculatedWeeklyTotal]);
+
+  const activeDaysCount = useMemo(() => {
+    if (profile?.activeDays !== undefined && profile.activeDays > 0) {
+      return profile.activeDays;
+    }
+    return weeklyChartData.filter((item) => (item.value || 0) > 0).length;
+  }, [profile?.activeDays, weeklyChartData]);
+
   const currentGoal = goals.find(g => !g.completed);
 
   // Generate dynamic insights
@@ -165,9 +162,9 @@ export default function Index() {
     if (profile.streak > 5) {
       arr.push(`You're on a ${profile.streak}-day streak! Consistency is key.`);
     }
-    if (profile.weeklyCommits > 10) {
-      arr.push(`You've made ${profile.weeklyCommits} commits this week. Great work!`);
-    } else if (profile.weeklyCommits === 0) {
+    if (effectiveWeeklyCommits > 10) {
+      arr.push(`You've made ${effectiveWeeklyCommits} commits this week. Great work!`);
+    } else if (effectiveWeeklyCommits === 0) {
       arr.push("No commits this week yet. Ready to start?");
     }
 
@@ -185,7 +182,7 @@ export default function Index() {
     }
 
     return arr.slice(0, 2); // Return top 2
-  }, [profile, currentGoal]);
+  }, [profile, currentGoal, effectiveWeeklyCommits]);
 
   const myAvatar = sessionUser?.image ||
     `https://ui-avatars.com/api/?name=${encodeURIComponent(sessionUser?.name || "You")}&background=random`;
@@ -214,8 +211,8 @@ export default function Index() {
             >
               <WeeklyChart
                 data={weeklyChartData}
-                weeklyTotal={profile?.weeklyCommits}
-                activeDays={profile?.activeDays}
+                weeklyTotal={effectiveWeeklyCommits}
+                activeDays={activeDaysCount}
               />
             </Section>
 
@@ -286,7 +283,7 @@ export default function Index() {
               <div className="grid grid-cols-3 gap-4">
                 <StatItem
                   label="This Week"
-                  value={profile?.weeklyCommits || 0}
+                  value={effectiveWeeklyCommits}
                   subtext="commits"
                   className="items-center text-center md:items-start md:text-left"
                 />
