@@ -8,6 +8,7 @@ import {
   PieChart, Pie, Cell, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, AreaChart, Area
 } from "recharts";
+import { WeekdayDistributionChart } from "@/components/WeekdayDistributionChart";
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
@@ -436,23 +437,11 @@ export default function Analytics() {
 
             {/* Weekly Distribution */}
             <Section title="Activity by Day" className="animate-fade-up" style={{ animationDelay: "0.2s" }}>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={weeklyCommits}>
-                    <XAxis
-                      dataKey="day"
-                      axisLine={false}
-                      tickLine={false}
-                      tick={{ fill: 'hsl(0, 0%, 55%)', fontSize: 12 }}
-                    />
-                    <Bar
-                      dataKey="commits"
-                      fill="hsl(142, 71%, 45%)"
-                      radius={[4, 4, 0, 0]}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              <WeekdayDistributionChart
+                data={weeklyCommits}
+                timeRange={timeRange}
+                title="Weekday Cadence"
+              />
             </Section>
 
             {/* Two Column Charts: Languages & Insights */}
