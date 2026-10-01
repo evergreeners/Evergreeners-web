@@ -88,10 +88,10 @@ export function WeeklyChart({
     () => safeData.reduce((sum, item) => sum + (item.value || 0), 0),
     [safeData]
   );
-  const totalCommits = weeklyTotal !== undefined ? weeklyTotal : calculatedTotal;
+  const totalCommits = (weeklyTotal !== undefined && weeklyTotal > 0) ? weeklyTotal : calculatedTotal;
 
   const activeDaysCount = useMemo(() => {
-    if (activeDaysProp !== undefined) return activeDaysProp;
+    if (activeDaysProp !== undefined && activeDaysProp > 0) return activeDaysProp;
     return safeData.filter((item) => (item.value || 0) > 0).length;
   }, [activeDaysProp, safeData]);
 
