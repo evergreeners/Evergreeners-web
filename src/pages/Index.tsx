@@ -120,12 +120,21 @@ export default function Index() {
     if (!profile?.contributionData || !Array.isArray(profile.contributionData) || profile.contributionData.length === 0) {
       // Fallback: Return empty/zeros with correct labels
       const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-      const today = new Date().getDay(); // 0 = Sun
+      const now = new Date();
+      const todayDay = now.getDay(); // 0 = Sun
       // We want last 7 days ending today
       const result = [];
       for (let i = 6; i >= 0; i--) {
-        const d = (today - i + 7) % 7;
-        result.push({ day: days[d], value: 0 });
+        const d = (todayDay - i + 7) % 7;
+        const targetDate = new Date(now.getTime() - i * 86400000);
+        result.push({
+          day: days[d],
+          value: 0,
+          date: targetDate.toISOString().split("T")[0],
+          fullDate: targetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          dayNumber: targetDate.getDate(),
+          isToday: i === 0,
+        });
       }
       return result;
     }
@@ -135,12 +144,21 @@ export default function Index() {
     // So we take the first 7 items (which are the most recent 7 days) and REVERSE them.
     const last7Days = profile.contributionData.slice(0, 7).reverse();
 
-    return last7Days.map((d: any) => {
-      const date = new Date(d.date);
+    return last7Days.map((d: any, index: number) => {
+      const dateStr = d.date ? (d.date.includes("T") ? d.date : `${d.date}T00:00:00Z`) : null;
+      const date = dateStr ? new Date(dateStr) : new Date();
       const dayName = date.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' });
+      const fullDate = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+      const dayNumber = date.getUTCDate();
+      const isToday = index === last7Days.length - 1;
+
       return {
         day: dayName,
-        value: d.contributionCount
+        value: d.contributionCount || 0,
+        date: d.date,
+        fullDate,
+        dayNumber,
+        isToday,
       };
     });
   }, [profile?.contributionData]);
@@ -203,7 +221,11 @@ export default function Index() {
               className="animate-fade-up"
               style={{ animationDelay: "0.2s" }}
             >
-              <WeeklyChart data={weeklyChartData} />
+              <WeeklyChart
+                data={weeklyChartData}
+                weeklyTotal={profile?.weeklyCommits}
+                activeDays={profile?.activeDays}
+              />
             </Section>
 
             {/* Contribution Grid */}
