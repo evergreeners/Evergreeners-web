@@ -86,20 +86,6 @@ export function usePrefetchAppData(token: string | undefined) {
                         },
                         staleTime: 1 * 60 * 1000,
                     }),
-
-                    // 6. Watchlist cached stats
-                    queryClient.prefetchQuery({
-                        queryKey: ['watchlist', 'refresh'],
-                        queryFn: async () => {
-                            const res = await fetch(getApiUrl('/api/eye/watchlist/refresh'), {
-                                method: 'POST',
-                                credentials: "include",
-                            });
-                            if (!res.ok) throw new Error('Failed to refresh watchlist');
-                            return res.json();
-                        },
-                        staleTime: 1 * 60 * 1000,
-                    }),
                 ]);
 
                 console.log('⚡ All app and analytics data prefetched in parallel');

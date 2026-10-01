@@ -1,7 +1,7 @@
 import { BarChart3, Compass, Target, Trophy, Wand2 } from "lucide-react";
 import { cn, triggerHaptic } from "@/lib/utils";
 import { useLocation, Link } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/lib/auth-client";
 import { getApiUrl } from "@/lib/api-config";
@@ -25,7 +25,9 @@ export function FloatingNav() {
   const location = useLocation();
   const currentPath = location.pathname;
   const [isVisible, setIsVisible] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
+  const isVisibleRef = useRef(true);
+  const lastScrollY = useRef(0);
+  const rafId = useRef<number | null>(null);
 
   const queryClient = useQueryClient();
   const { data: session } = useSession();
@@ -58,21 +60,33 @@ export function FloatingNav() {
 
   useEffect(() => {
     const handleScroll = () => {
-      const currentScrollY = window.scrollY;
+      if (rafId.current !== null) return;
 
-      // Hide when scrolling down, show when scrolling up
-      if (currentScrollY > lastScrollY && currentScrollY > 20) {
-        setIsVisible(false);
-      } else {
-        setIsVisible(true);
-      }
+      rafId.current = window.requestAnimationFrame(() => {
+        rafId.current = null;
+        const currentScrollY = window.scrollY;
+        const prevScrollY = lastScrollY.current;
 
-      setLastScrollY(currentScrollY);
+        // Hide when scrolling down past 20px, show when scrolling up
+        const shouldBeVisible = !(currentScrollY > prevScrollY && currentScrollY > 20);
+
+        if (isVisibleRef.current !== shouldBeVisible) {
+          isVisibleRef.current = shouldBeVisible;
+          setIsVisible(shouldBeVisible);
+        }
+
+        lastScrollY.current = currentScrollY;
+      });
     };
 
     window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [lastScrollY]);
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      if (rafId.current !== null) {
+        window.cancelAnimationFrame(rafId.current);
+      }
+    };
+  }, []);
 
   return (
     <nav className={cn(

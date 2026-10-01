@@ -63,41 +63,32 @@ export default function Index() {
       yesterdayCommits: sessionUser.yesterdayCommits || 0,
       ...sessionUser
     } : undefined,
-    staleTime: 0, // Always consider data stale to force background refresh (Syncing)
-    refetchOnMount: true, // Refetch when component mounts (visiting page)
-    refetchOnWindowFocus: true, // Refetch when window gains focus
+    staleTime: 5 * 60 * 1000, // 5 minutes stale time to avoid aggressive re-syncing
+    refetchOnMount: false, // Use pre-cached data instantly
+    refetchOnWindowFocus: false, // Prevent background refetch storms when switching windows
     placeholderData: (previousData) => previousData, // Keep showing previous data while fetching new data
     enabled: !!sessionUser, // Only fetch if we have a session
   });
 
-  const [goals, setGoals] = useState<Goal[]>([]);
-  const [isLoadingGoals, setIsLoadingGoals] = useState(true);
-  const [watchlistRefreshTrigger, setWatchlistRefreshTrigger] = useState(0);
-
-  // Fetch goals separately (could also be a query, but keeping simple for now)
-  useEffect(() => {
-    if (sessionUser) {
-      const fetchGoals = async () => {
-        try {
-          const res = await fetch(getApiUrl("/api/goals"), {
-            credentials: "include",
-            headers: {
-              ...(session?.session?.token ? { Authorization: `Bearer ${session.session.token}` } : {})
-            }
-          });
-          if (res.ok) {
-            const data = await res.json();
-            setGoals(data.goals || []);
-          }
-        } catch (e) {
-          console.error("Failed to fetch goals", e);
-        } finally {
-          setIsLoadingGoals(false);
+  const { data: goals = [], isLoading: isLoadingGoals } = useQuery<Goal[]>({
+    queryKey: ['goals', sessionUser?.id],
+    queryFn: async () => {
+      const res = await fetch(getApiUrl("/api/goals"), {
+        credentials: "include",
+        headers: {
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
         }
-      };
-      fetchGoals();
-    }
-  }, [sessionUser]);
+      });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.goals || [];
+    },
+    enabled: !!sessionUser?.id,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
+  const [watchlistRefreshTrigger, setWatchlistRefreshTrigger] = useState(0);
 
   // Handle welcome toasts
   useEffect(() => {
