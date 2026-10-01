@@ -43,6 +43,26 @@ export const githubService = {
         return this.proxyRequest(token, `/repos/${owner}/${repo}/git/trees/${defaultBranch}?recursive=1`);
     },
 
+    // Get repository languages
+    async getRepoLanguages(token: string, owner: string, repo: string) {
+        return this.proxyRequest(token, `/repos/${owner}/${repo}/languages`);
+    },
+
+    // Get recent repository commits
+    async getRepoCommits(token: string, owner: string, repo: string, perPage: number = 10) {
+        return this.proxyRequest(token, `/repos/${owner}/${repo}/commits?per_page=${perPage}`);
+    },
+
+    // Get repository README
+    async getRepoReadme(token: string, owner: string, repo: string) {
+        try {
+            const data = await this.proxyRequest(token, `/repos/${owner}/${repo}/readme`);
+            return data?.content ? this.decodeBase64(data.content) : '';
+        } catch {
+            return '';
+        }
+    },
+
     // Creating branches
     async createBranch(token: string, owner: string, repo: string, newBranch: string, baseBranch: string = 'main') {
         // 1. Get base branch SHA
