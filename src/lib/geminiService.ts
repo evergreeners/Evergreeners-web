@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { getApiUrl } from '@/lib/api-config';
 
 // Initialize with a dummy key or environment variable.
 const apiKey = import.meta.env.VITE_GEMINI_API_KEY || 'dummy_key';
@@ -6,15 +7,45 @@ const genAI = new GoogleGenerativeAI(apiKey);
 
 export const geminiService = {
     async analyzeRepoHealth(repoData: any, tree: any) {
-        if (apiKey === 'dummy_key') return this.getMockHealthResponse();
-
-        const missingItems = [];
+        const missingItems: string[] = [];
         const files = tree?.tree?.map((t: any) => t.path) || [];
 
         if (!files.includes('.gitignore')) missingItems.push('.gitignore');
         if (!files.some((f: string) => f.toLowerCase().includes('readme'))) missingItems.push('README.md');
         if (!files.some((f: string) => f.toLowerCase().includes('license'))) missingItems.push('LICENSE');
         if (!files.some((f: string) => f.toLowerCase().includes('contributing'))) missingItems.push('CONTRIBUTING.md');
+
+        // Prefer backend analysis endpoint with server-side Gemini 2.5 Flash
+        try {
+            const [owner, repo] = (repoData.full_name || `${repoData.owner?.login || 'user'}/${repoData.name}`).split('/');
+            const res = await fetch(getApiUrl("/api/repo/analyze"), {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({
+                    owner,
+                    repo,
+                    repoInfo: repoData,
+                    fileList: files,
+                    recentCommits: [],
+                }),
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                if (data.data) {
+                    return {
+                        score: data.data.score || 80,
+                        insights: data.data.architectRead || "Architecture analysis complete.",
+                        missingFiles: missingItems,
+                    };
+                }
+            }
+        } catch (backendErr) {
+            console.warn("Backend repo audit unavailable, attempting fallback", backendErr);
+        }
+
+        if (apiKey === 'dummy_key') return this.getMockHealthResponse(missingItems);
 
         try {
             const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
@@ -42,6 +73,33 @@ export const geminiService = {
     },
 
     async generateSuggestions(repoData: any) {
+        // Prefer backend analysis recommendations if available
+        try {
+            const [owner, repo] = (repoData.full_name || `${repoData.owner?.login || 'user'}/${repoData.name}`).split('/');
+            const res = await fetch(getApiUrl("/api/repo/analyze"), {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({
+                    owner,
+                    repo,
+                    repoInfo: repoData,
+                }),
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                if (Array.isArray(data.data?.actionItems) && data.data.actionItems.length > 0) {
+                    return data.data.actionItems.map((item: any) => ({
+                        title: item.title,
+                        description: item.description,
+                    }));
+                }
+            }
+        } catch {
+            // fallback
+        }
+
         if (apiKey === 'dummy_key') return this.getMockSuggestions();
 
         try {
