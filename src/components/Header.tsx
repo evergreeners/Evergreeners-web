@@ -1,5 +1,8 @@
 import { Settings, Menu, Home, BarChart3, Compass, Target, Trophy, LogOut, Wand2, ShieldCheck, GraduationCap } from "lucide-react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
+import { getApiUrl } from "@/lib/api-config";
+import { githubService } from "@/lib/githubService";
 import { Logo } from "@/components/Logo";
 import { NotificationCenter } from "@/components/NotificationCenter";
 import { useState } from "react";
@@ -47,11 +50,38 @@ export function Header() {
   const location = useLocation();
   const currentPath = location.pathname;
   const { data: session } = useSession();
+  const queryClient = useQueryClient();
   const loggedInUsername = (session?.user as any)?.username;
   const { badges } = useBadges(loggedInUsername ?? null);
   const isGoat = badges?.some((b) => b.id === 'the_goat' && b.earned);
   
   const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
+
+  const prefetchAnalytics = () => {
+    const token = session?.session?.token;
+    if (!token) return;
+    queryClient.prefetchQuery({
+      queryKey: ['userProfile', 'me'],
+      queryFn: async () => {
+        const res = await fetch(getApiUrl('/api/user/profile'), {
+          credentials: "include",
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!res.ok) throw new Error('Failed to fetch profile');
+        const data = await res.json();
+        return data.user;
+      },
+      staleTime: 5 * 60 * 1000,
+    });
+    queryClient.prefetchQuery({
+      queryKey: ['userRepos', token],
+      queryFn: async () => {
+        const repos = await githubService.getUserRepos(token);
+        return Array.isArray(repos) ? repos : [];
+      },
+      staleTime: 5 * 60 * 1000,
+    });
+  };
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 px-4 md:px-0">
@@ -91,6 +121,12 @@ export function Header() {
                   key={item.label}
                   to={item.href}
                   onClick={() => triggerHaptic()}
+                  onMouseEnter={() => {
+                    if (item.href === "/analytics") prefetchAnalytics();
+                  }}
+                  onFocus={() => {
+                    if (item.href === "/analytics") prefetchAnalytics();
+                  }}
                   className={cn(
                     "flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-300 text-sm font-medium",
                     isActive

@@ -1,6 +1,11 @@
 import { BarChart3, Compass, Target, Trophy, Wand2 } from "lucide-react";
 import { cn, triggerHaptic } from "@/lib/utils";
 import { useLocation, Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useSession } from "@/lib/auth-client";
+import { getApiUrl } from "@/lib/api-config";
+import { githubService } from "@/lib/githubService";
 
 interface NavItem {
   icon: React.ElementType;
@@ -16,20 +21,46 @@ const navItems: NavItem[] = [
   { icon: Wand2, label: "Generator", href: "/generator" },
 ];
 
-import { useState, useEffect } from "react";
-
 export function FloatingNav() {
   const location = useLocation();
   const currentPath = location.pathname;
   const [isVisible, setIsVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
 
+  const queryClient = useQueryClient();
+  const { data: session } = useSession();
+
+  const prefetchAnalytics = () => {
+    const token = session?.session?.token;
+    if (!token) return;
+    queryClient.prefetchQuery({
+      queryKey: ['userProfile', 'me'],
+      queryFn: async () => {
+        const res = await fetch(getApiUrl('/api/user/profile'), {
+          credentials: "include",
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!res.ok) throw new Error('Failed to fetch profile');
+        const data = await res.json();
+        return data.user;
+      },
+      staleTime: 5 * 60 * 1000,
+    });
+    queryClient.prefetchQuery({
+      queryKey: ['userRepos', token],
+      queryFn: async () => {
+        const repos = await githubService.getUserRepos(token);
+        return Array.isArray(repos) ? repos : [];
+      },
+      staleTime: 5 * 60 * 1000,
+    });
+  };
+
   useEffect(() => {
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
 
       // Hide when scrolling down, show when scrolling up
-      // Add a small threshold to avoid jitter at the very top or small movements
       if (currentScrollY > lastScrollY && currentScrollY > 20) {
         setIsVisible(false);
       } else {
@@ -57,6 +88,12 @@ export function FloatingNav() {
                 <Link
                   to={item.href}
                   onClick={() => triggerHaptic()}
+                  onMouseEnter={() => {
+                    if (item.href === "/analytics") prefetchAnalytics();
+                  }}
+                  onTouchStart={() => {
+                    if (item.href === "/analytics") prefetchAnalytics();
+                  }}
                   aria-current={isActive ? "page" : undefined}
                   className={cn(
                     "flex items-center justify-center gap-1.5 px-2 py-2.5 rounded-xl transition-all duration-300",
