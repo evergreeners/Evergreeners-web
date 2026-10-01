@@ -226,12 +226,31 @@ export async function inviteAllExistingUsers(): Promise<{
 export async function checkIsPublicMember(username: string): Promise<boolean> {
     const cleanUsername = username.trim().toLowerCase();
     const org = getCommunityOrg();
+    const octokit = getOrgAdminOctokit();
+    if (octokit) {
+        try {
+            const res = await octokit.rest.orgs.checkPublicMembershipForUser({
+                org,
+                username: cleanUsername,
+            });
+            return res.status === 204;
+        } catch (err: any) {
+            if (err.status === 404) return false;
+            console.warn(`[Org Invite] Octokit checkPublicMembershipForUser check for ${cleanUsername}:`, err.message);
+        }
+    }
+
     try {
+        const headers: Record<string, string> = {
+            "User-Agent": "Evergreeners-App",
+            "Accept": "application/vnd.github+json",
+        };
+        const token = process.env.GITHUB_ORG_ADMIN_TOKEN;
+        if (token) {
+            headers["Authorization"] = `Bearer ${token}`;
+        }
         const res = await fetch(`https://api.github.com/orgs/${org}/public_members/${cleanUsername}`, {
-            headers: {
-                "User-Agent": "Evergreeners-App",
-                "Accept": "application/vnd.github+json",
-            },
+            headers,
         });
         return res.status === 204;
     } catch (err: any) {

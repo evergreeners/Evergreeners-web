@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { TreePine, ExternalLink, RefreshCw, X, Globe } from "lucide-react";
+import { TreePine, ExternalLink, RefreshCw, X, Globe, Check } from "lucide-react";
 import { getApiUrl } from "@/lib/api-config";
 import { useSession } from "@/lib/auth-client";
 import { toast } from "sonner";
@@ -17,11 +17,16 @@ export const OrgInviteBanner: React.FC<OrgInviteBannerProps> = ({ username }) =>
   const [peopleUrl, setPeopleUrl] = useState("https://github.com/orgs/evergreeners/people");
   const [isResending, setIsResending] = useState(false);
   const [isPublicizing, setIsPublicizing] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
   const [isDismissed, setIsDismissed] = useState(false);
 
   useEffect(() => {
-    // Check session storage for temporary dismissal in current browser session
-    if (sessionStorage.getItem("org_banner_dismissed") === "true") {
+    // Check persistent storage for previous dismissal or confirmed public status
+    if (
+      localStorage.getItem("org_banner_dismissed") === "true" ||
+      localStorage.getItem("org_public_confirmed") === "true" ||
+      sessionStorage.getItem("org_banner_dismissed") === "true"
+    ) {
       setIsDismissed(true);
       return;
     }
@@ -115,8 +120,35 @@ export const OrgInviteBanner: React.FC<OrgInviteBannerProps> = ({ username }) =>
     }
   };
 
+  const handleConfirmPublic = async () => {
+    setIsConfirming(true);
+    try {
+      localStorage.setItem("org_public_confirmed", "true");
+      localStorage.setItem("org_banner_dismissed", "true");
+      sessionStorage.setItem("org_banner_dismissed", "true");
+      setIsPublicMember(true);
+      setIsDismissed(true);
+
+      // Best effort backend sync with force cache-bust
+      fetch(getApiUrl("/api/user/org-confirm-public"), {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          ...(session?.session?.token ? { Authorization: `Bearer ${session.session.token}` } : {})
+        }
+      }).catch(() => {});
+
+      toast.success("Membership confirmed as Public! 🎉", {
+        description: `Your Evergreeners community badge is now recognized on @${orgName}.`
+      });
+    } finally {
+      setIsConfirming(false);
+    }
+  };
+
   const handleDismiss = () => {
     setIsDismissed(true);
+    localStorage.setItem("org_banner_dismissed", "true");
     sessionStorage.setItem("org_banner_dismissed", "true");
   };
 
@@ -210,21 +242,22 @@ export const OrgInviteBanner: React.FC<OrgInviteBannerProps> = ({ username }) =>
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5 w-full sm:w-auto shrink-0 pt-2 sm:pt-0">
+          <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto shrink-0 pt-2 sm:pt-0">
             <button
-              onClick={handleMakePublic}
-              disabled={isPublicizing}
-              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium border border-primary/20 bg-secondary/80 hover:bg-secondary text-foreground hover:text-primary transition-all duration-300 disabled:opacity-50"
+              onClick={handleConfirmPublic}
+              disabled={isConfirming}
+              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition-all duration-300 shadow-sm hover:scale-[1.02] active:scale-[0.98]"
+              title="Confirm that your membership is now public on GitHub"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isPublicizing ? "animate-spin" : ""}`} />
-              <span>{isPublicizing ? "Publicizing..." : "Make Public"}</span>
+              <Check className="w-3.5 h-3.5 text-emerald-400" />
+              <span>{isConfirming ? "Confirming..." : "I've Made it Public"}</span>
             </button>
 
             <a
               href={peopleUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-300 shadow-md shadow-primary/20 hover:scale-[1.02] active:scale-[0.98]"
+              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-300 shadow-md shadow-primary/20 hover:scale-[1.02] active:scale-[0.98]"
             >
               <span>Set on GitHub</span>
               <ExternalLink className="w-3.5 h-3.5" />

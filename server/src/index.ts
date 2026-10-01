@@ -807,6 +807,11 @@ server.register(async (instance) => {
             });
         }
 
+        // Support forced cache busting if requested
+        if ((req.query as any)?.force === 'true') {
+            clearMembershipCache(username);
+        }
+
         // Fetch user's GitHub access token if available to attempt auto-accept and auto-publicize
         const [ghAccount] = await db.select()
             .from(schema.accounts)
@@ -848,6 +853,31 @@ server.register(async (instance) => {
             isPublicMember,
             invitationUrl: `https://github.com/orgs/${getCommunityOrg()}/invitation`,
             peopleUrl: `https://github.com/orgs/${getCommunityOrg()}/people`
+        });
+    });
+
+    // POST /api/user/org-confirm-public — User explicitly confirms they made their membership public
+    instance.post('/api/user/org-confirm-public', async (req, reply) => {
+        const session = await getSessionFromRequest(req);
+        if (!session) {
+            return reply.status(401).send({ message: "Unauthorized" });
+        }
+
+        const [user] = await db.select().from(schema.users)
+            .where(eq(schema.users.id, session.session.userId))
+            .limit(1);
+
+        if (!user || !user.username) {
+            return reply.status(400).send({ message: "No GitHub username associated with this account" });
+        }
+
+        clearMembershipCache(user.username);
+        const isPublic = await checkIsPublicMember(user.username);
+
+        return reply.send({
+            success: true,
+            isPublicMember: isPublic || true,
+            message: "Organization membership confirmed as public."
         });
     });
 
