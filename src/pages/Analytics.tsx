@@ -71,42 +71,46 @@ export default function Analytics() {
   const [timeRange, setTimeRange] = useState<TimeRange>("month");
   const [activeTab, setActiveTab] = useState("overview");
 
-  const [repos, setRepos] = useState<any[]>([]);
-  const [isLoadingRepos, setIsLoadingRepos] = useState(false);
   const [repoSort, setRepoSort] = useState<"all" | "stars" | "forks" | "name">("all");
   const [searchQuery, setSearchQuery] = useState("");
 
   const { data: session, isPending: isSessionLoading } = useSession();
   const navigate = useNavigate();
 
-  // Fetch repositories when switching to the repositories tab
-  useEffect(() => {
-    if (activeTab === "repositories" && repos.length === 0 && session?.session?.token) {
-      setIsLoadingRepos(true);
-      githubService.getUserRepos(session.session.token)
-        .then(data => {
-          if (Array.isArray(data)) setRepos(data);
-        })
-        .catch(err => console.error("Failed to fetch repos", err))
-        .finally(() => setIsLoadingRepos(false));
-    }
-  }, [activeTab, session?.session?.token, repos.length]);
-
-  // Fetch User Profile using React Query
+  // Fetch User Profile using React Query with prefetch cache key ['userProfile', 'me']
   const { data: user, isLoading } = useQuery({
-    queryKey: ['userProfile'],
+    queryKey: ['userProfile', 'me'],
     queryFn: async () => {
       const url = getApiUrl("/api/user/profile");
       const res = await fetch(url, {
-        credentials: "include"
+        credentials: "include",
+        headers: {
+          ...(session?.session?.token ? { Authorization: `Bearer ${session.session.token}` } : {})
+        }
       });
       if (!res.ok) throw new Error("Failed to fetch profile");
       const data = await res.json();
       return data.user;
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
-    refetchOnWindowFocus: true,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    placeholderData: (previousData) => previousData,
     enabled: !!session?.session,
+  });
+
+  // Cached User Repositories (prefetched in background on site load)
+  const { data: repos = [], isLoading: isLoadingRepos } = useQuery({
+    queryKey: ['userRepos', session?.session?.token],
+    queryFn: async () => {
+      if (!session?.session?.token) return [];
+      const data = await githubService.getUserRepos(session.session.token);
+      return Array.isArray(data) ? data : [];
+    },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    placeholderData: (previousData) => previousData,
+    enabled: !!session?.session?.token,
   });
 
   const sortedRepos = useMemo(() => {
