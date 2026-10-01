@@ -74,6 +74,10 @@ const AppContents = () => {
 
           if (res.ok) {
             console.log("Background GitHub sync completed successfully");
+            // Invalidate user profile and goals so dashboard and analytics update with fresh stats
+            queryClient.invalidateQueries({ queryKey: ['userProfile', 'me'] });
+            queryClient.invalidateQueries({ queryKey: ['goals'] });
+            queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
           }
         } catch (err) {
           // Silent fail - sync is not critical for page load
