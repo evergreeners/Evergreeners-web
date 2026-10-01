@@ -13,3 +13,12 @@ Object.defineProperty(window, "matchMedia", {
     dispatchEvent: () => {},
   }),
 });
+
+class ResizeObserverMock {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
+window.ResizeObserver = window.ResizeObserver || ResizeObserverMock;
+global.ResizeObserver = global.ResizeObserver || ResizeObserverMock;
